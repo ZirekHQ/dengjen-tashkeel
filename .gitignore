@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
 __pycache__
+.idea
+.serena

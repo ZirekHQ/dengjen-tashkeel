@@ -1,9 +1,10 @@
 use libtashkeel_core::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
+use pyo3::sync::PyOnceLock;
+use pyo3::types::PyModule;
 
-static INFERENCE_ENGINE: GILOnceCell<DynamicInferenceEngine> = GILOnceCell::new();
+static INFERENCE_ENGINE: PyOnceLock<DynamicInferenceEngine> = PyOnceLock::new();
 
 /// Diacritize Arabic text.
 #[pyfunction]
@@ -34,7 +35,8 @@ fn tashkeel(
 
 /// A Python wrapper for libtashkeel.
 #[pymodule]
-fn pylibtashkeel(py: Python, m: &PyModule) -> PyResult<()> {
+fn pylibtashkeel(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = m.py();
     let engine = match create_inference_engine(None) {
         Ok(eng) => eng,
         Err(e) => {
