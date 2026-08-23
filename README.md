@@ -79,7 +79,7 @@ $ cd pylibtashkeel
 $ python3 -m venv .venv
 $ source .venv/bin/activate
 $ pip install maturin
-$ maturin build --release --strip -i .venv/bin/python
+$ maturin build --release --strip -i .venv/bin/python --features extension-module
 ```
 
 Then, the built wheel is found under `target/wheels` directory.

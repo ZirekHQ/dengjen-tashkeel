@@ -51,3 +51,32 @@ fn pylibtashkeel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(tashkeel, m)?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn call_tashkeel(text: &str, taskeen_threshold: Option<f32>) -> PyResult<String> {
+        Python::attach(|py| {
+            INFERENCE_ENGINE.get_or_init(py, || create_inference_engine(None).unwrap());
+            tashkeel(py, text.to_string(), taskeen_threshold, None)
+        })
+    }
+
+    #[test]
+    fn tashkeel_diacritizes_plain_text() {
+        let result = call_tashkeel("بسم الله الرحمن الرحيم", None);
+
+        let diacritized = result.unwrap();
+        assert_ne!(diacritized, "بسم الله الرحمن الرحيم");
+        assert!(!diacritized.is_empty());
+    }
+
+    #[test]
+    fn tashkeel_with_taskeen_threshold_differs_from_default() {
+        let without_taskeen = call_tashkeel("بسم الله الرحمن الرحيم", None).unwrap();
+        let with_taskeen = call_tashkeel("بسم الله الرحمن الرحيم", Some(0.8)).unwrap();
+
+        assert_ne!(without_taskeen, with_taskeen);
+    }
+}

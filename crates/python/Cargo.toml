@@ -16,10 +16,15 @@ crate-type = ["cdylib"]
 default = ["ort"]
 ort = ["libtashkeel_core/ort"]
 ort-dylib = ["libtashkeel_core/ort-dylib"]
+extension-module = ["pyo3/extension-module"]
 
 [dependencies.pyo3]
 version = "0.29"
-features = ["extension-module", "abi3-py39",]
+features = ["abi3-py39"]
+
+[dev-dependencies.pyo3]
+version = "0.29"
+features = ["auto-initialize"]
 
 [dependencies.libtashkeel_core]
 path = "../core"
