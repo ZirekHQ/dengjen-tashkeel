@@ -50,9 +50,13 @@ jobs:
         # name (resolved via the interpreter's cwd/sys.path), not a
         # slash-separated path from the repo root -- the latter silently
         # collects zero coverage data instead of failing loudly.
+        #
+        # Versions pinned and --only-binary :all: set so pip resolves only
+        # prebuilt wheels at exact, known versions -- no arbitrary sdist
+        # build-script execution, no unpinned transitive resolution.
         working-directory: crates/capi
         run: |
-          pip install pytest pytest-cov
+          pip install --only-binary :all: pytest==9.1.1 pytest-cov==7.1.0
           pytest test_ffi_usage_example.py --cov=. --cov-report=xml:coverage-python.xml
 
       - name: SonarQube scan
