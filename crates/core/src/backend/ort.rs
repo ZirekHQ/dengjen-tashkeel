@@ -1,6 +1,6 @@
 use crate::{InferenceEngine, LibtashkeelError, LibtashkeelResult};
 use ndarray::{Array1, Array2};
-use ort::{session::{Session, builder::GraphOptimizationLevel,}};
+use ort::session::{builder::GraphOptimizationLevel, Session};
 use std::path::Path;
 
 impl From<ort::Error> for LibtashkeelError {
@@ -23,11 +23,7 @@ fn ort_session_run(
     let input_length = Array1::<i64>::from_iter([seq_length as i64]);
 
     let (target_ids, logits): (Vec<u8>, Vec<f32>) = {
-        let inputs = ort::inputs![
-            input_ids,
-            diac_ids,
-            input_length,
-        ]?;
+        let inputs = ort::inputs![input_ids, diac_ids, input_length,]?;
         let outputs = session.run(inputs)?;
         let target_ids = outputs[0].try_extract_tensor::<u8>()?;
         let logits = outputs[1].try_extract_tensor::<f32>()?;
