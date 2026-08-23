@@ -121,20 +121,8 @@ mod tests {
     #[test]
     fn tashkeel_lifecycle_and_error_paths() {
         // Step 1: initialize via libtashkeel_init with a null path (-> None
-        // -> bundled default model) FIRST, matching the intended real usage
-        // (init once, then call tashkeel). This deliberately avoids ever
-        // exercising libtashkeelTashkeel's own lazy-init fallback
-        // (INIT_LIBTASHKEEL.call_once(|| { do_init_library(None).unwrap() })):
-        // do_init_library's first line unconditionally calls
-        // INIT_LIBTASHKEEL.call_once(|| ()) again on the SAME Once -- a
-        // reentrant call from within that Once's own initialization closure,
-        // which per std::sync::Once's documented behavior deadlocks. This is
-        // a genuine pre-existing bug in the production lazy-init fallback
-        // path (confirmed by reproducing the hang directly against this
-        // repo), not something to fix as part of test coverage -- real
-        // consumers always call libtashkeel_init before libtashkeelTashkeel,
-        // so this dormant path has likely never been hit in practice. Flag
-        // it to the user; don't fix it here.
+        // -> bundled default model) FIRST. Calling libtashkeelTashkeel before
+        // any libtashkeel_init deadlocks -- see #13 for why.
         let mut out_error = new_out_error();
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
         libtashkeel_init(null_path, &mut out_error);
@@ -164,6 +152,9 @@ mod tests {
             .to_string();
         assert_ne!(diacritized, "بسم الله الرحمن الرحيم");
         unsafe { libtashkeel_free_string(result_ptr) };
+
+        // Note: a null text_ptr is NOT tested here -- it aborts the process
+        // (SIGABRT) rather than erroring cleanly. See #13.
 
         // Step 3: invalid UTF-8 lossily converts instead of erroring.
         let invalid_utf8 = CString::new(vec![0xFFu8, 0xFEu8]).unwrap();
@@ -207,5 +198,20 @@ mod tests {
         let mut out_error = new_out_error();
         libtashkeel_init(FfiStr::from_cstr(&path), &mut out_error);
         assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
+
+        // Step 6: input over CHAR_LIMIT returns INPUT_TOO_LONG.
+        let too_long_text = "ا".repeat(libtashkeel_core::CHAR_LIMIT + 1);
+        let too_long_cstring = CString::new(too_long_text).unwrap();
+        let mut out_error = new_out_error();
+        let result_ptr = unsafe {
+            libtashkeelTashkeel(
+                FfiStr::from_cstr(&too_long_cstring),
+                taskeen_threshold,
+                true,
+                &mut out_error,
+            )
+        };
+        assert_eq!(out_error.get_code().code(), ErrorCodes::INPUT_TOO_LONG);
+        assert!(result_ptr.is_null());
     }
 }
