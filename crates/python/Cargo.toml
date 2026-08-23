@@ -18,8 +18,8 @@ ort = ["libtashkeel_core/ort"]
 ort-dylib = ["libtashkeel_core/ort-dylib"]
 
 [dependencies.pyo3]
-version = "0.18.1"
-features = ["extension-module", "abi3-py37",]
+version = "0.29"
+features = ["extension-module", "abi3-py39",]
 
 [dependencies.libtashkeel_core]
 path = "../core"

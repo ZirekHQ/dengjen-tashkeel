@@ -1,4 +1,4 @@
-/* Generated with cbindgen:0.26.0 */
+/* Generated with cbindgen:0.29.4 */
 
 #include <cstdarg>
 #include <cstdint>
@@ -35,4 +35,4 @@ char *libtashkeelTashkeel(FfiStr text_ptr,
 
 void libtashkeel_init(FfiStr model_path_ptr, ExternError *out_error);
 
-} // extern "C"
+}  // extern "C"
