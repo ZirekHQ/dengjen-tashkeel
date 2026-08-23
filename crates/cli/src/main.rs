@@ -181,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn taskeen_flag_defaults_prob_to_point_nine_five() {
+    fn prob_defaults_to_point_nine_five_regardless_of_taskeen_flag() {
         let args = parse(&["--taskeen"]);
 
         assert!(args.taskeen);
@@ -206,6 +206,32 @@ mod tests {
         let result = get_input_text(&args);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_input_text_returns_empty_string_for_empty_file() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let args = parse(&["--input-file", file.path().to_str().unwrap()]);
+
+        let text = get_input_text(&args).unwrap();
+
+        assert_eq!(text, "");
+    }
+
+    #[test]
+    fn tashkeel_main_with_taskeen_flag_uses_the_threshold() {
+        let output_file = tempfile::NamedTempFile::new().unwrap();
+        let mut args = parse(&[
+            "--output-file",
+            output_file.path().to_str().unwrap(),
+            "--taskeen",
+        ]);
+        args.input_file = None;
+
+        tashkeel_main(&ENGINE, &args, "بسم الله الرحمن الرحيم".to_string()).unwrap();
+
+        let written = std::fs::read_to_string(output_file.path()).unwrap();
+        assert!(!written.trim().is_empty());
     }
 
     #[test]
