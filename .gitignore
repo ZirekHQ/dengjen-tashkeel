@@ -3,3 +3,6 @@
 __pycache__
 .idea
 .serena
+.coverage
+.pytest_cache
+crates/capi/coverage-python.xml
