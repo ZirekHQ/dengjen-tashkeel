@@ -107,3 +107,105 @@ fn do_init_library(model_path: Option<PathBuf>) -> LibtashkeelFFIResult<()> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::{CStr, CString};
+    use std::io::Write;
+
+    fn new_out_error() -> ExternError {
+        ExternError::success()
+    }
+
+    #[test]
+    fn tashkeel_lifecycle_and_error_paths() {
+        // Step 1: initialize via libtashkeel_init with a null path (-> None
+        // -> bundled default model) FIRST, matching the intended real usage
+        // (init once, then call tashkeel). This deliberately avoids ever
+        // exercising libtashkeelTashkeel's own lazy-init fallback
+        // (INIT_LIBTASHKEEL.call_once(|| { do_init_library(None).unwrap() })):
+        // do_init_library's first line unconditionally calls
+        // INIT_LIBTASHKEEL.call_once(|| ()) again on the SAME Once -- a
+        // reentrant call from within that Once's own initialization closure,
+        // which per std::sync::Once's documented behavior deadlocks. This is
+        // a genuine pre-existing bug in the production lazy-init fallback
+        // path (confirmed by reproducing the hang directly against this
+        // repo), not something to fix as part of test coverage -- real
+        // consumers always call libtashkeel_init before libtashkeelTashkeel,
+        // so this dormant path has likely never been hit in practice. Flag
+        // it to the user; don't fix it here.
+        let mut out_error = new_out_error();
+        let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
+        libtashkeel_init(null_path, &mut out_error);
+        assert!(out_error.get_code().is_success());
+
+        // Step 2: now that INFERENCE_ENGINE is set, libtashkeelTashkeel's own
+        // call_once sees INIT_LIBTASHKEEL already complete and skips its
+        // closure entirely -- no reentrant call, no deadlock.
+        let text = CString::new("بسم الله الرحمن الرحيم").unwrap();
+        let mut out_error = new_out_error();
+        let taskeen_threshold: *const libc::c_float = std::ptr::null();
+
+        let result_ptr = unsafe {
+            libtashkeelTashkeel(
+                FfiStr::from_cstr(&text),
+                taskeen_threshold,
+                true,
+                &mut out_error,
+            )
+        };
+
+        assert!(out_error.get_code().is_success());
+        assert!(!result_ptr.is_null());
+        let diacritized = unsafe { CStr::from_ptr(result_ptr) }
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert_ne!(diacritized, "بسم الله الرحمن الرحيم");
+        unsafe { libtashkeel_free_string(result_ptr) };
+
+        // Step 3: invalid UTF-8 lossily converts instead of erroring.
+        let invalid_utf8 = CString::new(vec![0xFFu8, 0xFEu8]).unwrap();
+        let mut out_error = new_out_error();
+        let result_ptr = unsafe {
+            libtashkeelTashkeel(
+                FfiStr::from_cstr(&invalid_utf8),
+                taskeen_threshold,
+                true,
+                &mut out_error,
+            )
+        };
+        assert!(
+            out_error.get_code().is_success(),
+            "invalid UTF-8 should be lossily converted, not rejected"
+        );
+        assert!(!result_ptr.is_null());
+        unsafe { libtashkeel_free_string(result_ptr) };
+
+        // Step 4: INFERENCE_ENGINE is now permanently set for this process.
+        // A second call to libtashkeel_init (even with valid arguments)
+        // must hit the "already initialized" branch.
+        let mut out_error = new_out_error();
+        let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
+        libtashkeel_init(null_path, &mut out_error);
+        assert_eq!(out_error.get_code().code(), ErrorCodes::UNKNOWN_ERROR);
+
+        // Step 5: bad model path/file report INFERENCE_ERROR regardless of
+        // the above state -- create_inference_engine fails before
+        // do_init_library would ever reach the .set() call.
+        let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
+        let mut out_error = new_out_error();
+        libtashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error);
+        assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
+
+        let mut malformed = tempfile::NamedTempFile::new().unwrap();
+        malformed
+            .write_all(b"this is not a valid onnx model")
+            .unwrap();
+        let path = CString::new(malformed.path().to_str().unwrap()).unwrap();
+        let mut out_error = new_out_error();
+        libtashkeel_init(FfiStr::from_cstr(&path), &mut out_error);
+        assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
+    }
+}
