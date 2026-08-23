@@ -357,4 +357,34 @@ mod tests {
         do_tashkeel(&*INFERENCE_ENGINE, &text, None, false)?;
         Ok(())
     }
+
+    #[test]
+    fn do_tashkeel_errors_on_input_over_char_limit() {
+        let too_long_text: String = "ا".repeat(CHAR_LIMIT + 1);
+
+        // preprocessed = true skips libtqsm sentence segmentation, so the
+        // full length reaches _do_tashkeel_impl's CHAR_LIMIT check directly.
+        let result = do_tashkeel(&*INFERENCE_ENGINE, &too_long_text, None, true);
+
+        assert!(matches!(result, Err(LibtashkeelError::InputTooLong(n)) if n == CHAR_LIMIT));
+    }
+
+    #[test]
+    fn do_tashkeel_handles_already_diacritized_input() {
+        let already_diacritized = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ";
+
+        let result = do_tashkeel(&*INFERENCE_ENGINE, already_diacritized, None, false);
+
+        assert!(result.is_ok());
+        assert!(!result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn create_inference_engine_errors_on_nonexistent_model_path() {
+        let bad_path = std::path::PathBuf::from("/nonexistent/path/to/model.onnx");
+
+        let result = create_inference_engine(Some(bad_path));
+
+        assert!(matches!(result, Err(LibtashkeelError::InferenceError(_))));
+    }
 }
