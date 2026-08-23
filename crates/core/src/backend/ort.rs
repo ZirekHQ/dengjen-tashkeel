@@ -82,3 +82,35 @@ impl InferenceEngine for OrtEngine {
         ort_session_run(&self.0, input_ids, diac_ids, seq_length)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_bytes_errors_on_malformed_model_data() {
+        let malformed_bytes = b"this is not a valid onnx model";
+
+        let result = OrtEngine::from_bytes(malformed_bytes);
+
+        assert!(matches!(result, Err(LibtashkeelError::InferenceError(_))));
+    }
+
+    #[test]
+    fn infer_runs_against_the_bundled_model_directly() {
+        let engine = OrtEngine::with_bundled_model().unwrap();
+        // "بسم" tokenized via the same maps do_tashkeel uses internally;
+        // this test only needs *some* valid, non-empty token sequence to
+        // exercise ort_session_run's Tensor::from_array/try_extract_tensor
+        // path independent of the full do_tashkeel pipeline.
+        let input_ids = vec![1i64, 2, 3];
+        let diac_ids = vec![0i64, 0, 0];
+
+        let result = engine.infer(input_ids, diac_ids, 3);
+
+        assert!(result.is_ok());
+        let (target_ids, logits) = result.unwrap();
+        assert_eq!(target_ids.len(), 3);
+        assert!(!logits.is_empty());
+    }
+}
