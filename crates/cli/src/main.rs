@@ -86,11 +86,7 @@ fn tashkeel_main(
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
-    setup_logging();
-
-    let mut args = Cli::parse();
-
+fn validate_args(args: &mut Cli) -> anyhow::Result<()> {
     if args.input_file.is_some() || args.output_file.is_some() {
         if args.interactive {
             anyhow::bail!(
@@ -100,6 +96,15 @@ fn main() -> anyhow::Result<()> {
     } else {
         args.interactive = true;
     }
+    Ok(())
+}
+
+fn main() -> anyhow::Result<()> {
+    setup_logging();
+
+    let mut args = Cli::parse();
+
+    validate_args(&mut args)?;
 
     let model = create_inference_engine(args.onnx.take())?;
 
@@ -121,4 +126,116 @@ fn main() -> anyhow::Result<()> {
 fn setup_logging() {
     env_logger::Builder::from_env(env_logger::Env::default().filter_or("TASHKEEL_LOG", "info"))
         .init();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use std::sync::LazyLock;
+
+    static ENGINE: LazyLock<DynamicInferenceEngine> =
+        LazyLock::new(|| create_inference_engine(None).unwrap());
+
+    fn parse(args: &[&str]) -> Cli {
+        let mut full_args = vec!["tashkeel"];
+        full_args.extend_from_slice(args);
+        Cli::try_parse_from(full_args).unwrap()
+    }
+
+    #[test]
+    fn validate_args_forces_interactive_when_no_files_given() {
+        let mut args = parse(&[]);
+        assert!(!args.interactive);
+
+        validate_args(&mut args).unwrap();
+
+        assert!(args.interactive);
+    }
+
+    #[test]
+    fn validate_args_rejects_interactive_with_input_file() {
+        let mut args = parse(&["--input-file", "in.txt", "--interactive"]);
+
+        let result = validate_args(&mut args);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_args_rejects_interactive_with_output_file() {
+        let mut args = parse(&["--output-file", "out.txt", "--interactive"]);
+
+        let result = validate_args(&mut args);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_args_allows_file_mode_without_interactive_flag() {
+        let mut args = parse(&["--input-file", "in.txt"]);
+
+        validate_args(&mut args).unwrap();
+
+        assert!(!args.interactive);
+    }
+
+    #[test]
+    fn taskeen_flag_defaults_prob_to_point_nine_five() {
+        let args = parse(&["--taskeen"]);
+
+        assert!(args.taskeen);
+        assert_eq!(args.prob, Some(0.95));
+    }
+
+    #[test]
+    fn get_input_text_reads_from_file() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        writeln!(file, "بسم الله").unwrap();
+        let args = parse(&["--input-file", file.path().to_str().unwrap()]);
+
+        let text = get_input_text(&args).unwrap();
+
+        assert_eq!(text.trim(), "بسم الله");
+    }
+
+    #[test]
+    fn get_input_text_errors_on_missing_file() {
+        let args = parse(&["--input-file", "/nonexistent/path/does-not-exist.txt"]);
+
+        let result = get_input_text(&args);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn tashkeel_main_writes_single_shot_output_to_file() {
+        let output_file = tempfile::NamedTempFile::new().unwrap();
+        let mut args = parse(&["--output-file", output_file.path().to_str().unwrap()]);
+        args.input_file = None; // single-shot ("stdin") code path in tashkeel_main
+
+        tashkeel_main(&ENGINE, &args, "بسم الله الرحمن الرحيم".to_string()).unwrap();
+
+        let written = std::fs::read_to_string(output_file.path()).unwrap();
+        assert_ne!(written.trim(), "بسم الله الرحمن الرحيم");
+        assert!(!written.trim().is_empty());
+    }
+
+    #[test]
+    fn tashkeel_main_writes_multi_line_output_to_file() {
+        let input_file = tempfile::NamedTempFile::new().unwrap();
+        let output_file = tempfile::NamedTempFile::new().unwrap();
+        let args = parse(&[
+            "--input-file",
+            input_file.path().to_str().unwrap(),
+            "--output-file",
+            output_file.path().to_str().unwrap(),
+        ]);
+        let input_text = "بسم الله\nالرحمن الرحيم\n".to_string();
+
+        tashkeel_main(&ENGINE, &args, input_text).unwrap();
+
+        let written = std::fs::read_to_string(output_file.path()).unwrap();
+        assert_eq!(written.lines().count(), 2);
+    }
 }
