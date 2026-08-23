@@ -31,3 +31,6 @@ features = ["derive",]
 [dependencies.libtashkeel_core]
 path = "../core"
 default-features = false
+
+[dev-dependencies]
+tempfile = "3"
