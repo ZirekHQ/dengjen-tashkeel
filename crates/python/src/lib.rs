@@ -8,6 +8,7 @@ static INFERENCE_ENGINE: PyOnceLock<DynamicInferenceEngine> = PyOnceLock::new();
 
 /// Diacritize Arabic text.
 #[pyfunction]
+#[pyo3(signature = (text, taskeen_threshold=None, preprocessed=None))]
 fn tashkeel(
     py: Python,
     text: String,

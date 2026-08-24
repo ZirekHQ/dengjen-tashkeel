@@ -1,0 +1,50 @@
+name: Python Wheel
+
+# Builds the pylibtashkeel wheel exactly the way an external build pipeline
+# would (plain `maturin build`, no --features flag) and smoke-tests it. This
+# guards the pyproject.toml `[tool.maturin] features` safety net: without it,
+# extension-module (non-default since crates/python/Cargo.toml split it out
+# for in-process cargo test) would be silently dropped, producing a cdylib
+# that links libpython directly instead of a proper extension module -- a
+# wheel that fails to import and that manylinux/auditwheel would reject.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.97.1"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install maturin
+        run: pip install --only-binary :all: maturin==1.14.1
+
+      - name: Build wheel (no --features flag, mirrors an external build pipeline)
+        working-directory: crates/python
+        run: maturin build --release --out dist
+
+      - name: Install wheel and smoke-test the import
+        run: |
+          pip install --only-binary :all: --no-index --find-links crates/python/dist pylibtashkeel
+          python3 -c "
+          from pylibtashkeel import tashkeel
+          result = tashkeel('بسم الله الرحمن الرحيم')
+          assert result and result != 'بسم الله الرحمن الرحيم', result
+          print(result)
+          "
