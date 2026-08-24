@@ -16,11 +16,23 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell", "powershell", "msi"]
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# x86_64-apple-darwin (Intel Mac) dropped: no longer supported.
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
 # Whether to install an updater program
 install-updater = false
+# dist unconditionally links the static CRT (+crt-static) on windows-msvc by
+# default, but ort-sys's prebuilt onnxruntime static libs were built against
+# the dynamic CRT (they reference __imp_-prefixed dynamic import symbols like
+# __imp_strtol/__imp__beginthreadex that only the dynamic-CRT import libs
+# provide) -- linking fails with hundreds of unresolved externals otherwise.
+msvc-crt-static = false
+# ort-sys's prebuilt onnxruntime static libs require symbols only present in
+# glibc >=2.38 (__isoc23_strtol and friends); dist's default ubuntu-22.04
+# runner ships an older glibc that lacks them, so the linux build fails.
+[workspace.metadata.dist.github-custom-runners]
+x86_64-unknown-linux-gnu = "ubuntu-latest"
 
 [profile.release]
 opt-level = 3
