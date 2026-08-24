@@ -1,0 +1,20 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pylibtashkeel"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dynamic = ["version"]
+
+[tool.maturin]
+# extension-module is non-default (see crates/python/Cargo.toml) so that
+# `cargo test` can embed a Python interpreter, which is mutually exclusive
+# with linking as an extension module. maturin needs it explicitly here so a
+# plain `maturin build`/`maturin develop` still produces a manylinux/macOS
+# compatible wheel without every caller having to pass --features by hand.
+features = ["extension-module"]
