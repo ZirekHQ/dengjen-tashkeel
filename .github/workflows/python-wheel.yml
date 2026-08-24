@@ -33,7 +33,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install maturin
-        run: pip install --only-binary :all: maturin==1.14.1
+        run: |
+          pip install --only-binary :all: maturin==1.14.1
 
       - name: Build wheel (no --features flag, mirrors an external build pipeline)
         working-directory: crates/python
