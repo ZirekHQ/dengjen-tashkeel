@@ -31,6 +31,38 @@ jobs:
           fetch-depth: 0  # Sonar needs full history for new-code detection and blame
           persist-credentials: false
 
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.97.1"
+
+      - name: Build the capi cdylib
+        # ffi_usage_example.py (one of the 3 files sonar-project.properties
+        # scans, since SonarCloud has no Rust analyzer) loads this library
+        # at import time -- its test needs the real compiled artifact.
+        run: cargo build -p libtashkeel
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # Only the interpreter that runs pytest -- unrelated to
+          # sonar.python.version below (that's the syntax version Sonar's
+          # own analyzer parses source against, not what tests run under).
+          # 3.9 doesn't satisfy pytest==9.1.1's own Requires-Python (>=3.10).
+          python-version: "3.11"
+
+      - name: Run ffi_usage_example.py's tests with coverage
+        # Runs from crates/capi/ itself: --cov needs an importable module
+        # name (resolved via the interpreter's cwd/sys.path), not a
+        # slash-separated path from the repo root -- the latter silently
+        # collects zero coverage data instead of failing loudly.
+        #
+        # Versions pinned and --only-binary :all: set so pip resolves only
+        # prebuilt wheels at exact, known versions -- no arbitrary sdist
+        # build-script execution, no unpinned transitive resolution.
+        working-directory: crates/capi
+        run: |
+          pip install --only-binary :all: pytest==9.1.1 pytest-cov==7.1.0
+          pytest test_ffi_usage_example.py --cov=. --cov-report=xml:coverage-python.xml
+
       - name: SonarQube scan
         if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1

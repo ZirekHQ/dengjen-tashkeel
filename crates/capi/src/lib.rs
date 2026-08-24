@@ -7,10 +7,8 @@ use libtashkeel_core::{
 use once_cell::sync::OnceCell;
 use std::ffi::c_char;
 use std::path::PathBuf;
-use std::sync::Once;
 
 static INFERENCE_ENGINE: OnceCell<DynamicInferenceEngine> = OnceCell::new();
-static INIT_LIBTASHKEEL: Once = Once::new();
 
 #[allow(non_snake_case)]
 mod ErrorCodes {
@@ -49,7 +47,12 @@ type LibtashkeelFFIResult<T> = Result<T, LibtashkeelFFIError>;
 define_string_destructor!(libtashkeel_free_string);
 
 /// # Safety
-/// The `taskeen_threshold_ptr` should be properly alighned as `c_float`
+/// `taskeen_threshold` must be either null or point to a single, properly
+/// aligned `c_float` that remains valid for the duration of this call.
+/// Ownership of the pointee is NOT transferred: this function only reads
+/// through the pointer and never frees it. The caller retains ownership
+/// and is responsible for freeing it (if heap-allocated) after this call
+/// returns.
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn libtashkeelTashkeel(
@@ -58,22 +61,15 @@ pub unsafe extern "C" fn libtashkeelTashkeel(
     preprocessed: bool,
     out_error: &mut ExternError,
 ) -> *mut c_char {
-    let text = text_ptr.into_string();
-    let taskeen_threshold = unsafe {
-        let retval = taskeen_threshold.as_ref().copied();
-        libc::free(taskeen_threshold as *mut libc::c_void);
-        retval
-    };
+    let taskeen_threshold = unsafe { taskeen_threshold.as_ref().copied() };
     call_with_result(out_error, move || {
-        INIT_LIBTASHKEEL.call_once(|| {
-            do_init_library(None).unwrap();
-        });
-        let diacritized_text = ffi_do_tashkeel(
-            INFERENCE_ENGINE.get().unwrap(),
-            &text,
-            taskeen_threshold,
-            preprocessed,
-        )?;
+        // Deliberately inside this closure: text_ptr.into_string() panics on
+        // a null pointer, and call_with_result's catch_unwind converts that
+        // panic into a clean ExternError (code PANIC = -1) instead of
+        // letting it unwind past this extern "C" boundary and abort.
+        let text = text_ptr.into_string();
+        let engine = INFERENCE_ENGINE.get_or_try_init(|| create_inference_engine(None))?;
+        let diacritized_text = ffi_do_tashkeel(engine, &text, taskeen_threshold, preprocessed)?;
         let retval = rust_string_to_c(diacritized_text);
         Ok::<*mut c_char, LibtashkeelFFIError>(retval)
     })
@@ -96,7 +92,6 @@ fn ffi_do_tashkeel(
 }
 
 fn do_init_library(model_path: Option<PathBuf>) -> LibtashkeelFFIResult<()> {
-    INIT_LIBTASHKEEL.call_once(|| ());
     let engine = create_inference_engine(model_path)?;
     if INFERENCE_ENGINE.set(engine).is_err() {
         Err(LibtashkeelFFIError(
@@ -120,17 +115,12 @@ mod tests {
 
     #[test]
     fn tashkeel_lifecycle_and_error_paths() {
-        // Step 1: initialize via libtashkeel_init with a null path (-> None
-        // -> bundled default model) FIRST. Calling libtashkeelTashkeel before
-        // any libtashkeel_init deadlocks -- see #13 for why.
-        let mut out_error = new_out_error();
-        let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
-        libtashkeel_init(null_path, &mut out_error);
-        assert!(out_error.get_code().is_success());
-
-        // Step 2: now that INFERENCE_ENGINE is set, libtashkeelTashkeel's own
-        // call_once sees INIT_LIBTASHKEEL already complete and skips its
-        // closure entirely -- no reentrant call, no deadlock.
+        // Step 1: call libtashkeelTashkeel directly, with NO prior
+        // libtashkeel_init call. INFERENCE_ENGINE.get_or_try_init lazily
+        // creates the engine from the bundled default model right here.
+        // (This exact sequence used to deadlock before #13 was fixed: the
+        // old lazy-init path re-entered the same std::sync::Once it was
+        // already running inside.)
         let text = CString::new("بسم الله الرحمن الرحيم").unwrap();
         let mut out_error = new_out_error();
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
@@ -153,10 +143,18 @@ mod tests {
         assert_ne!(diacritized, "بسم الله الرحمن الرحيم");
         unsafe { libtashkeel_free_string(result_ptr) };
 
-        // Note: a null text_ptr is NOT tested here -- it aborts the process
-        // (SIGABRT) rather than erroring cleanly. See #13.
+        // Step 1b: a null text_ptr no longer aborts the process. into_string()
+        // panics on it, but that panic now happens inside call_with_result's
+        // closure, so its catch_unwind converts it into a clean ExternError
+        // (code PANIC = -1) instead of unwinding past this extern "C" frame.
+        let mut out_error = new_out_error();
+        let null_text_ptr = unsafe { FfiStr::from_raw(std::ptr::null()) };
+        let result_ptr =
+            unsafe { libtashkeelTashkeel(null_text_ptr, taskeen_threshold, true, &mut out_error) };
+        assert_eq!(out_error.get_code(), ErrorCode::PANIC);
+        assert!(result_ptr.is_null());
 
-        // Step 3: invalid UTF-8 lossily converts instead of erroring.
+        // Step 2: invalid UTF-8 lossily converts instead of erroring.
         let invalid_utf8 = CString::new(vec![0xFFu8, 0xFEu8]).unwrap();
         let mut out_error = new_out_error();
         let result_ptr = unsafe {
@@ -174,15 +172,15 @@ mod tests {
         assert!(!result_ptr.is_null());
         unsafe { libtashkeel_free_string(result_ptr) };
 
-        // Step 4: INFERENCE_ENGINE is now permanently set for this process.
-        // A second call to libtashkeel_init (even with valid arguments)
-        // must hit the "already initialized" branch.
+        // Step 3: INFERENCE_ENGINE is now permanently set for this process
+        // (lazily, from Step 1). An explicit libtashkeel_init call must hit
+        // the "already initialized" branch.
         let mut out_error = new_out_error();
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
         libtashkeel_init(null_path, &mut out_error);
         assert_eq!(out_error.get_code().code(), ErrorCodes::UNKNOWN_ERROR);
 
-        // Step 5: bad model path/file report INFERENCE_ERROR regardless of
+        // Step 4: bad model path/file report INFERENCE_ERROR regardless of
         // the above state -- create_inference_engine fails before
         // do_init_library would ever reach the .set() call.
         let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
@@ -199,7 +197,7 @@ mod tests {
         libtashkeel_init(FfiStr::from_cstr(&path), &mut out_error);
         assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
 
-        // Step 6: input over CHAR_LIMIT returns INPUT_TOO_LONG.
+        // Step 5: input over CHAR_LIMIT returns INPUT_TOO_LONG.
         let too_long_text = "ا".repeat(libtashkeel_core::CHAR_LIMIT + 1);
         let too_long_cstring = CString::new(too_long_text).unwrap();
         let mut out_error = new_out_error();
