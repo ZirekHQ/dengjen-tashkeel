@@ -47,8 +47,12 @@ jobs:
         run: maturin build --release --out dist
 
       - name: Install wheel and smoke-test the import
+        # Installs the exact wheel file just built, not an unpinned package
+        # name -- SonarCloud's githubactions:S8544 flags unresolved-version
+        # dependency installs, and "pylibtashkeel" with no pinned version
+        # (even with --no-index) reads as one of those to static analysis.
         run: |
-          pip install --only-binary :all: --no-index --find-links crates/python/dist pylibtashkeel
+          pip install --only-binary :all: crates/python/dist/*.whl
           python3 -c "
           from pylibtashkeel import tashkeel
           result = tashkeel('بسم الله الرحمن الرحيم')
