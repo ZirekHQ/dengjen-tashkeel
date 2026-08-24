@@ -33,6 +33,11 @@ msvc-crt-static = false
 # runner ships an older glibc that lacks them, so the linux build fails.
 [workspace.metadata.dist.github-custom-runners]
 x86_64-unknown-linux-gnu = "ubuntu-latest"
+# dist's own default for the non-build orchestration jobs (plan/host/
+# announce/global-artifacts) is ubuntu-22.04, whose GitHub-hosted runner
+# image starts deprecating 2026-09-17 (fully removed 2027-04-17). Pin these
+# to the current latest LTS instead of trailing dist's default.
+global = "ubuntu-24.04"
 
 [profile.release]
 opt-level = 3
