@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report suspected vulnerabilities privately via
-[GitHub Private Vulnerability Reporting](https://github.com/ZirekHQ/libtashkeel/security/advisories/new)
+[GitHub Private Vulnerability Reporting](https://github.com/ZirekHQ/dengjen-tashkeel/security/advisories/new)
 (Security tab → Report a vulnerability). Do not open a public issue for a suspected
 vulnerability.
 
