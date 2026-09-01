@@ -20,8 +20,12 @@ fn ort_session_run(
     diac_ids: Vec<i64>,
     seq_length: usize,
 ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
-    let input_ids = Array2::<i64>::from_shape_vec((1, seq_length), input_ids).unwrap();
-    let diac_ids = Array2::<i64>::from_shape_vec((1, seq_length), diac_ids).unwrap();
+    let input_ids = Array2::<i64>::from_shape_vec((1, seq_length), input_ids).map_err(|e| {
+        LibtashkeelError::InferenceError(format!("input_ids/seq_length mismatch: {e}"))
+    })?;
+    let diac_ids = Array2::<i64>::from_shape_vec((1, seq_length), diac_ids).map_err(|e| {
+        LibtashkeelError::InferenceError(format!("diac_ids/seq_length mismatch: {e}"))
+    })?;
     let input_length = Array1::<i64>::from_iter([seq_length as i64]);
 
     let (target_ids, logits): (Vec<u8>, Vec<f32>) = {
@@ -112,5 +116,18 @@ mod tests {
         let (target_ids, logits) = result.unwrap();
         assert_eq!(target_ids.len(), 3);
         assert!(!logits.is_empty());
+    }
+
+    #[test]
+    fn infer_errors_instead_of_panicking_on_seq_length_mismatch() {
+        let engine = OrtEngine::with_bundled_model().unwrap();
+        // diac_ids has 2 entries but seq_length claims 3 -- from_shape_vec
+        // must reject this as an error, not panic.
+        let input_ids = vec![1i64, 2, 3];
+        let diac_ids = vec![0i64, 0];
+
+        let result = engine.infer(input_ids, diac_ids, 3);
+
+        assert!(matches!(result, Err(LibtashkeelError::InferenceError(_))));
     }
 }

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage / build help
+    url: https://github.com/ZirekHQ/dengjen-tashkeel/blob/main/README.md
+    about: Start here for build instructions and library/CLI usage.
+  - name: Upstream mush42/libtashkeel
+    url: https://github.com/mush42/libtashkeel
+    about: The original repository this fork tracks. See .github/workflows/upstream-watch.yml for how divergence is monitored.

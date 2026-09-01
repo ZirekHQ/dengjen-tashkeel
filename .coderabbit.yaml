@@ -1,0 +1,54 @@
+reviews:
+  # Exclude vendored models, generated mappings, build artifacts, and lockfiles
+  path_filters:
+    - "!**/*.onnx"
+    - "!**/data/*_map.json"
+    - "!**/wix/**"
+    - "!target/**"
+    - "!crates/python/.venv/**"
+    - "!.idea/**"
+    - "!.serena/**"
+
+  # General repository-wide instructions
+  instructions: |
+    - This is Libtashkeel, a Rust library for diacritic restoration of Arabic text (ONNX model inference), exposed via a C ABI, a CLI, and Python bindings.
+    - Focus strictly on correctness, panic-safety, and FFI/memory safety. Avoid nitpicking style or formatting.
+    - Arabic text is multi-byte UTF-8; flag any indexing, slicing, or truncation that assumes byte-length equals char-length, or that could split a multi-byte character or a base-char/diacritic pair.
+    - Flag any unwrap()/expect()/panic! on inference output, model loading, or user-supplied text — these must return LibtashkeelError, not panic, especially across FFI or CLI entry points.
+    - CHAR_LIMIT and other input-validation constants are a stability contract; flag any change that would silently allow unbounded input into the ONNX inference path.
+    - Keep comments concise: explain the root cause and provide a targeted code fix.
+
+  # Path-specific instructions
+  path_instructions:
+    # 1. Core diacritization engine & ONNX inference
+    - path: "crates/core/src/**"
+      instructions: |
+        - Treat INPUT_ID_MAP/TARGET_ID_MAP/HINT_ID_MAP lookups on user-supplied characters as fallible; verify unmapped characters are filtered or defaulted rather than causing an index panic.
+        - Verify extract_chars_and_diacritics and to_valid_chars keep clean_chars and diacritics/valid-char sets in lock-step (equal length, matching order) — an off-by-one here silently misaligns output diacritics with input characters.
+        - InferenceEngine::infer crosses into ONNX runtime; validate tensor shapes/lengths before use and surface failures as LibtashkeelError::InferenceError, never a raw panic.
+        - Flag any new `unsafe` (e.g. char::from_u32_unchecked) applied to non-constant/runtime-derived input.
+
+    # 2. C ABI / FFI surface
+    - path: "crates/capi/**"
+      instructions: |
+        - Never let a Rust panic unwind across the FFI boundary; every entry point must catch_unwind or otherwise guarantee it returns a valid error code/null instead.
+        - Verify every pointer/length pair received from C is validated before dereferencing, and every string returned to C has clearly documented ownership (who calls free/matching deallocator).
+        - Check libtashkeel.h stays in sync with src/lib.rs's actual exported signatures — a drifted header is a silent ABI break for C/C++ and Python callers.
+
+    # 3. CLI frontend
+    - path: "crates/cli/src/**"
+      instructions: |
+        - CLI flags, --help text, and stdout/stderr output shape are an external interface; flag changes that would break existing scripts or CI usage without a clear reason.
+        - Verify file/stdin read errors and inference errors produce a clean error message and non-zero exit code, not a panic with a Rust backtrace.
+
+    # 4. Python bindings
+    - path: "crates/python/src/**"
+      instructions: |
+        - Verify every #[pyclass]/#[pyfunction] converts LibtashkeelError into an appropriate Python exception type rather than letting a panic abort the interpreter.
+        - Check that GIL-sensitive sections (long-running inference) release the GIL where possible so Python callers aren't blocked unnecessarily.
+
+    # 5. CI / release / packaging
+    - path: "{.github/workflows/**,crates/cli/wix/**,deny.toml}"
+      instructions: |
+        - This project ships prebuilt cross-platform binaries (dist/wix); flag workflow changes that could silently drop a target platform or break the release artifact layout.
+        - deny.toml enforces license/security policy on dependencies; flag any change that widens allowed licenses or advisories without an explanatory comment.
