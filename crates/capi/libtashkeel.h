@@ -1,38 +1,43 @@
 /* Generated with cbindgen:0.29.4 */
 
-#include <cstdarg>
-#include <cstdint>
-#include <cstdlib>
-#include <ostream>
-#include <new>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 
-constexpr static const int32_t INPUT_TOO_LONG = 1;
+#define INPUT_TOO_LONG 1
 
-constexpr static const int32_t INFERENCE_ERROR = 2;
+#define INFERENCE_ERROR 2
 
-constexpr static const int32_t MODEL_LOAD_ERROR = 3;
+#define MODEL_LOAD_ERROR 3
 
-constexpr static const int32_t UNKNOWN_ERROR = 99;
+#define UNKNOWN_ERROR 99
 
-using FfiStr = const char*;
+typedef const char *FfiStr;
 
-using ErrorCode = int32_t;
-constexpr static const ErrorCode ErrorCode_SUCCESS = 0;
-constexpr static const ErrorCode ErrorCode_PANIC = -1;
-constexpr static const ErrorCode ErrorCode_INVALID_HANDLE = -1000;
+typedef int32_t ErrorCode;
+#define ErrorCode_SUCCESS 0
+#define ErrorCode_PANIC -1
+#define ErrorCode_INVALID_HANDLE -1000
 
-struct ExternError {
+typedef struct ExternError {
   ErrorCode code;
   char *message;
-};
+} ExternError;
 
+#ifdef __cplusplus
 extern "C" {
+#endif // __cplusplus
+
+void libtashkeel_free_string(char *s);
 
 char *libtashkeelTashkeel(FfiStr text_ptr,
                           const float *taskeen_threshold,
                           bool preprocessed,
-                          ExternError *out_error);
+                          struct ExternError *out_error);
 
-void libtashkeel_init(FfiStr model_path_ptr, ExternError *out_error);
+void libtashkeel_init(FfiStr model_path_ptr, struct ExternError *out_error);
 
+#ifdef __cplusplus
 }  // extern "C"
+#endif  // __cplusplus

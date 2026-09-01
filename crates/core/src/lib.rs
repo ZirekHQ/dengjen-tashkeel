@@ -135,22 +135,35 @@ fn hint_to_ids(hints: Vec<String>) -> Vec<i64> {
     Vec::from_iter(hints.into_iter().map(|s| HINT_ID_MAP[&s]))
 }
 
-fn target_to_diacritics(target_ids: impl Iterator<Item = u8>) -> Vec<String> {
-    Vec::from_iter(
-        target_ids
-            .filter(|id| !TARGET_META_CHAR_IDS.contains(id))
-            .map(|diac_id| &TARGET_ID_MAP[&diac_id])
-            .cloned(),
-    )
+// target_ids comes straight from the loaded ONNX model's output tensor
+// (potentially a user-supplied model via `--onnx`/`libtashkeel_init`), so
+// its values are untrusted: an id outside TARGET_ID_MAP's vocabulary must
+// become an error here, not an index panic.
+fn target_to_diacritics(target_ids: impl Iterator<Item = u8>) -> LibtashkeelResult<Vec<String>> {
+    target_ids
+        .filter(|id| !TARGET_META_CHAR_IDS.contains(id))
+        .map(|diac_id| {
+            TARGET_ID_MAP.get(&diac_id).cloned().ok_or_else(|| {
+                LibtashkeelError::InferenceError(format!(
+                    "model produced unknown target id `{diac_id}`"
+                ))
+            })
+        })
+        .collect()
 }
 
+// `diacritics` must have exactly one entry per annotatable character in
+// `input`; that invariant depends on the model producing a diacritic (or
+// PAD, filtered out by target_to_diacritics) for every input position, so
+// it can't be proven at compile time. Treat a mismatch as inference
+// failure -- not a panic -- same untrusted-model-output rationale as above.
 fn annotate_text_with_diacritics(
     input: &str,
     diacritics: Vec<String>,
     removed_chars: HashSet<char>,
-) -> String {
+) -> LibtashkeelResult<String> {
     let mut output = String::new();
-    let mut diac_iter = diacritics.iter();
+    let mut diac_iter = diacritics.into_iter();
     for c in input.chars() {
         if ARABIC_DIACRITICS.contains(&c) {
             continue;
@@ -158,11 +171,15 @@ fn annotate_text_with_diacritics(
             output.push(c);
         } else {
             output.push(c);
-            let diac = diac_iter.next().unwrap();
-            output.push_str(diac);
+            let diac = diac_iter.next().ok_or_else(|| {
+                LibtashkeelError::InferenceError(
+                    "model output fewer diacritics than input characters".to_string(),
+                )
+            })?;
+            output.push_str(&diac);
         }
     }
-    output
+    Ok(output)
 }
 
 fn annotate_text_with_diacritics_taskeen(
@@ -171,11 +188,11 @@ fn annotate_text_with_diacritics_taskeen(
     removed_chars: HashSet<char>,
     logits: Vec<f32>,
     taskeen_threshold: Option<f32>,
-) -> String {
+) -> LibtashkeelResult<String> {
     let taskeen_threshold = taskeen_threshold.unwrap();
     let sukoon = char::from_u32(0x652).unwrap();
     let mut output = String::new();
-    let mut diac_iter = diacritics.iter().zip(logits);
+    let mut diac_iter = diacritics.into_iter().zip(logits);
     for c in input.chars() {
         if ARABIC_DIACRITICS.contains(&c) {
             continue;
@@ -183,15 +200,19 @@ fn annotate_text_with_diacritics_taskeen(
             output.push(c);
         } else {
             output.push(c);
-            let (diac, logit) = diac_iter.next().unwrap();
+            let (diac, logit) = diac_iter.next().ok_or_else(|| {
+                LibtashkeelError::InferenceError(
+                    "model output fewer diacritics/logits than input characters".to_string(),
+                )
+            })?;
             if logit > taskeen_threshold {
                 output.push(sukoon);
             } else {
-                output.push_str(diac);
+                output.push_str(&diac);
             }
         }
     }
-    output
+    Ok(output)
 }
 
 #[cfg(feature = "rayon")]
@@ -265,9 +286,9 @@ pub fn _do_tashkeel_impl(
         let (target_ids, logits) = engine.infer(input_ids, diac_ids, seq_length)?;
         let inference_ms = timer.elapsed().as_millis() as f32;
         log::debug!("Inference time: {} ms", inference_ms);
-        let diacritics = target_to_diacritics(target_ids.into_iter());
+        let diacritics = target_to_diacritics(target_ids.into_iter())?;
         let final_text = if taskeen_threshold.is_none() {
-            annotate_text_with_diacritics(text, diacritics, removed_chars)
+            annotate_text_with_diacritics(text, diacritics, removed_chars)?
         } else {
             annotate_text_with_diacritics_taskeen(
                 text,
@@ -275,7 +296,7 @@ pub fn _do_tashkeel_impl(
                 removed_chars,
                 logits,
                 taskeen_threshold,
-            )
+            )?
         };
         Ok(final_text)
     } else {

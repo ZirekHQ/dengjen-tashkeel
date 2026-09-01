@@ -50,37 +50,58 @@ fn get_input_text(args: &Cli) -> anyhow::Result<String> {
     Ok(input_buffer)
 }
 
+fn diacritize_capped(
+    model: &DynamicInferenceEngine,
+    text: &str,
+    taskeen_threshold: Option<f32>,
+) -> anyhow::Result<String> {
+    let input = String::from_iter(text.chars().take(CHAR_LIMIT));
+    Ok(do_tashkeel(model, &input, taskeen_threshold, false)?)
+}
+
+fn write_output_file(path: &std::path::Path, text: &str) -> anyhow::Result<()> {
+    let mut file = File::create(path)?;
+    file.write_all(text.as_bytes())?;
+    log::info!("Wrote output to file `{}`", path.display());
+    Ok(())
+}
+
+// Each (input_file, output_file) combination writes its output exactly
+// once, through exactly one of write_to_stdout/write_output_file below --
+// unlike the single shared accumulator this replaced, it's structurally
+// impossible for a branch to both stream per-line output and then emit a
+// second, empty final write.
 fn tashkeel_main(
     model: &DynamicInferenceEngine,
     args: &Cli,
     input_text: String,
 ) -> anyhow::Result<()> {
     let taskeen_threshold = if args.taskeen { args.prob } else { None };
-    let mut diacritized_text: String = String::new();
-    if args.input_file.is_none() {
-        let input = String::from_iter(input_text.chars().take(CHAR_LIMIT));
-        diacritized_text.push_str(&do_tashkeel(model, &input, taskeen_threshold, false)?);
-    } else {
-        let mut diacritized_lines = String::new();
-        for input_line in input_text.lines() {
-            let input = String::from_iter(input_line.chars().take(CHAR_LIMIT));
-            let diacritized_line = do_tashkeel(model, &input, taskeen_threshold, false)?;
-            if args.output_file.is_none() {
+
+    match (&args.input_file, &args.output_file) {
+        (None, None) => {
+            let diacritized = diacritize_capped(model, &input_text, taskeen_threshold)?;
+            write_to_stdout(&diacritized)?;
+        }
+        (None, Some(output_filename)) => {
+            let diacritized = diacritize_capped(model, &input_text, taskeen_threshold)?;
+            write_output_file(output_filename, &diacritized)?;
+        }
+        (Some(_), None) => {
+            for input_line in input_text.lines() {
+                let diacritized_line = diacritize_capped(model, input_line, taskeen_threshold)?;
                 write_to_stdout(&diacritized_line)?;
-            } else {
+            }
+        }
+        (Some(_), Some(output_filename)) => {
+            let mut diacritized_lines = String::new();
+            for input_line in input_text.lines() {
+                let diacritized_line = diacritize_capped(model, input_line, taskeen_threshold)?;
                 diacritized_lines.push_str(&diacritized_line);
                 diacritized_lines.push('\n');
             }
+            write_output_file(output_filename, &diacritized_lines)?;
         }
-        diacritized_text.push_str(&diacritized_lines);
-    }
-
-    if let Some(ref output_filename) = args.output_file {
-        let mut file = File::create(output_filename)?;
-        file.write_all(diacritized_text.as_bytes())?;
-        log::info!("Wrote output to file `{}`", output_filename.display());
-    } else {
-        write_to_stdout(&diacritized_text)?
     }
 
     Ok(())
@@ -263,5 +284,21 @@ mod tests {
 
         let written = std::fs::read_to_string(output_file.path()).unwrap();
         assert_eq!(written.lines().count(), 2);
+    }
+
+    #[test]
+    fn tashkeel_main_reading_a_file_to_stdout_does_not_error() {
+        // Regression test: this (input_file: Some, output_file: None)
+        // combination used to also run the single-shot accumulator's final
+        // write_to_stdout call on an empty string, printing a spurious
+        // trailing blank line after the real per-line output. There's no
+        // stdout-capture harness here to assert on the extra line directly,
+        // but this exercises the code path end to end without panicking.
+        let mut input_file = tempfile::NamedTempFile::new().unwrap();
+        writeln!(input_file, "بسم الله\nالرحمن الرحيم").unwrap();
+        let args = parse(&["--input-file", input_file.path().to_str().unwrap()]);
+        let input_text = std::fs::read_to_string(input_file.path()).unwrap();
+
+        tashkeel_main(&ENGINE, &args, input_text).unwrap();
     }
 }
