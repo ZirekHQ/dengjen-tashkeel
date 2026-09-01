@@ -1,0 +1,84 @@
+name: Bug report
+description: Something in Libtashkeel isn't behaving the way it should.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. The fields below help reproduce and diagnose the problem quickly — please fill in as much as you can.
+
+  - type: input
+    id: version
+    attributes:
+      label: Libtashkeel version
+      description: Release tag, crate/wheel version, or commit SHA if built from source.
+      placeholder: e.g. v1.5.1 / pylibtashkeel 1.5.1 / commit 96a8cd4
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the project is affected?
+      options:
+        - CLI (tashkeel)
+        - Rust library (crates/core)
+        - C/C++ API (crates/capi)
+        - Python bindings (pylibtashkeel)
+        - WASM
+        - Build / CI
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and architecture you built or ran on.
+      placeholder: e.g. Ubuntu 24.04 x86_64 / macOS 15 aarch64 / Windows 11 x64
+    validations:
+      required: true
+
+  - type: textarea
+    id: input-text
+    attributes:
+      label: Input text
+      description: The Arabic text you diacritized, if the bug is about diacritization output rather than a build/runtime error.
+      render: text
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, step by step? The more specific, the faster this can be reproduced.
+      placeholder: |
+        1. Build with `cargo build --release -p tashkeel-cli`
+        2. Run `tashkeel -i` and type ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What you thought would happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What actually happened. Include any error/panic output verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Workarounds tried, related issues, the ONNX model used (bundled vs. custom via `--onnx`), etc.
