@@ -1,10 +1,24 @@
-use dengjen_tashkeel::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
-use pyo3::exceptions::PyRuntimeError;
+use dengjen_tashkeel::{
+    create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
+};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyModule;
 
 static INFERENCE_ENGINE: PyOnceLock<DynamicInferenceEngine> = PyOnceLock::new();
+
+// InputTooLong is the caller's mistake (bad argument), so it maps to
+// Python's conventional exception for that; anything else is treated as an
+// internal/runtime failure.
+fn to_py_err(error: LibtashkeelError) -> PyErr {
+    match error {
+        LibtashkeelError::InputTooLong(max_len) => {
+            PyValueError::new_err(format!("Input too long. Max length {max_len}"))
+        }
+        other => PyRuntimeError::new_err(format!("Failed to diacritize text. Caused by: {other}")),
+    }
+}
 
 /// Diacritize Arabic text.
 #[pyfunction]
@@ -24,14 +38,11 @@ fn tashkeel(
             return Err(error);
         }
     };
-    match do_tashkeel(engine, &text, taskeen_threshold, preprocessed) {
-        Ok(diacritized_text) => Ok(diacritized_text),
-        Err(e) => {
-            let error =
-                PyRuntimeError::new_err(format!("Failed to diacritize text. Caused by: {}", e));
-            Err(error)
-        }
-    }
+    // Release the GIL for the inference call itself so other Python
+    // threads aren't blocked for its duration; nothing inside touches
+    // Python objects.
+    py.detach(|| do_tashkeel(engine, &text, taskeen_threshold, preprocessed))
+        .map_err(to_py_err)
 }
 
 /// A Python wrapper for libtashkeel.
@@ -79,5 +90,17 @@ mod tests {
         let with_taskeen = call_tashkeel("بسم الله الرحمن الرحيم", Some(0.8)).unwrap();
 
         assert_ne!(without_taskeen, with_taskeen);
+    }
+
+    #[test]
+    fn tashkeel_maps_input_too_long_to_value_error_not_runtime_error() {
+        let too_long_text = "ا".repeat(dengjen_tashkeel::CHAR_LIMIT + 1);
+
+        let result = call_tashkeel(&too_long_text, None);
+
+        Python::attach(|py| {
+            let err = result.unwrap_err();
+            assert!(err.is_instance_of::<pyo3::exceptions::PyValueError>(py));
+        });
     }
 }

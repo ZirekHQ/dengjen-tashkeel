@@ -12,7 +12,7 @@ fn main() {
         .with_parse_deps(true)
         .with_parse_include(&["ffi-support"])
         .with_cpp_compat(true)
-        // .with_language(cbindgen::Language::Cxx)
+        .with_language(cbindgen::Language::C)
         .include_item("ExternError")
         .generate()
         .expect("Unable to generate bindings")
