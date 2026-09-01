@@ -3,7 +3,6 @@ reviews:
   path_filters:
     - "!**/*.onnx"
     - "!**/data/*_map.json"
-    - "!Cargo.lock"
     - "!**/wix/**"
     - "!target/**"
     - "!crates/python/.venv/**"
