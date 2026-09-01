@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ffi_usage_example as m
 
-# Mirrors libtashkeel_core::CHAR_LIMIT (crates/core/src/lib.rs).
+# Mirrors dengjen_tashkeel::CHAR_LIMIT (crates/core/src/lib.rs).
 CHAR_LIMIT = 12000
 
 

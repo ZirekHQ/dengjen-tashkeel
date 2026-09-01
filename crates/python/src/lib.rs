@@ -1,4 +1,4 @@
-use libtashkeel_core::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
+use dengjen_tashkeel::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
