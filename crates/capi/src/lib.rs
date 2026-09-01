@@ -1,8 +1,8 @@
+use dengjen_tashkeel::{
+    create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
+};
 use ffi_support::{
     call_with_result, define_string_destructor, rust_string_to_c, ErrorCode, ExternError, FfiStr,
-};
-use libtashkeel_core::{
-    create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
 };
 use once_cell::sync::OnceCell;
 use std::ffi::c_char;
@@ -198,7 +198,7 @@ mod tests {
         assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
 
         // Step 5: input over CHAR_LIMIT returns INPUT_TOO_LONG.
-        let too_long_text = "ا".repeat(libtashkeel_core::CHAR_LIMIT + 1);
+        let too_long_text = "ا".repeat(dengjen_tashkeel::CHAR_LIMIT + 1);
         let too_long_cstring = CString::new(too_long_text).unwrap();
         let mut out_error = new_out_error();
         let result_ptr = unsafe {

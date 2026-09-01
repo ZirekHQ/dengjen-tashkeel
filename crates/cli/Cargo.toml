@@ -16,8 +16,8 @@ eula = false
 
 [features]
 default = ["ort"]
-ort = ["libtashkeel_core/ort"]
-ort-dylib = ["libtashkeel_core/ort-dylib"]
+ort = ["dengjen-tashkeel/ort"]
+ort-dylib = ["dengjen-tashkeel/ort-dylib"]
 
 [dependencies]
 anyhow = "1.0.72"
@@ -28,7 +28,7 @@ log = "0.4.18"
 version = "4.3.2"
 features = ["derive",]
 
-[dependencies.libtashkeel_core]
+[dependencies.dengjen-tashkeel]
 path = "../core"
 default-features = false
 

@@ -23,7 +23,7 @@ jobs:
         with:
           toolchain: "1.97.1"
 
-      - name: publish libtashkeel_core
-        run: cargo publish -p libtashkeel_core --locked
+      - name: publish dengjen-tashkeel
+        run: cargo publish -p dengjen-tashkeel --locked
       - name: wait for crate to index
-        run: bash .github/scripts/wait-for-crate.sh libtashkeel_core 1.5.1
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel 1.5.1
