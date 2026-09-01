@@ -173,7 +173,7 @@
         <!--<Icon Id='ProductICO' SourceFile='wix\Product.ico'/>-->
         <!--<Property Id='ARPPRODUCTICON' Value='ProductICO' />-->
 
-        <Property Id='ARPHELPLINK' Value='https://github.com/ZirekHQ/libtashkeel'/>
+        <Property Id='ARPHELPLINK' Value='https://github.com/ZirekHQ/dengjen-tashkeel'/>
         
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
