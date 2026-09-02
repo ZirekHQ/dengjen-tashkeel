@@ -1,12 +1,14 @@
 name: Python Wheel
 
-# Builds the dengjen_tashkeel_py wheel exactly the way an external build pipeline
-# would (plain `maturin build`, no --features flag) and smoke-tests it. This
-# guards the pyproject.toml `[tool.maturin] features` safety net: without it,
-# extension-module (non-default since crates/python/Cargo.toml split it out
-# for in-process cargo test) would be silently dropped, producing a cdylib
-# that links libpython directly instead of a proper extension module -- a
-# wheel that fails to import and that manylinux/auditwheel would reject.
+# Builds the dengjen_tashkeel_py wheel exactly the way an external build
+# pipeline would (plain `maturin build`, no --features flag -- see
+# pyproject.toml's [tool.maturin] for the ort-dylib/extension-module features
+# this now resolves to) and smoke-tests it across the three most recent
+# Ubuntu LTS releases plus whatever Ubuntu currently calls "latest", to guard
+# the glibc/libstdc++ compatibility floor fixed for issue #29: onnxruntime is
+# now loaded dynamically from the `onnxruntime` pip package (manylinux_2_17)
+# instead of being statically linked from a prebuilt binary that required
+# glibc 2.38+.
 on:
   push:
     branches: [ main ]
@@ -19,28 +21,71 @@ permissions:
 jobs:
   build-wheel:
     runs-on: ubuntu-latest
+    container: ubuntu:${{ matrix.ubuntu }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pin the three most recent Ubuntu LTS releases for reproducibility
+        # (re-derive which three, at implementation time, from today's date
+        # -- LTS ships every April; as of 2026-09-02 that's 22.04/24.04/26.04,
+        # NOT 20.04, whose mainstream support has already ended -- confirmed
+        # by deadsnakes no longer even building packages for it). "latest" is
+        # Docker Hub's unpinned tag, deliberately left to drift so CI keeps
+        # testing against whatever Ubuntu currently calls "latest" over time.
+        # Every one of these ships a default `python3` already >= pyproject
+        # .toml's `requires-python = ">=3.9"` floor (22.04 -> 3.10, 24.04 ->
+        # 3.12, 26.04 newer still), so no PPA/alternate-Python dance is
+        # needed -- that was only ever required for the now-dropped 20.04.
+        ubuntu: ["22.04", "24.04", "26.04", "latest"]
     steps:
+      - name: Install build prerequisites
+        # No actions/checkout or dtolnay/rust-toolchain equivalent exists
+        # for arbitrary `container:` images, so bootstrap from scratch
+        # instead of relying on pre-installed tooling.
+        env:
+          # ubuntu:XX container images have no TTY and no prior debconf
+          # answers, so anything pulling in tzdata blocks forever on an
+          # interactive "Geographic area:" prompt without this.
+          DEBIAN_FRONTEND: noninteractive
+          TZ: Etc/UTC
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq curl build-essential ca-certificates git
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-        with:
-          toolchain: "1.97.1"
-          # rust-toolchain.toml declares components = ["clippy", "rustfmt"].
-          # Requesting them here installs them as part of this step; leaving
-          # them out makes the first `cargo`/`maturin` invocation below
-          # auto-install them on demand instead, which hit a rustup
-          # component-install conflict (bin/cargo-fmt) and failed the build.
-          components: clippy, rustfmt
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.11"
+      - name: Install pinned toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal -c clippy,rustfmt
+          rustup default 1.97.1
+
+      - name: Install uv and Python 3.11
+        # onnxruntime>=1.28 (this crate's runtime dependency -- see
+        # pyproject.toml) stopped publishing cp310 wheels from 1.24.1
+        # onward, so several of these Ubuntu releases' stock python3
+        # (22.04 -> 3.10) can't install it, and older releases don't ship
+        # a newer python3 in their own repos either. Rather than depend on
+        # each release's own apt repos or an external PPA (deadsnakes had
+        # already dropped 20.04/focal entirely -- the reason this matrix
+        # no longer includes 20.04 at all), use uv to fetch a
+        # self-contained Python 3.11 build directly, uniformly across
+        # every matrix entry, regardless of what that release ships.
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install maturin
         run: |
-          pip install --only-binary :all: maturin==1.14.1
+          uv venv /venv --python 3.11 --seed
+          /venv/bin/pip install --only-binary :all: maturin==1.14.1
+          echo "/venv/bin" >> "$GITHUB_PATH"
 
       - name: Build wheel (no --features flag, mirrors an external build pipeline)
         working-directory: crates/python
@@ -51,7 +96,8 @@ jobs:
         # name -- SonarCloud's githubactions:S8544 flags unresolved-version
         # dependency installs, and "dengjen_tashkeel_py" with no pinned
         # version (even with --no-index) reads as one of those to static
-        # analysis.
+        # analysis. onnxruntime comes along automatically via the wheel's
+        # own [project.dependencies], since this isn't --no-deps.
         run: |
           pip install --only-binary :all: crates/python/dist/*.whl
           python3 -c "
