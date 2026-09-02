@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,6 +31,20 @@ class TashkeelTest {
         String result = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), true);
 
         assertNotEquals("بسم الله الرحمن الرحيم", result);
+        assertTrue(result.codePoints().anyMatch(c -> c >= 0x064B && c <= 0x0652),
+                "result should contain Arabic diacritics");
+        assertEquals("بسم الله الرحمن الرحيم",
+                result.replaceAll("[\\u064B-\\u0652]", ""),
+                "stripping diacritics should recover the input verbatim");
+    }
+
+    @Test
+    void diacritizeWithTaskeenThresholdSucceeds() throws Exception {
+        Tashkeel tashkeel = new Tashkeel();
+
+        String result = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.of(0.8f), true);
+
+        assertTrue(result != null && !result.isEmpty(), "result should be a non-empty string");
     }
 
     @Test
