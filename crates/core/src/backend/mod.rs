@@ -48,7 +48,7 @@ pub fn create_inference_engine(
 #[cfg(feature = "ort-dylib")]
 pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
     let path = path.as_ref();
-    ::ort::init_from(path.to_string_lossy().into_owned())
+    let committed = ::ort::init_from(path)
         .map_err(|e| {
             crate::DengjenTashkeelError::InferenceError(format!(
                 "Failed to load onnxruntime dynamic library from `{}`. Caused by: {e}",
@@ -56,5 +56,13 @@ pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResul
             ))
         })?
         .commit();
+
+    if !committed {
+        return Err(crate::LibtashkeelError::InferenceError(format!(
+            "onnxruntime environment was already initialized before `{}` could be loaded",
+            path.display()
+        )));
+    }
+
     Ok(())
 }
