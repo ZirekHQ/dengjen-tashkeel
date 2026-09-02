@@ -26,4 +26,9 @@ jobs:
       - name: publish dengjen-tashkeel
         run: cargo publish -p dengjen-tashkeel --locked
       - name: wait for crate to index
-        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel 1.5.1
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel 1.5.2
+
+      - name: publish dengjen-tashkeel-cli
+        run: cargo publish -p dengjen-tashkeel-cli --locked
+      - name: wait for crate to index
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel-cli 1.5.2

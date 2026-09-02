@@ -220,7 +220,7 @@ checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 
 [[package]]
 name = "dengjen-tashkeel"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "libtqsm",
  "log",
@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-capi"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "cbindgen",
  "dengjen-tashkeel",
@@ -246,8 +246,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dengjen-tashkeel-cli"
+version = "1.5.2"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dengjen-tashkeel",
+ "env_logger",
+ "log",
+ "tempfile",
+]
+
+[[package]]
 name = "dengjen-tashkeel-python"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "dengjen-tashkeel",
  "pyo3",
@@ -911,18 +923,6 @@ name = "target-lexicon"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
-
-[[package]]
-name = "tashkeel"
-version = "1.5.1"
-dependencies = [
- "anyhow",
- "clap",
- "dengjen-tashkeel",
- "env_logger",
- "log",
- "tempfile",
-]
 
 [[package]]
 name = "tempfile"

@@ -23,7 +23,7 @@ body:
       label: Component
       description: Which part of the project is affected?
       options:
-        - CLI (tashkeel)
+        - CLI (dengjen-tashkeel)
         - Rust library (crates/core)
         - C/C++ API (crates/capi)
         - Python bindings (dengjen-tashkeel-py)
@@ -55,8 +55,8 @@ body:
       label: Steps to reproduce
       description: What did you do, step by step? The more specific, the faster this can be reproduced.
       placeholder: |
-        1. Build with `cargo build --release -p tashkeel-cli`
-        2. Run `tashkeel -i` and type ...
+        1. Build with `cargo build --release -p dengjen-tashkeel-cli`
+        2. Run `dengjen-tashkeel -i` and type ...
         3. ...
     validations:
       required: true
