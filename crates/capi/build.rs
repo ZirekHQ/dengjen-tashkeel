@@ -8,7 +8,7 @@ fn main() {
     cbindgen::Builder::new()
         .with_crate(crate_dir)
         .with_include_version(true)
-        .with_documentation(false)
+        .with_documentation(true)
         .with_parse_deps(true)
         .with_parse_include(&["ffi-support"])
         .with_cpp_compat(true)
