@@ -45,8 +45,27 @@ fn ort_session_run(
                 outputs.len()
             )));
         }
-        let (_, target_ids) = outputs[0].try_extract_tensor::<u8>()?;
-        let (_, logits) = outputs[1].try_extract_tensor::<f32>()?;
+        let (target_shape, target_ids) = outputs[0].try_extract_tensor::<u8>()?;
+        let (logits_shape, logits) = outputs[1].try_extract_tensor::<f32>()?;
+        // target_ids: exactly one id per input position. logits: per-class
+        // scores per position (seq_length * len(TARGET_ID_MAP), 15 today),
+        // of which the annotation loops in lib.rs zip-consume a
+        // diacritics.len() <= seq_length prefix -- so logits only needs to
+        // cover at least seq_length entries, not equal it exactly. Either
+        // falling short is a genuine inference failure, not something to
+        // flatten and propagate into a silent misalignment downstream.
+        if target_ids.len() != seq_length {
+            return Err(LibtashkeelError::InferenceError(format!(
+                "model returned {} target ids (shape {target_shape:?}) for a sequence of length {seq_length}",
+                target_ids.len()
+            )));
+        }
+        if logits.len() < seq_length {
+            return Err(LibtashkeelError::InferenceError(format!(
+                "model returned {} logits (shape {logits_shape:?}), fewer than the sequence length {seq_length}",
+                logits.len()
+            )));
+        }
         (target_ids.to_vec(), logits.to_vec())
     };
 
