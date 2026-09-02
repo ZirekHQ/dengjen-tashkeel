@@ -3,7 +3,7 @@
 Arabic-text diacritic (tashkeel) restoration using an ONNX neural model,
 trained mainly on MSA data from [Hareef](https://github.com/mush42/hareef).
 
-Available as a Rust crate, a C ABI, a Python package, and a standalone CLI.
+Available as a Rust crate, a C ABI, a Python package, a Java library, and a standalone CLI.
 
 ## Non-scope
 
@@ -91,6 +91,20 @@ then add `dengjen-tashkeel-capi/1.5.2` to your `conanfile.txt`/`conanfile.py`
 `requires`. See [packaging/README.md](./packaging/README.md) for how both
 are maintained.
 
+**Java:**
+
+```kotlin
+implementation("io.github.zirekhq:dengjen-tashkeel-java:1.5.2")
+```
+
+Published to Maven Central by the `java-publish.yml` CI workflow whenever a
+version tag is pushed. The binding loads the native `dengjen_tashkeel_capi`
+shared library via [JNA](https://github.com/java-native-access/jna) at
+runtime rather than bundling it — download the `dengjen-tashkeel-capi-<target>`
+archive for your platform (see the **C** section above), then either place
+the shared library where your OS's default native-library search finds it,
+or pass `-Djna.library.path=/path/to/dir` on the JVM command line.
+
 **CLI:** either build from source (see **Building**) or `cargo install
 dengjen-tashkeel-cli` (published to crates.io).
 
@@ -129,6 +143,23 @@ in your embedding process.
 string — see
 [`ffi_usage_example.py`](./crates/capi/ffi_usage_example.py) for sample
 usage against the compiled library via `ctypes`.
+
+**Java:**
+
+```java
+import io.github.zirekhq.dengjentashkeel.Tashkeel;
+import java.util.Optional;
+
+Tashkeel tashkeel = Tashkeel.loadDefault();
+String diacritized = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), false);
+```
+
+`diacritize`'s second argument is an optional taskeen threshold (see
+below) and the third is `preprocessed` — pass `true` only if the text is
+already sentence-segmented, otherwise the library segments it for you.
+Errors surface as a checked `TashkeelException`, whose `reason()` is an
+exhaustively switchable sealed type mirroring the `ErrorCode` values in
+`dengjen_tashkeel.h`.
 
 **CLI:**
 
