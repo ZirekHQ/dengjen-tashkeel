@@ -58,7 +58,7 @@ pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResul
         .commit();
 
     if !committed {
-        return Err(crate::LibtashkeelError::InferenceError(format!(
+        return Err(crate::DengjenTashkeelError::InferenceError(format!(
             "onnxruntime environment was already initialized before `{}` could be loaded",
             path.display()
         )));
