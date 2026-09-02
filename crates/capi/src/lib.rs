@@ -1,5 +1,5 @@
 use dengjen_tashkeel::{
-    create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
+    create_inference_engine, do_tashkeel, DengjenTashkeelError, DynamicInferenceEngine,
 };
 use ffi_support::{call_with_result, rust_string_to_c, ErrorCode, ExternError, FfiStr};
 use once_cell::sync::OnceCell;
@@ -17,33 +17,35 @@ mod ErrorCodes {
 }
 
 #[derive(Debug)]
-struct LibtashkeelFFIError(i32, String);
+struct DengjenTashkeelFFIError(i32, String);
 
-impl From<LibtashkeelError> for LibtashkeelFFIError {
-    fn from(other: LibtashkeelError) -> Self {
+impl From<DengjenTashkeelError> for DengjenTashkeelFFIError {
+    fn from(other: DengjenTashkeelError) -> Self {
         let (code, message) = match other {
-            LibtashkeelError::InputTooLong(max_len) => (
+            DengjenTashkeelError::InputTooLong(max_len) => (
                 ErrorCodes::INPUT_TOO_LONG,
                 format!("Input too long. Max length {}", max_len),
             ),
-            LibtashkeelError::InferenceError(msg) => (ErrorCodes::INFERENCE_ERROR, msg),
-            LibtashkeelError::ModelLoadError(e) => (ErrorCodes::MODEL_LOAD_ERROR, e.to_string()),
+            DengjenTashkeelError::InferenceError(msg) => (ErrorCodes::INFERENCE_ERROR, msg),
+            DengjenTashkeelError::ModelLoadError(e) => {
+                (ErrorCodes::MODEL_LOAD_ERROR, e.to_string())
+            }
         };
         Self(code, message)
     }
 }
 
-impl From<LibtashkeelFFIError> for ExternError {
-    fn from(other: LibtashkeelFFIError) -> Self {
+impl From<DengjenTashkeelFFIError> for ExternError {
+    fn from(other: DengjenTashkeelFFIError) -> Self {
         let err_code = ErrorCode::new(other.0);
         ExternError::new_error(err_code, other.1)
     }
 }
 
-type LibtashkeelFFIResult<T> = Result<T, LibtashkeelFFIError>;
+type DengjenTashkeelFFIResult<T> = Result<T, DengjenTashkeelFFIError>;
 
 /// The matching deallocator for every non-null `char *` this library hands
-/// back to the caller: both `libtashkeelTashkeel`'s return value and a
+/// back to the caller: both `dengjenTashkeelTashkeel`'s return value and a
 /// populated `ExternError.message` (set via `ffi_support::rust_string_to_c`,
 /// same allocation this frees) must be released with this function.
 ///
@@ -54,10 +56,10 @@ type LibtashkeelFFIResult<T> = Result<T, LibtashkeelFFIError>;
 ///
 /// Hand-written (rather than `define_string_destructor!`) purely so
 /// cbindgen -- which parses source syntactically and never expands foreign
-/// macros -- can see this symbol and declare it in libtashkeel.h; behavior
+/// macros -- can see this symbol and declare it in dengjen_tashkeel.h; behavior
 /// is identical to what that macro would generate.
 #[no_mangle]
-pub unsafe extern "C" fn libtashkeel_free_string(s: *mut c_char) {
+pub unsafe extern "C" fn dengjen_tashkeel_free_string(s: *mut c_char) {
     unsafe { ffi_support::destroy_c_string(s) }
 }
 
@@ -73,7 +75,7 @@ pub unsafe extern "C" fn libtashkeel_free_string(s: *mut c_char) {
 /// aligned, writable `ExternError` valid for the duration of this call.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn libtashkeelTashkeel(
+pub unsafe extern "C" fn dengjenTashkeelTashkeel(
     text_ptr: FfiStr,
     taskeen_threshold: *const libc::c_float,
     preprocessed: bool,
@@ -92,7 +94,7 @@ pub unsafe extern "C" fn libtashkeelTashkeel(
         let engine = INFERENCE_ENGINE.get_or_try_init(|| create_inference_engine(None))?;
         let diacritized_text = ffi_do_tashkeel(engine, &text, taskeen_threshold, preprocessed)?;
         let retval = rust_string_to_c(diacritized_text);
-        Ok::<*mut c_char, LibtashkeelFFIError>(retval)
+        Ok::<*mut c_char, DengjenTashkeelFFIError>(retval)
     })
 }
 
@@ -102,7 +104,10 @@ pub unsafe extern "C" fn libtashkeelTashkeel(
 /// valid for the duration of this call.
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn libtashkeel_init(model_path_ptr: FfiStr, out_error: *mut ExternError) {
+pub unsafe extern "C" fn dengjen_tashkeel_init(
+    model_path_ptr: FfiStr,
+    out_error: *mut ExternError,
+) {
     let Some(out_error) = (unsafe { out_error.as_mut() }) else {
         return;
     };
@@ -115,14 +120,14 @@ fn ffi_do_tashkeel(
     text: &str,
     taskeen_threshold: Option<f32>,
     preprocessed: bool,
-) -> LibtashkeelFFIResult<String> {
+) -> DengjenTashkeelFFIResult<String> {
     Ok(do_tashkeel(model, text, taskeen_threshold, preprocessed)?)
 }
 
-fn do_init_library(model_path: Option<PathBuf>) -> LibtashkeelFFIResult<()> {
+fn do_init_library(model_path: Option<PathBuf>) -> DengjenTashkeelFFIResult<()> {
     let engine = create_inference_engine(model_path)?;
     if INFERENCE_ENGINE.set(engine).is_err() {
-        Err(LibtashkeelFFIError(
+        Err(DengjenTashkeelFFIError(
             ErrorCodes::UNKNOWN_ERROR,
             "Unexpected error. Failed to init global inference_engine instance.".to_string(),
         ))
@@ -143,8 +148,8 @@ mod tests {
 
     #[test]
     fn tashkeel_lifecycle_and_error_paths() {
-        // Step 1: call libtashkeelTashkeel directly, with NO prior
-        // libtashkeel_init call. INFERENCE_ENGINE.get_or_try_init lazily
+        // Step 1: call dengjenTashkeelTashkeel directly, with NO prior
+        // dengjen_tashkeel_init call. INFERENCE_ENGINE.get_or_try_init lazily
         // creates the engine from the bundled default model right here.
         // (This exact sequence used to deadlock before #13 was fixed: the
         // old lazy-init path re-entered the same std::sync::Once it was
@@ -154,7 +159,7 @@ mod tests {
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
 
         let result_ptr = unsafe {
-            libtashkeelTashkeel(
+            dengjenTashkeelTashkeel(
                 FfiStr::from_cstr(&text),
                 taskeen_threshold,
                 true,
@@ -169,7 +174,7 @@ mod tests {
             .unwrap()
             .to_string();
         assert_ne!(diacritized, "بسم الله الرحمن الرحيم");
-        unsafe { libtashkeel_free_string(result_ptr) };
+        unsafe { dengjen_tashkeel_free_string(result_ptr) };
 
         // Step 1b: a null text_ptr no longer aborts the process. into_string()
         // panics on it, but that panic now happens inside call_with_result's
@@ -177,8 +182,9 @@ mod tests {
         // (code PANIC = -1) instead of unwinding past this extern "C" frame.
         let mut out_error = new_out_error();
         let null_text_ptr = unsafe { FfiStr::from_raw(std::ptr::null()) };
-        let result_ptr =
-            unsafe { libtashkeelTashkeel(null_text_ptr, taskeen_threshold, true, &mut out_error) };
+        let result_ptr = unsafe {
+            dengjenTashkeelTashkeel(null_text_ptr, taskeen_threshold, true, &mut out_error)
+        };
         assert_eq!(out_error.get_code(), ErrorCode::PANIC);
         assert!(result_ptr.is_null());
 
@@ -186,7 +192,7 @@ mod tests {
         let invalid_utf8 = CString::new(vec![0xFFu8, 0xFEu8]).unwrap();
         let mut out_error = new_out_error();
         let result_ptr = unsafe {
-            libtashkeelTashkeel(
+            dengjenTashkeelTashkeel(
                 FfiStr::from_cstr(&invalid_utf8),
                 taskeen_threshold,
                 true,
@@ -198,14 +204,14 @@ mod tests {
             "invalid UTF-8 should be lossily converted, not rejected"
         );
         assert!(!result_ptr.is_null());
-        unsafe { libtashkeel_free_string(result_ptr) };
+        unsafe { dengjen_tashkeel_free_string(result_ptr) };
 
         // Step 3: INFERENCE_ENGINE is now permanently set for this process
-        // (lazily, from Step 1). An explicit libtashkeel_init call must hit
+        // (lazily, from Step 1). An explicit dengjen_tashkeel_init call must hit
         // the "already initialized" branch.
         let mut out_error = new_out_error();
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
-        unsafe { libtashkeel_init(null_path, &mut out_error) };
+        unsafe { dengjen_tashkeel_init(null_path, &mut out_error) };
         assert_eq!(out_error.get_code().code(), ErrorCodes::UNKNOWN_ERROR);
 
         // Step 4: bad model path/file report INFERENCE_ERROR regardless of
@@ -213,7 +219,7 @@ mod tests {
         // do_init_library would ever reach the .set() call.
         let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
         let mut out_error = new_out_error();
-        unsafe { libtashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error) };
+        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error) };
         assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
 
         let mut malformed = tempfile::NamedTempFile::new().unwrap();
@@ -222,7 +228,7 @@ mod tests {
             .unwrap();
         let path = CString::new(malformed.path().to_str().unwrap()).unwrap();
         let mut out_error = new_out_error();
-        unsafe { libtashkeel_init(FfiStr::from_cstr(&path), &mut out_error) };
+        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&path), &mut out_error) };
         assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
 
         // Step 5: input over CHAR_LIMIT returns INPUT_TOO_LONG.
@@ -230,7 +236,7 @@ mod tests {
         let too_long_cstring = CString::new(too_long_text).unwrap();
         let mut out_error = new_out_error();
         let result_ptr = unsafe {
-            libtashkeelTashkeel(
+            dengjenTashkeelTashkeel(
                 FfiStr::from_cstr(&too_long_cstring),
                 taskeen_threshold,
                 true,
@@ -247,7 +253,7 @@ mod tests {
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
 
         let result_ptr = unsafe {
-            libtashkeelTashkeel(
+            dengjenTashkeelTashkeel(
                 FfiStr::from_cstr(&text),
                 taskeen_threshold,
                 true,
@@ -257,6 +263,6 @@ mod tests {
         assert!(result_ptr.is_null());
 
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
-        unsafe { libtashkeel_init(null_path, std::ptr::null_mut()) };
+        unsafe { dengjen_tashkeel_init(null_path, std::ptr::null_mut()) };
     }
 }

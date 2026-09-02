@@ -4,22 +4,23 @@ import ctypes
 import os
 
 
-# Change this based on your platform and build: liblibtashkeel.so (Linux),
-# liblibtashkeel.dylib (macOS), or libtashkeel.dll (Windows). The library's
-# crate name is "libtashkeel" (see crates/capi/Cargo.toml's [lib] section),
-# and cargo prefixes cdylib outputs with "lib" on Unix, hence the double
-# "lib" in the Linux/macOS filenames. This script assumes it's run from
-# crates/capi/ (its own directory) -- the workspace's target/ dir is two
-# levels up from there.
-LIBTASHKEEL_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "target", "debug", "liblibtashkeel.so")
+# Change this based on your platform and build: libdengjen_tashkeel_capi.so
+# (Linux), libdengjen_tashkeel_capi.dylib (macOS), or dengjen_tashkeel_capi.dll
+# (Windows). The library's crate name is "dengjen_tashkeel_capi" (see
+# crates/capi/Cargo.toml's [lib] section), and cargo prefixes cdylib outputs
+# with "lib" on Unix. This script assumes it's run from crates/capi/ (its
+# own directory) -- the workspace's target/ dir is two levels up from there.
+DENGJEN_TASHKEEL_PATH = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__), "..", "..", "target", "debug", "libdengjen_tashkeel_capi.so"
+    )
 )
 
 
 class ExternError(ctypes.Structure):
-    """Mirrors the `ExternError` struct in libtashkeel.h: an int32 error
-    code (0 == success) and an owned, nul-terminated error message pointer
-    (null when there's no error)."""
+    """Mirrors the `ExternError` struct in dengjen_tashkeel.h: an int32
+    error code (0 == success) and an owned, nul-terminated error message
+    pointer (null when there's no error)."""
 
     _fields_ = [
         ("code", ctypes.c_int32),
@@ -31,47 +32,47 @@ class ExternError(ctypes.Structure):
         if not self.message:
             return None
         text = ctypes.cast(self.message, ctypes.c_char_p).value.decode("utf-8")
-        lib.libtashkeel_free_string(self.message)
+        lib.dengjen_tashkeel_free_string(self.message)
         return text
 
 
-lib = ctypes.cdll.LoadLibrary(LIBTASHKEEL_PATH)
+lib = ctypes.cdll.LoadLibrary(DENGJEN_TASHKEEL_PATH)
 
-lib.libtashkeelTashkeel.argtypes = (
+lib.dengjenTashkeelTashkeel.argtypes = (
     ctypes.c_char_p,
     ctypes.POINTER(ctypes.c_float),
     ctypes.c_bool,
     ctypes.POINTER(ExternError),
 )
-lib.libtashkeelTashkeel.restype = ctypes.c_void_p
-lib.libtashkeel_init.argtypes = (ctypes.c_char_p, ctypes.POINTER(ExternError))
-lib.libtashkeel_free_string.argtypes = (ctypes.c_void_p,)
+lib.dengjenTashkeelTashkeel.restype = ctypes.c_void_p
+lib.dengjen_tashkeel_init.argtypes = (ctypes.c_char_p, ctypes.POINTER(ExternError))
+lib.dengjen_tashkeel_free_string.argtypes = (ctypes.c_void_p,)
 
 
 def init(model_path=None):
-    """Explicitly initialize libtashkeel with an optional custom ONNX model
-    path (None uses the bundled default model). Calling tashkeel() without
-    ever calling init() first also works -- it lazily initializes on first
-    use with the bundled default model."""
+    """Explicitly initialize dengjen_tashkeel with an optional custom ONNX
+    model path (None uses the bundled default model). Calling tashkeel()
+    without ever calling init() first also works -- it lazily initializes on
+    first use with the bundled default model."""
     err = ExternError()
     path_bytes = model_path.encode("utf-8") if model_path else None
-    lib.libtashkeel_init(path_bytes, ctypes.byref(err))
+    lib.dengjen_tashkeel_init(path_bytes, ctypes.byref(err))
     if err.code != 0:
         raise RuntimeError(err.take_message())
 
 
 def tashkeel(text, taskeen_threshold=None, preprocessed=False):
     err = ExternError()
-    # taskeen_threshold is borrowed by libtashkeelTashkeel for the duration
-    # of this call only -- it is never freed on the Rust side. ctypes keeps
-    # this local c_float alive for exactly that long via the pointer's
-    # internal reference, so no explicit cleanup is needed here.
+    # taskeen_threshold is borrowed by dengjenTashkeelTashkeel for the
+    # duration of this call only -- it is never freed on the Rust side.
+    # ctypes keeps this local c_float alive for exactly that long via the
+    # pointer's internal reference, so no explicit cleanup is needed here.
     threshold_ptr = (
         ctypes.pointer(ctypes.c_float(taskeen_threshold))
         if taskeen_threshold is not None
         else None
     )
-    ptr = lib.libtashkeelTashkeel(
+    ptr = lib.dengjenTashkeelTashkeel(
         text.encode("utf-8"),
         threshold_ptr,
         preprocessed,
@@ -82,7 +83,7 @@ def tashkeel(text, taskeen_threshold=None, preprocessed=False):
     try:
         return ctypes.cast(ptr, ctypes.c_char_p).value.decode("utf-8")
     finally:
-        lib.libtashkeel_free_string(ptr)
+        lib.dengjen_tashkeel_free_string(ptr)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 use dengjen_tashkeel::{
-    create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
+    create_inference_engine, do_tashkeel, DengjenTashkeelError, DynamicInferenceEngine,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -11,9 +11,9 @@ static INFERENCE_ENGINE: PyOnceLock<DynamicInferenceEngine> = PyOnceLock::new();
 // InputTooLong is the caller's mistake (bad argument), so it maps to
 // Python's conventional exception for that; anything else is treated as an
 // internal/runtime failure.
-fn to_py_err(error: LibtashkeelError) -> PyErr {
+fn to_py_err(error: DengjenTashkeelError) -> PyErr {
     match error {
-        LibtashkeelError::InputTooLong(max_len) => {
+        DengjenTashkeelError::InputTooLong(max_len) => {
             PyValueError::new_err(format!("Input too long. Max length {max_len}"))
         }
         other => PyRuntimeError::new_err(format!("Failed to diacritize text. Caused by: {other}")),
@@ -45,9 +45,9 @@ fn tashkeel(
         .map_err(to_py_err)
 }
 
-/// A Python wrapper for libtashkeel.
+/// A Python wrapper for dengjen_tashkeel.
 #[pymodule]
-fn pylibtashkeel(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn dengjen_tashkeel_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
     let engine = match create_inference_engine(None) {
         Ok(eng) => eng,

@@ -234,6 +234,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dengjen-tashkeel-capi"
+version = "1.5.1"
+dependencies = [
+ "cbindgen",
+ "dengjen-tashkeel",
+ "ffi-support",
+ "libc",
+ "once_cell",
+ "tempfile",
+]
+
+[[package]]
+name = "dengjen-tashkeel-python"
+version = "1.5.1"
+dependencies = [
+ "dengjen-tashkeel",
+ "pyo3",
+]
+
+[[package]]
 name = "either"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -424,18 +444,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libtashkeel"
-version = "1.5.1"
-dependencies = [
- "cbindgen",
- "dengjen-tashkeel",
- "ffi-support",
- "libc",
- "once_cell",
- "tempfile",
-]
-
-[[package]]
 name = "libtqsm"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -597,14 +605,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "pylibtashkeel"
-version = "1.5.1"
-dependencies = [
- "dengjen-tashkeel",
- "pyo3",
 ]
 
 [[package]]

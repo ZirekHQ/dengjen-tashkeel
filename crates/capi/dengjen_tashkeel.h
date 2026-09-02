@@ -209,7 +209,7 @@ extern "C" {
 
 /**
  * The matching deallocator for every non-null `char *` this library hands
- * back to the caller: both `libtashkeelTashkeel`'s return value and a
+ * back to the caller: both `dengjenTashkeelTashkeel`'s return value and a
  * populated `ExternError.message` (set via `ffi_support::rust_string_to_c`,
  * same allocation this frees) must be released with this function.
  *
@@ -220,10 +220,10 @@ extern "C" {
  *
  * Hand-written (rather than `define_string_destructor!`) purely so
  * cbindgen -- which parses source syntactically and never expands foreign
- * macros -- can see this symbol and declare it in libtashkeel.h; behavior
+ * macros -- can see this symbol and declare it in dengjen_tashkeel.h; behavior
  * is identical to what that macro would generate.
  */
-void libtashkeel_free_string(char *s);
+void dengjen_tashkeel_free_string(char *s);
 
 /**
  * # Safety
@@ -237,10 +237,10 @@ void libtashkeel_free_string(char *s);
  * error and returns a null pointer) or point to a single, properly
  * aligned, writable `ExternError` valid for the duration of this call.
  */
-char *libtashkeelTashkeel(FfiStr text_ptr,
-                          const float *taskeen_threshold,
-                          bool preprocessed,
-                          struct ExternError *out_error);
+char *dengjenTashkeelTashkeel(FfiStr text_ptr,
+                              const float *taskeen_threshold,
+                              bool preprocessed,
+                              struct ExternError *out_error);
 
 /**
  * # Safety
@@ -248,7 +248,7 @@ char *libtashkeelTashkeel(FfiStr text_ptr,
  * no-op) or point to a single, properly aligned, writable `ExternError`
  * valid for the duration of this call.
  */
-void libtashkeel_init(FfiStr model_path_ptr, struct ExternError *out_error);
+void dengjen_tashkeel_init(FfiStr model_path_ptr, struct ExternError *out_error);
 
 #ifdef __cplusplus
 }  // extern "C"

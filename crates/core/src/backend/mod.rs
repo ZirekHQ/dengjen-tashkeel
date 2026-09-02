@@ -1,4 +1,4 @@
-use crate::{InferenceEngine, LibtashkeelResult};
+use crate::{DengjenTashkeelResult, InferenceEngine};
 use std::path::PathBuf;
 
 pub struct DynamicInferenceEngine(Box<dyn InferenceEngine + Send + Sync>);
@@ -15,7 +15,7 @@ impl InferenceEngine for DynamicInferenceEngine {
         input_ids: Vec<i64>,
         diac_ids: Vec<i64>,
         seq_length: usize,
-    ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
+    ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
         self.0.infer(input_ids, diac_ids, seq_length)
     }
 }
@@ -26,7 +26,7 @@ mod ort;
 #[cfg(feature = "ort")]
 pub fn create_inference_engine(
     model_path: Option<PathBuf>,
-) -> LibtashkeelResult<DynamicInferenceEngine> {
+) -> DengjenTashkeelResult<DynamicInferenceEngine> {
     use self::ort::OrtEngine;
 
     log::info!("Built with `ORT` inference backend.");
