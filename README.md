@@ -16,7 +16,7 @@ You need to build the project yourself, see the **Building** section for a step-
 
 To use `Libtashkeel` from your C/C++ project, just include [libtashkeel.h](./crates/capi/libtashkeel.h) and you are good to go.
 
-The API consists of a single entry point for diacritizing a **utf-8 ** encoded string. Please take a look at [ffi_usage_example.py](./crates/capi/ffi_usage_example.py) for sample usage.
+The API consists of a single entry point for diacritizing a **UTF-8** encoded string. Please take a look at [ffi_usage_example.py](./crates/capi/ffi_usage_example.py) for sample usage.
 
 ### From Python
 

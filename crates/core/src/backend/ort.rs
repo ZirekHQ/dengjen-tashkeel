@@ -36,6 +36,15 @@ fn ort_session_run(
         ];
         let mut session = session.lock().unwrap();
         let outputs = session.run(inputs)?;
+        // outputs[0]/outputs[1] (ort::SessionOutputs's Index<usize>) panics
+        // if the model returns fewer than 2 tensors -- checked up front
+        // since seq_length mismatches above cover shape, not output count.
+        if outputs.len() < 2 {
+            return Err(LibtashkeelError::InferenceError(format!(
+                "model returned {} output tensor(s), expected 2 (target_ids, logits)",
+                outputs.len()
+            )));
+        }
         let (_, target_ids) = outputs[0].try_extract_tensor::<u8>()?;
         let (_, logits) = outputs[1].try_extract_tensor::<f32>()?;
         (target_ids.to_vec(), logits.to_vec())
