@@ -7,7 +7,7 @@ use std::path::PathBuf;
 const TASKEEN_REJECTION_THRESHOLD: &str = "0.95";
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(name = "dengjen-tashkeel", author, version, about, long_about = None)]
 struct Cli {
     /// Input file (default `stdin`)
     #[arg(short = 'f', long, value_name = "INPUT_FILE")]
@@ -159,7 +159,7 @@ mod tests {
         LazyLock::new(|| create_inference_engine(None).unwrap());
 
     fn parse(args: &[&str]) -> Cli {
-        let mut full_args = vec!["tashkeel"];
+        let mut full_args = vec!["dengjen-tashkeel"];
         full_args.extend_from_slice(args);
         Cli::try_parse_from(full_args).unwrap()
     }

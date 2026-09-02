@@ -38,13 +38,13 @@ and then:
 
 ### Command-line tool
 
-`Dengjen Tashkeel` provides a standalone executable called **tashkeel** for diacritizing text from the command line.
+`Dengjen Tashkeel` provides a standalone executable called **dengjen-tashkeel** for diacritizing text from the command line.
 
 ```bash
-$ tashkeel --help
+$ dengjen-tashkeel --help
 Arabic-text diacritic restoration using neural networks
 
-Usage: tashkeel [OPTIONS]
+Usage: dengjen-tashkeel [OPTIONS]
 
 Options:
   -f, --input-file <INPUT_FILE>    Input file (default `stdin`)
@@ -62,7 +62,7 @@ Options:
 
 `Dengjen Tashkeel` is written in **Rust**, [you need to install Rust first](https://www.rust-lang.org/tools/install)
 
-To build the linkable library `dengjen_tashkeel_capi`, and the command line tool `tashkeel`, run the following command from the root of the repository:
+To build the linkable library `dengjen_tashkeel_capi`, and the command line tool `dengjen-tashkeel`, run the following command from the root of the repository:
 
 ```bash
 $ cargo build --release
