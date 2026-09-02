@@ -33,10 +33,15 @@ static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
 static HINT_ID_MAP: Lazy<HashMap<String, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/hint_id_map.json")).unwrap());
 static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
-    // Assumes input ids and target ids share the same encoding for PAD -- true
-    // today because both come from the same tokenizer vocabulary, but nothing
-    // enforces it if the two vocab files ever diverge.
-    HashSet::from_iter([PAD].map(|c| INPUT_ID_MAP[&c]).map(|i| i as u8))
+    // Read PAD's id from target_id_map.json's own vocabulary instead of
+    // borrowing INPUT_ID_MAP's id for it: the two vocab files are maintained
+    // independently, so nothing guarantees they agree on this value.
+    let pad = PAD.to_string();
+    TARGET_ID_MAP
+        .iter()
+        .filter(|(_, name)| **name == pad)
+        .map(|(&id, _)| id)
+        .collect()
 });
 static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
     HashSet::from_iter(
@@ -434,7 +439,14 @@ mod tests {
         // and PAD (filtered out by target_to_diacritics) for the second, so the
         // annotation loop runs out one character short -- on the second char,
         // not the first.
-        let pad_id = INPUT_ID_MAP[&PAD] as u8;
+        // Looked up from TARGET_ID_MAP directly, independent of
+        // TARGET_META_CHAR_IDS, so this test still catches a regression in
+        // how TARGET_META_CHAR_IDS derives that id.
+        let pad_id = *TARGET_ID_MAP
+            .iter()
+            .find(|(_, name)| name.as_str() == "_")
+            .expect("target_id_map.json defines a PAD entry")
+            .0;
         let engine = StubEngine {
             target_ids: vec![5, pad_id],
             logits: vec![0.0, 0.0],
