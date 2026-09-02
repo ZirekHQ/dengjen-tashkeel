@@ -439,7 +439,14 @@ mod tests {
         // and PAD (filtered out by target_to_diacritics) for the second, so the
         // annotation loop runs out one character short -- on the second char,
         // not the first.
-        let pad_id = *TARGET_META_CHAR_IDS.iter().next().unwrap();
+        // Looked up from TARGET_ID_MAP directly, independent of
+        // TARGET_META_CHAR_IDS, so this test still catches a regression in
+        // how TARGET_META_CHAR_IDS derives that id.
+        let pad_id = *TARGET_ID_MAP
+            .iter()
+            .find(|(_, name)| name.as_str() == "_")
+            .expect("target_id_map.json defines a PAD entry")
+            .0;
         let engine = StubEngine {
             target_ids: vec![5, pad_id],
             logits: vec![0.0, 0.0],
