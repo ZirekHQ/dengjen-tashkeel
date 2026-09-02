@@ -1,13 +1,13 @@
-use crate::{InferenceEngine, LibtashkeelError, LibtashkeelResult};
+use crate::{DengjenTashkeelError, DengjenTashkeelResult, InferenceEngine};
 use ndarray::{Array1, Array2};
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::value::Tensor;
 use std::path::Path;
 use std::sync::Mutex;
 
-impl<R> From<ort::Error<R>> for LibtashkeelError {
+impl<R> From<ort::Error<R>> for DengjenTashkeelError {
     fn from(other: ort::Error<R>) -> Self {
-        LibtashkeelError::InferenceError(format!(
+        DengjenTashkeelError::InferenceError(format!(
             "Failed to run model using onnxruntime via ort. Caused by {}",
             other
         ))
@@ -19,12 +19,12 @@ fn ort_session_run(
     input_ids: Vec<i64>,
     diac_ids: Vec<i64>,
     seq_length: usize,
-) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
+) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
     let input_ids = Array2::<i64>::from_shape_vec((1, seq_length), input_ids).map_err(|e| {
-        LibtashkeelError::InferenceError(format!("input_ids/seq_length mismatch: {e}"))
+        DengjenTashkeelError::InferenceError(format!("input_ids/seq_length mismatch: {e}"))
     })?;
     let diac_ids = Array2::<i64>::from_shape_vec((1, seq_length), diac_ids).map_err(|e| {
-        LibtashkeelError::InferenceError(format!("diac_ids/seq_length mismatch: {e}"))
+        DengjenTashkeelError::InferenceError(format!("diac_ids/seq_length mismatch: {e}"))
     })?;
     let input_length = Array1::<i64>::from_iter([seq_length as i64]);
 
@@ -40,7 +40,7 @@ fn ort_session_run(
         // if the model returns fewer than 2 tensors -- checked up front
         // since seq_length mismatches above cover shape, not output count.
         if outputs.len() < 2 {
-            return Err(LibtashkeelError::InferenceError(format!(
+            return Err(DengjenTashkeelError::InferenceError(format!(
                 "model returned {} output tensor(s), expected 2 (target_ids, logits)",
                 outputs.len()
             )));
@@ -55,13 +55,13 @@ fn ort_session_run(
         // falling short is a genuine inference failure, not something to
         // flatten and propagate into a silent misalignment downstream.
         if target_ids.len() != seq_length {
-            return Err(LibtashkeelError::InferenceError(format!(
+            return Err(DengjenTashkeelError::InferenceError(format!(
                 "model returned {} target ids (shape {target_shape:?}) for a sequence of length {seq_length}",
                 target_ids.len()
             )));
         }
         if logits.len() < seq_length {
-            return Err(LibtashkeelError::InferenceError(format!(
+            return Err(DengjenTashkeelError::InferenceError(format!(
                 "model returned {} logits (shape {logits_shape:?}), fewer than the sequence length {seq_length}",
                 logits.len()
             )));
@@ -77,7 +77,7 @@ const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
 pub struct OrtEngine(Mutex<Session>);
 
 impl OrtEngine {
-    pub fn from_bytes(model_bytes: &[u8]) -> LibtashkeelResult<OrtEngine> {
+    pub fn from_bytes(model_bytes: &[u8]) -> DengjenTashkeelResult<OrtEngine> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_parallel_execution(true)?
@@ -87,7 +87,7 @@ impl OrtEngine {
 
         Ok(Self(Mutex::new(session)))
     }
-    pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
+    pub fn from_path(model_path: impl AsRef<Path>) -> DengjenTashkeelResult<Self> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             // .with_allocator(ort::AllocatorType::Arena)?
@@ -99,7 +99,7 @@ impl OrtEngine {
 
         Ok(Self(Mutex::new(session)))
     }
-    pub fn with_bundled_model() -> LibtashkeelResult<OrtEngine> {
+    pub fn with_bundled_model() -> DengjenTashkeelResult<OrtEngine> {
         Self::from_bytes(MODEL_BYTES)
     }
 }
@@ -110,7 +110,7 @@ impl InferenceEngine for OrtEngine {
         input_ids: Vec<i64>,
         diac_ids: Vec<i64>,
         seq_length: usize,
-    ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
+    ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
         ort_session_run(&self.0, input_ids, diac_ids, seq_length)
     }
 }
@@ -125,7 +125,10 @@ mod tests {
 
         let result = OrtEngine::from_bytes(malformed_bytes);
 
-        assert!(matches!(result, Err(LibtashkeelError::InferenceError(_))));
+        assert!(matches!(
+            result,
+            Err(DengjenTashkeelError::InferenceError(_))
+        ));
     }
 
     #[test]
@@ -156,6 +159,9 @@ mod tests {
 
         let result = engine.infer(input_ids, diac_ids, 3);
 
-        assert!(matches!(result, Err(LibtashkeelError::InferenceError(_))));
+        assert!(matches!(
+            result,
+            Err(DengjenTashkeelError::InferenceError(_))
+        ));
     }
 }

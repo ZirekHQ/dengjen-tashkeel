@@ -39,7 +39,7 @@ jobs:
         # ffi_usage_example.py (one of the 3 files sonar-project.properties
         # scans, since SonarCloud has no Rust analyzer) loads this library
         # at import time -- its test needs the real compiled artifact.
-        run: cargo build -p libtashkeel
+        run: cargo build -p dengjen-tashkeel-capi
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

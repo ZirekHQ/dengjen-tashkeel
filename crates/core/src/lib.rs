@@ -11,7 +11,7 @@ pub use self::backend::DynamicInferenceEngine;
 #[cfg(feature = "ort")]
 pub use self::backend::create_inference_engine;
 
-pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
+pub type DengjenTashkeelResult<T> = Result<T, DengjenTashkeelError>;
 
 pub const CHAR_LIMIT: usize = 12000;
 const PAD: char = '_';
@@ -49,11 +49,11 @@ pub trait InferenceEngine {
         input_ids: Vec<i64>,
         diac_ids: Vec<i64>,
         seq_length: usize,
-    ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)>;
+    ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)>;
 }
 
 #[derive(Error, Debug)]
-pub enum LibtashkeelError {
+pub enum DengjenTashkeelError {
     #[error("input too long. Expected {0} characters")]
     InputTooLong(usize),
     #[error("Inference error. {0}")]
@@ -136,15 +136,17 @@ fn hint_to_ids(hints: Vec<String>) -> Vec<i64> {
 }
 
 // target_ids comes straight from the loaded ONNX model's output tensor
-// (potentially a user-supplied model via `--onnx`/`libtashkeel_init`), so
+// (potentially a user-supplied model via `--onnx`/`dengjen_tashkeel_init`), so
 // its values are untrusted: an id outside TARGET_ID_MAP's vocabulary must
 // become an error here, not an index panic.
-fn target_to_diacritics(target_ids: impl Iterator<Item = u8>) -> LibtashkeelResult<Vec<String>> {
+fn target_to_diacritics(
+    target_ids: impl Iterator<Item = u8>,
+) -> DengjenTashkeelResult<Vec<String>> {
     target_ids
         .filter(|id| !TARGET_META_CHAR_IDS.contains(id))
         .map(|diac_id| {
             TARGET_ID_MAP.get(&diac_id).cloned().ok_or_else(|| {
-                LibtashkeelError::InferenceError(format!(
+                DengjenTashkeelError::InferenceError(format!(
                     "model produced unknown target id `{diac_id}`"
                 ))
             })
@@ -161,7 +163,7 @@ fn annotate_text_with_diacritics(
     input: &str,
     diacritics: Vec<String>,
     removed_chars: HashSet<char>,
-) -> LibtashkeelResult<String> {
+) -> DengjenTashkeelResult<String> {
     let mut output = String::new();
     let mut diac_iter = diacritics.into_iter();
     for c in input.chars() {
@@ -172,7 +174,7 @@ fn annotate_text_with_diacritics(
         } else {
             output.push(c);
             let diac = diac_iter.next().ok_or_else(|| {
-                LibtashkeelError::InferenceError(
+                DengjenTashkeelError::InferenceError(
                     "model output fewer diacritics than input characters".to_string(),
                 )
             })?;
@@ -188,7 +190,7 @@ fn annotate_text_with_diacritics_taskeen(
     removed_chars: HashSet<char>,
     logits: Vec<f32>,
     taskeen_threshold: Option<f32>,
-) -> LibtashkeelResult<String> {
+) -> DengjenTashkeelResult<String> {
     let taskeen_threshold = taskeen_threshold.unwrap();
     let sukoon = char::from_u32(0x652).unwrap();
     let mut output = String::new();
@@ -201,7 +203,7 @@ fn annotate_text_with_diacritics_taskeen(
         } else {
             output.push(c);
             let (diac, logit) = diac_iter.next().ok_or_else(|| {
-                LibtashkeelError::InferenceError(
+                DengjenTashkeelError::InferenceError(
                     "model output fewer diacritics/logits than input characters".to_string(),
                 )
             })?;
@@ -221,14 +223,14 @@ pub fn do_tashkeel(
     text: &str,
     taskeen_threshold: Option<f32>,
     preprocessed: bool,
-) -> LibtashkeelResult<String> {
+) -> DengjenTashkeelResult<String> {
     if preprocessed {
         return _do_tashkeel_impl(engine, text, taskeen_threshold);
     }
 
-    let out: LibtashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
+    let out: DengjenTashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
         .map_err(|e| {
-            LibtashkeelError::InferenceError(format!(
+            DengjenTashkeelError::InferenceError(format!(
                 "Failed to segment input text into sentences: `{}`",
                 e
             ))
@@ -245,14 +247,14 @@ pub fn do_tashkeel(
     text: &str,
     taskeen_threshold: Option<f32>,
     preprocessed: bool,
-) -> LibtashkeelResult<String> {
+) -> DengjenTashkeelResult<String> {
     if preprocessed {
         return _do_tashkeel_impl(engine, text, taskeen_threshold);
     }
 
-    let out: LibtashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
+    let out: DengjenTashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
         .map_err(|e| {
-            LibtashkeelError::InferenceError(format!(
+            DengjenTashkeelError::InferenceError(format!(
                 "Failed to segment input text into sentences: `{}`",
                 e
             ))
@@ -267,11 +269,11 @@ pub fn _do_tashkeel_impl(
     engine: &(impl InferenceEngine + Send + Sync),
     text: &str,
     taskeen_threshold: Option<f32>,
-) -> LibtashkeelResult<String> {
+) -> DengjenTashkeelResult<String> {
     let text = text.trim();
 
     if text.chars().count() > CHAR_LIMIT {
-        return Err(LibtashkeelError::InputTooLong(CHAR_LIMIT));
+        return Err(DengjenTashkeelError::InputTooLong(CHAR_LIMIT));
     }
 
     let (input_text, removed_chars) = to_valid_chars(text.chars());
@@ -335,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_tashkeel() -> LibtashkeelResult<()> {
+    fn test_basic_tashkeel() -> DengjenTashkeelResult<()> {
         let text = "بسم الله الرحمن الرحيم";
 
         let expected = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيم";
@@ -348,7 +350,7 @@ mod tests {
         Ok(())
     }
     #[test]
-    fn test_taskeen() -> LibtashkeelResult<()> {
+    fn test_taskeen() -> DengjenTashkeelResult<()> {
         let poem = [
             "من ذا يقارن حسنك المغري بصيف قد تجلى",
             "وفنون سحرك قد بدت في ناظري أسمى وأغلى",
@@ -371,7 +373,7 @@ mod tests {
         Ok(())
     }
     #[test]
-    fn test_hints() -> LibtashkeelResult<()> {
+    fn test_hints() -> DengjenTashkeelResult<()> {
         let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";
         do_tashkeel(&*INFERENCE_ENGINE, &text, None, false)?;
         let text = "مّنْ يُقلِّب  ABC";
@@ -387,7 +389,7 @@ mod tests {
         // full length reaches _do_tashkeel_impl's CHAR_LIMIT check directly.
         let result = do_tashkeel(&*INFERENCE_ENGINE, &too_long_text, None, true);
 
-        assert!(matches!(result, Err(LibtashkeelError::InputTooLong(n)) if n == CHAR_LIMIT));
+        assert!(matches!(result, Err(DengjenTashkeelError::InputTooLong(n)) if n == CHAR_LIMIT));
     }
 
     #[test]
@@ -406,6 +408,9 @@ mod tests {
 
         let result = create_inference_engine(Some(bad_path));
 
-        assert!(matches!(result, Err(LibtashkeelError::InferenceError(_))));
+        assert!(matches!(
+            result,
+            Err(DengjenTashkeelError::InferenceError(_))
+        ));
     }
 }

@@ -1,6 +1,6 @@
 name: Python Wheel
 
-# Builds the pylibtashkeel wheel exactly the way an external build pipeline
+# Builds the dengjen_tashkeel_py wheel exactly the way an external build pipeline
 # would (plain `maturin build`, no --features flag) and smoke-tests it. This
 # guards the pyproject.toml `[tool.maturin] features` safety net: without it,
 # extension-module (non-default since crates/python/Cargo.toml split it out
@@ -49,12 +49,13 @@ jobs:
       - name: Install wheel and smoke-test the import
         # Installs the exact wheel file just built, not an unpinned package
         # name -- SonarCloud's githubactions:S8544 flags unresolved-version
-        # dependency installs, and "pylibtashkeel" with no pinned version
-        # (even with --no-index) reads as one of those to static analysis.
+        # dependency installs, and "dengjen_tashkeel_py" with no pinned
+        # version (even with --no-index) reads as one of those to static
+        # analysis.
         run: |
           pip install --only-binary :all: crates/python/dist/*.whl
           python3 -c "
-          from pylibtashkeel import tashkeel
+          from dengjen_tashkeel_py import tashkeel
           result = tashkeel('بسم الله الرحمن الرحيم')
           assert result and result != 'بسم الله الرحمن الرحيم', result
           print(result)

@@ -16,5 +16,5 @@ fn main() {
         .include_item("ExternError")
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file("libtashkeel.h");
+        .write_to_file("dengjen_tashkeel.h");
 }

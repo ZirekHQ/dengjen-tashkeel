@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Libtashkeel isn't behaving the way it should.
+description: Something in Dengjen Tashkeel isn't behaving the way it should.
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -11,9 +11,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Libtashkeel version
+      label: Dengjen Tashkeel version
       description: Release tag, crate/wheel version, or commit SHA if built from source.
-      placeholder: e.g. v1.5.1 / pylibtashkeel 1.5.1 / commit 96a8cd4
+      placeholder: e.g. v1.5.1 / dengjen-tashkeel-py 1.5.1 / commit 96a8cd4
     validations:
       required: true
 
@@ -26,7 +26,7 @@ body:
         - CLI (tashkeel)
         - Rust library (crates/core)
         - C/C++ API (crates/capi)
-        - Python bindings (pylibtashkeel)
+        - Python bindings (dengjen-tashkeel-py)
         - WASM
         - Build / CI
         - Other
