@@ -14,7 +14,7 @@ You need to build the project yourself, see the **Building** section for a step-
 
 ### Using the library
 
-To use `Dengjen Tashkeel` from your C/C++ project, just include [dengjen_tashkeel.h](./crates/capi/dengjen_tashkeel.h) and you are good to go.
+Each [release](https://github.com/ZirekHQ/dengjen-tashkeel/releases) ships a `dengjen-tashkeel-capi-<target>` archive per platform, bundling the built shared library (`.so`/`.dylib`/`.dll`) together with [dengjen_tashkeel.h](./crates/capi/dengjen_tashkeel.h). Download the archive for your target, link against the library, and include the header in your C/C++ project — no need to build from source. See the **Building** section below if you'd rather build it yourself.
 
 The API consists of a single entry point for diacritizing a **UTF-8** encoded string. Please take a look at [ffi_usage_example.py](./crates/capi/ffi_usage_example.py) for sample usage.
 
