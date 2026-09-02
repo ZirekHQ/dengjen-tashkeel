@@ -114,7 +114,16 @@ fn dengjen_tashkeel_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
             return Err(error);
         }
     };
-    INFERENCE_ENGINE.set(py, engine).ok();
+    // Mirrors capi's do_init_library: losing this race means some other
+    // caller already initialized the engine first, which is fine -- but
+    // log it instead of going fully silent like capi's UNKNOWN_ERROR path
+    // does for the identical condition. Note: this uses the `log` facade
+    // only -- nothing in this crate installs a logger backend, so the
+    // warning is discarded unless the embedding process installs one
+    // (e.g. `pyo3-log`, which routes it to Python's own `logging` module).
+    if INFERENCE_ENGINE.set(py, engine).is_err() {
+        log::warn!("Inference engine was already initialized; ignoring redundant init.");
+    }
 
     m.add_function(wrap_pyfunction!(tashkeel, m)?)?;
     Ok(())

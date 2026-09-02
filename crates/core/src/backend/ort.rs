@@ -34,7 +34,11 @@ fn ort_session_run(
             Tensor::from_array(diac_ids)?,
             Tensor::from_array(input_length)?,
         ];
-        let mut session = session.lock().unwrap();
+        let mut session = session.lock().map_err(|e| {
+            DengjenTashkeelError::InferenceError(format!(
+                "Inference session mutex was poisoned by a panic on another thread: {e}"
+            ))
+        })?;
         let outputs = session.run(inputs)?;
         // outputs[0]/outputs[1] (ort::SessionOutputs's Index<usize>) panics
         // if the model returns fewer than 2 tensors -- checked up front
@@ -90,11 +94,6 @@ impl OrtEngine {
     pub fn from_path(model_path: impl AsRef<Path>) -> DengjenTashkeelResult<Self> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            // .with_allocator(ort::AllocatorType::Arena)?
-            // .with_memory_pattern(true)?
-            // .with_parallel_execution(true)?
-            // .with_inter_threads(2)?
-            // .with_intra_threads(2)?
             .commit_from_file(model_path)?;
 
         Ok(Self(Mutex::new(session)))

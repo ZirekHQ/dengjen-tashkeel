@@ -7,12 +7,28 @@ members = [
     "crates/python",
 ]
 
+[workspace.package]
+version = "1.5.2"
+authors = ["Musharraf Omer<ibnomer2011@hotmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+description = "Arabic-text diacritic restoration using neural networks"
+repository = "https://github.com/ZirekHQ/dengjen-tashkeel"
+documentation = "https://github.com/ZirekHQ/dengjen-tashkeel"
+
 # Config for 'cargo dist'
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
+# release.yml has hand-patches on top of what 'dist generate' would produce
+# (Sonar S8482/S8233 fixes -- see the "Hand-patched for Sonar..." comments in
+# that file), so `dist plan`'s own drift check would otherwise fail every CI
+# run on this repo. This tells dist to accept that divergence instead of
+# demanding `dist init`/`dist generate` be re-run (which would silently
+# revert those fixes).
+allow-dirty = ["ci"]
 # The installers to generate for each app
 installers = ["shell", "powershell", "msi"]
 # Target platforms to build apps for (Rust target-triple syntax)
