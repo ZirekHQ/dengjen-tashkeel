@@ -20,10 +20,10 @@ impl InferenceEngine for DynamicInferenceEngine {
     }
 }
 
-#[cfg(feature = "ort")]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
 mod ort;
 
-#[cfg(feature = "ort")]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
 pub fn create_inference_engine(
     model_path: Option<PathBuf>,
 ) -> DengjenTashkeelResult<DynamicInferenceEngine> {
@@ -43,4 +43,18 @@ pub fn create_inference_engine(
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
     }
+}
+
+#[cfg(feature = "ort-dylib")]
+pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
+    let path = path.as_ref();
+    ::ort::init_from(path.to_string_lossy().into_owned())
+        .map_err(|e| {
+            crate::DengjenTashkeelError::InferenceError(format!(
+                "Failed to load onnxruntime dynamic library from `{}`. Caused by: {e}",
+                path.display()
+            ))
+        })?
+        .commit();
+    Ok(())
 }

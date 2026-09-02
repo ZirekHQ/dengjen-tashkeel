@@ -9,10 +9,10 @@ repository = "https://github.com/ZirekHQ/dengjen-tashkeel"
 documentation = "https://github.com/ZirekHQ/dengjen-tashkeel"
 
 [features]
-default = ["ort", "rayon"]
+default = ["ort-static", "rayon"]
 rayon = ["dep:rayon"]
-ort = ["dep:ort"]
-ort-dylib = ["ort/load-dynamic"]
+ort-static = ["dep:ort", "ort/download-binaries", "ort/copy-dylibs"]
+ort-dylib = ["dep:ort", "ort/load-dynamic"]
 
 [dependencies]
 libtqsm = "0.6.1"
@@ -27,7 +27,7 @@ thiserror = "1.0.47"
 [dependencies.ort]
 version = "2.0.0-rc.13"
 default-features = false
-features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-27"]
+features = ["std", "ndarray", "tracing", "tls-rustls", "api-27"]
 optional = true
 
 [dev-dependencies.ort]
