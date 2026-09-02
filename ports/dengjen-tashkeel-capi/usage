@@ -1,0 +1,9 @@
+dengjen-tashkeel-capi provides a plain C shared library and header, not a CMake
+package -- link against it directly:
+
+    find_library(DENGJEN_TASHKEEL_CAPI_LIB dengjen_tashkeel_capi)
+    target_link_libraries(main PRIVATE ${DENGJEN_TASHKEEL_CAPI_LIB})
+
+The header is installed as <dengjen_tashkeel.h> on the standard include path.
+See https://github.com/ZirekHQ/dengjen-tashkeel/blob/main/crates/capi/ffi_usage_example.py
+for the API's shape (the same C entry points, called there from Python via ctypes).

@@ -18,6 +18,41 @@ Each [release](https://github.com/ZirekHQ/dengjen-tashkeel/releases) ships a `de
 
 The API consists of a single entry point for diacritizing a **UTF-8** encoded string. Please take a look at [ffi_usage_example.py](./crates/capi/ffi_usage_example.py) for sample usage.
 
+#### From vcpkg
+
+The library and header are also available through a self-hosted [vcpkg custom registry](https://learn.microsoft.com/en-us/vcpkg/consuming/git-registries) — this repository itself, referenced directly by git, no separate server needed. Add it to your project's `vcpkg-configuration.json`:
+
+```json
+{
+  "default-registry": {
+    "kind": "builtin",
+    "baseline": "<current vcpkg builtin-registry baseline>"
+  },
+  "registries": [
+    {
+      "kind": "git",
+      "repository": "https://github.com/ZirekHQ/dengjen-tashkeel",
+      "baseline": "<commit-sha of the dengjen-tashkeel commit to pin>",
+      "packages": ["dengjen-tashkeel-capi"]
+    }
+  ]
+}
+```
+
+then add `dengjen-tashkeel-capi` to your `vcpkg.json` dependencies and run `vcpkg install`.
+
+#### From Conan
+
+[ConanCenter](https://github.com/conan-io/conan-center-index) requires recipes to build from source, which this project's C API can't do without a Rust toolchain in Conan's build environment, so this isn't published there. Instead, clone this repository and export the recipe into your local Conan cache:
+
+```bash
+conan create packaging/conan --version=1.5.2
+```
+
+then add `dengjen-tashkeel-capi/1.5.2` to your `conanfile.txt`/`conanfile.py` `requires`.
+
+See [packaging/README.md](./packaging/README.md) for how both are maintained.
+
 ### From Python
 
 **Python** bindings are also provided.
