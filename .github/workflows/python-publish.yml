@@ -15,13 +15,39 @@ on:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
+  check-version:
+    name: Verify tag matches crate version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Compare tag to crates/python/Cargo.toml version
+        # Tags are cargo-dist style ("v1.5.1", "1.5.1", ...) -- strip any
+        # leading non-digit prefix so this matches release.yml's own tag
+        # parsing, then fail the publish rather than ship a wheel whose
+        # version doesn't match what the tag announces.
+        run: |
+          set -euo pipefail
+          tag_version="$(echo "${GITHUB_REF_NAME}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
+          cargo_version="$(grep -m1 '^version = ' crates/python/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ "${tag_version}" != "${cargo_version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} (version ${tag_version}) does not match crates/python/Cargo.toml version ${cargo_version}"
+            exit 1
+          fi
+
   build-wheels:
     name: build (${{ matrix.target }})
+    needs: check-version
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
