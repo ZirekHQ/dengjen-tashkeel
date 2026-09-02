@@ -84,6 +84,14 @@ $ maturin build --release --strip -i .venv/bin/python --features extension-modul
 
 Then, the built wheel is found under `target/wheels` directory.
 
+## Known Limitations
+
+`Libtashkeel`'s accuracy is bounded by the underlying [Hareef](https://github.com/mush42/hareef) model. In particular, the model can mis-diacritize proper nouns and other words whose correct case ending depends on context it wasn't trained to resolve.
+
+For example, given `عن أمير المؤمنين أبي حفص عمر بن الخطاب`, `Libtashkeel` diacritizes the name "حفص" as `حِفَصِ` ("hifsi"), where the grammatically correct form is `حَفْصٍ` ("hafsin"). See [issue #28](https://github.com/ZirekHQ/dengjen-tashkeel/issues/28) for the full discrepancy and comparison against another diacritization tool.
+
+This is a model-accuracy limitation, not a bug in this library's code, and improving it would require retraining or fine-tuning the underlying model — currently out of scope for this fork.
+
 # Licence
 
 Copyright (c) Musharraf Omer. This project is licenced under the terms of The MIT License
