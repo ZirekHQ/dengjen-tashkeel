@@ -20,10 +20,10 @@ impl InferenceEngine for DynamicInferenceEngine {
     }
 }
 
-#[cfg(feature = "ort")]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
 mod ort;
 
-#[cfg(feature = "ort")]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
 pub fn create_inference_engine(
     model_path: Option<PathBuf>,
 ) -> DengjenTashkeelResult<DynamicInferenceEngine> {
@@ -43,4 +43,25 @@ pub fn create_inference_engine(
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
     }
+}
+
+#[cfg(feature = "ort-dylib")]
+pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
+    let path = path.as_ref();
+    // `commit()`'s bool return means "environment *options* were newly
+    // applied" (a separate global from the dylib itself, which init_from
+    // has already dlopen'd and version-checked by this point via its own
+    // Result) -- `false` here just means some earlier call already set
+    // options, not that this call's dylib failed to load, so it's not an
+    // error condition worth surfacing.
+    ::ort::init_from(path)
+        .map_err(|e| {
+            crate::DengjenTashkeelError::InferenceError(format!(
+                "Failed to load onnxruntime dynamic library from `{}`. Caused by: {e}",
+                path.display()
+            ))
+        })?
+        .commit();
+
+    Ok(())
 }

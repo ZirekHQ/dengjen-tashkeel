@@ -251,6 +251,7 @@ version = "1.5.1"
 dependencies = [
  "dengjen-tashkeel",
  "pyo3",
+ "tempfile",
 ]
 
 [[package]]

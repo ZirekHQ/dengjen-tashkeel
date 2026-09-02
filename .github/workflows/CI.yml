@@ -19,3 +19,11 @@ jobs:
           persist-credentials: false
       - name: cargo test (workspace)
         run: cargo test --workspace --no-fail-fast
+      - name: cargo test (ort-dylib, python crate)
+        # crates/python's ort-dylib feature (used by the distributed wheel,
+        # see pyproject.toml) is a separate cfg-gated code path the default
+        # `cargo test --workspace` above never compiles or runs.
+        working-directory: crates/python
+        run: |
+          cargo test --no-default-features --features ort-dylib find_onnxruntime_lib
+          cargo test --no-default-features --features ort-dylib resolve_dylib_path

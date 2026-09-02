@@ -16,7 +16,7 @@ eula = false
 
 [features]
 default = ["ort"]
-ort = ["dengjen-tashkeel/ort"]
+ort = ["dengjen-tashkeel/ort-static"]
 ort-dylib = ["dengjen-tashkeel/ort-dylib"]
 
 [dependencies]

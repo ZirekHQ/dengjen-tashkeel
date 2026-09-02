@@ -35,6 +35,10 @@ jobs:
           set -o pipefail
           cargo clippy --workspace --lib --bins --message-format=json -- -D warnings \
             | clippy-sarif | tee clippy-results.sarif | sarif-fmt
+      - name: cargo clippy (ort-dylib)
+        # Same rationale as CI.yml's matching step -- the default clippy
+        # pass above never compiles this cfg-gated path.
+        run: cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings
       - name: upload clippy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7

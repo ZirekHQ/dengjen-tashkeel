@@ -8,8 +8,11 @@ use thiserror::Error;
 mod backend;
 pub use self::backend::DynamicInferenceEngine;
 
-#[cfg(feature = "ort")]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
 pub use self::backend::create_inference_engine;
+
+#[cfg(feature = "ort-dylib")]
+pub use self::backend::init_ort_dylib;
 
 pub type DengjenTashkeelResult<T> = Result<T, DengjenTashkeelError>;
 

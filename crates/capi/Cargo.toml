@@ -13,7 +13,7 @@ name = "dengjen_tashkeel_capi"
 crate-type = ["cdylib"]
 
 [features]
-ort = ["dengjen-tashkeel/ort"]
+ort = ["dengjen-tashkeel/ort-static"]
 default = ["ort"]
 ort-dylib = ["dengjen-tashkeel/ort-dylib"]
 
