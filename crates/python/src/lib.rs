@@ -1,8 +1,8 @@
+#[cfg(feature = "ort-dylib")]
+use dengjen_tashkeel::init_ort_dylib;
 use dengjen_tashkeel::{
     create_inference_engine, do_tashkeel, DengjenTashkeelError, DynamicInferenceEngine,
 };
-#[cfg(feature = "ort-dylib")]
-use dengjen_tashkeel::init_ort_dylib;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
