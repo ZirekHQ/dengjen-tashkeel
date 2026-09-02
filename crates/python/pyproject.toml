@@ -5,6 +5,7 @@ build-backend = "maturin"
 [project]
 name = "dengjen-tashkeel-py"
 requires-python = ">=3.9"
+dependencies = ["onnxruntime>=1.28,<2"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -12,9 +13,10 @@ classifiers = [
 dynamic = ["version"]
 
 [tool.maturin]
-# extension-module is non-default (see crates/python/Cargo.toml) so that
-# `cargo test` can embed a Python interpreter, which is mutually exclusive
-# with linking as an extension module. maturin needs it explicitly here so a
-# plain `maturin build`/`maturin develop` still produces a manylinux/macOS
-# compatible wheel without every caller having to pass --features by hand.
-features = ["extension-module"]
+# ort-dylib replaces the old default `ort` feature for distributed wheels:
+# it loads onnxruntime dynamically from the `onnxruntime` pip package
+# (glibc 2.17-compatible) instead of statically linking pyke's prebuilt
+# binary (glibc 2.38+), which is what made issue #29 unfixable via the
+# manylinux/CI image alone -- see the design doc referenced in the PR.
+no-default-features = true
+features = ["ort-dylib", "extension-module"]
