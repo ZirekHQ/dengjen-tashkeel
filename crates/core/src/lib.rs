@@ -33,7 +33,9 @@ static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
 static HINT_ID_MAP: Lazy<HashMap<String, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/hint_id_map.json")).unwrap());
 static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
-    // Fixme: asumes that input ids are the same as target ids
+    // Assumes input ids and target ids share the same encoding for PAD -- true
+    // today because both come from the same tokenizer vocabulary, but nothing
+    // enforces it if the two vocab files ever diverge.
     HashSet::from_iter([PAD].map(|c| INPUT_ID_MAP[&c]).map(|i| i as u8))
 });
 static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
@@ -220,31 +222,27 @@ fn annotate_text_with_diacritics_taskeen(
     Ok(output)
 }
 
-#[cfg(feature = "rayon")]
-pub fn do_tashkeel(
+fn map_sentences(
+    sentences: &[String],
     engine: &(impl InferenceEngine + Send + Sync),
-    text: &str,
     taskeen_threshold: Option<f32>,
-    preprocessed: bool,
-) -> DengjenTashkeelResult<String> {
-    if preprocessed {
-        return _do_tashkeel_impl(engine, text, taskeen_threshold);
+) -> DengjenTashkeelResult<Vec<String>> {
+    #[cfg(feature = "rayon")]
+    {
+        sentences
+            .par_iter()
+            .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
+            .collect()
     }
-
-    let out: DengjenTashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
-        .map_err(|e| {
-            DengjenTashkeelError::InferenceError(format!(
-                "Failed to segment input text into sentences: `{}`",
-                e
-            ))
-        })?
-        .par_iter()
-        .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
-        .collect();
-    out.map(|v| v.join(" "))
+    #[cfg(not(feature = "rayon"))]
+    {
+        sentences
+            .iter()
+            .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
+            .collect()
+    }
 }
 
-#[cfg(not(feature = "rayon"))]
 pub fn do_tashkeel(
     engine: &(impl InferenceEngine + Send + Sync),
     text: &str,
@@ -255,17 +253,13 @@ pub fn do_tashkeel(
         return _do_tashkeel_impl(engine, text, taskeen_threshold);
     }
 
-    let out: DengjenTashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
-        .map_err(|e| {
-            DengjenTashkeelError::InferenceError(format!(
-                "Failed to segment input text into sentences: `{}`",
-                e
-            ))
-        })?
-        .into_iter()
-        .map(|sent| _do_tashkeel_impl(engine, &sent, taskeen_threshold))
-        .collect();
-    out.map(|v| v.join(" "))
+    let sentences = libtqsm::segment("ar", text).map_err(|e| {
+        DengjenTashkeelError::InferenceError(format!(
+            "Failed to segment input text into sentences: `{}`",
+            e
+        ))
+    })?;
+    map_sentences(&sentences, engine, taskeen_threshold).map(|v| v.join(" "))
 }
 
 pub fn _do_tashkeel_impl(
@@ -384,15 +378,73 @@ mod tests {
         Ok(())
     }
 
+    struct StubEngine {
+        target_ids: Vec<u8>,
+        logits: Vec<f32>,
+    }
+
+    impl InferenceEngine for StubEngine {
+        fn infer(
+            &self,
+            _input_ids: Vec<i64>,
+            _diac_ids: Vec<i64>,
+            _seq_length: usize,
+        ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
+            Ok((self.target_ids.clone(), self.logits.clone()))
+        }
+    }
+
     #[test]
     fn do_tashkeel_errors_on_input_over_char_limit() {
         let too_long_text: String = "ا".repeat(CHAR_LIMIT + 1);
+        // The CHAR_LIMIT check in _do_tashkeel_impl runs before engine.infer
+        // is ever called, so this never needs the real model -- a stub with
+        // no configured output still proves the guard fires. preprocessed =
+        // true skips libtqsm sentence segmentation, so the full length
+        // reaches the check directly.
+        let engine = StubEngine {
+            target_ids: vec![],
+            logits: vec![],
+        };
 
-        // preprocessed = true skips libtqsm sentence segmentation, so the
-        // full length reaches _do_tashkeel_impl's CHAR_LIMIT check directly.
-        let result = do_tashkeel(&*INFERENCE_ENGINE, &too_long_text, None, true);
+        let result = do_tashkeel(&engine, &too_long_text, None, true);
 
         assert!(matches!(result, Err(DengjenTashkeelError::InputTooLong(n)) if n == CHAR_LIMIT));
+    }
+
+    #[test]
+    fn do_tashkeel_errors_on_unknown_target_id_instead_of_panicking() {
+        // 255 is not a valid key in target_id_map.json's value set.
+        let engine = StubEngine {
+            target_ids: vec![255],
+            logits: vec![0.0],
+        };
+
+        let result = do_tashkeel(&engine, "ا", None, true);
+
+        assert!(
+            matches!(result, Err(DengjenTashkeelError::InferenceError(msg)) if msg.contains("unknown target id"))
+        );
+    }
+
+    #[test]
+    fn do_tashkeel_errors_when_model_returns_fewer_diacritics_than_input_chars() {
+        // Two input characters ("با") need two diacritics; the stub returns a
+        // real diacritic (5 = fatha, per target_id_map.json) for the first slot
+        // and PAD (filtered out by target_to_diacritics) for the second, so the
+        // annotation loop runs out one character short -- on the second char,
+        // not the first.
+        let pad_id = INPUT_ID_MAP[&PAD] as u8;
+        let engine = StubEngine {
+            target_ids: vec![5, pad_id],
+            logits: vec![0.0, 0.0],
+        };
+
+        let result = do_tashkeel(&engine, "با", None, true);
+
+        assert!(
+            matches!(result, Err(DengjenTashkeelError::InferenceError(msg)) if msg.contains("fewer diacritics than input characters"))
+        );
     }
 
     #[test]

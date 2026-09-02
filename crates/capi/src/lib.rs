@@ -8,8 +8,7 @@ use std::path::PathBuf;
 
 static INFERENCE_ENGINE: OnceCell<DynamicInferenceEngine> = OnceCell::new();
 
-#[allow(non_snake_case)]
-mod ErrorCodes {
+mod error_codes {
     pub const INPUT_TOO_LONG: i32 = 1;
     pub const INFERENCE_ERROR: i32 = 2;
     pub const MODEL_LOAD_ERROR: i32 = 3;
@@ -23,12 +22,12 @@ impl From<DengjenTashkeelError> for DengjenTashkeelFFIError {
     fn from(other: DengjenTashkeelError) -> Self {
         let (code, message) = match other {
             DengjenTashkeelError::InputTooLong(max_len) => (
-                ErrorCodes::INPUT_TOO_LONG,
+                error_codes::INPUT_TOO_LONG,
                 format!("Input too long. Max length {}", max_len),
             ),
-            DengjenTashkeelError::InferenceError(msg) => (ErrorCodes::INFERENCE_ERROR, msg),
+            DengjenTashkeelError::InferenceError(msg) => (error_codes::INFERENCE_ERROR, msg),
             DengjenTashkeelError::ModelLoadError(e) => {
-                (ErrorCodes::MODEL_LOAD_ERROR, e.to_string())
+                (error_codes::MODEL_LOAD_ERROR, e.to_string())
             }
         };
         Self(code, message)
@@ -128,7 +127,7 @@ fn do_init_library(model_path: Option<PathBuf>) -> DengjenTashkeelFFIResult<()> 
     let engine = create_inference_engine(model_path)?;
     if INFERENCE_ENGINE.set(engine).is_err() {
         Err(DengjenTashkeelFFIError(
-            ErrorCodes::UNKNOWN_ERROR,
+            error_codes::UNKNOWN_ERROR,
             "Unexpected error. Failed to init global inference_engine instance.".to_string(),
         ))
     } else {
@@ -147,13 +146,12 @@ mod tests {
     }
 
     #[test]
-    fn tashkeel_lifecycle_and_error_paths() {
-        // Step 1: call dengjenTashkeelTashkeel directly, with NO prior
-        // dengjen_tashkeel_init call. INFERENCE_ENGINE.get_or_try_init lazily
-        // creates the engine from the bundled default model right here.
-        // (This exact sequence used to deadlock before #13 was fixed: the
-        // old lazy-init path re-entered the same std::sync::Once it was
-        // already running inside.)
+    fn tashkeel_lazily_initializes_engine_and_diacritizes_without_prior_init() {
+        // This exact sequence used to deadlock before #13 was fixed: the old
+        // lazy-init path re-entered the same std::sync::Once it was already
+        // running inside. Doesn't assert anything about prior test state --
+        // get_or_try_init is idempotent, so this passes whether or not some
+        // other test in this binary already initialized the engine.
         let text = CString::new("بسم الله الرحمن الرحيم").unwrap();
         let mut out_error = new_out_error();
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
@@ -175,22 +173,32 @@ mod tests {
             .to_string();
         assert_ne!(diacritized, "بسم الله الرحمن الرحيم");
         unsafe { dengjen_tashkeel_free_string(result_ptr) };
+    }
 
-        // Step 1b: a null text_ptr no longer aborts the process. into_string()
-        // panics on it, but that panic now happens inside call_with_result's
-        // closure, so its catch_unwind converts it into a clean ExternError
-        // (code PANIC = -1) instead of unwinding past this extern "C" frame.
+    #[test]
+    fn null_text_ptr_is_caught_as_panic_not_ub() {
+        // into_string() panics on a null pointer; that panic happens inside
+        // call_with_result's closure, so its catch_unwind converts it into a
+        // clean ExternError (code PANIC = -1) instead of unwinding past this
+        // extern "C" frame. Doesn't touch the engine at all -- order-independent.
         let mut out_error = new_out_error();
+        let taskeen_threshold: *const libc::c_float = std::ptr::null();
         let null_text_ptr = unsafe { FfiStr::from_raw(std::ptr::null()) };
+
         let result_ptr = unsafe {
             dengjenTashkeelTashkeel(null_text_ptr, taskeen_threshold, true, &mut out_error)
         };
+
         assert_eq!(out_error.get_code(), ErrorCode::PANIC);
         assert!(result_ptr.is_null());
+    }
 
-        // Step 2: invalid UTF-8 lossily converts instead of erroring.
+    #[test]
+    fn invalid_utf8_is_lossily_converted_not_rejected() {
         let invalid_utf8 = CString::new(vec![0xFFu8, 0xFEu8]).unwrap();
         let mut out_error = new_out_error();
+        let taskeen_threshold: *const libc::c_float = std::ptr::null();
+
         let result_ptr = unsafe {
             dengjenTashkeelTashkeel(
                 FfiStr::from_cstr(&invalid_utf8),
@@ -199,42 +207,78 @@ mod tests {
                 &mut out_error,
             )
         };
+
         assert!(
             out_error.get_code().is_success(),
             "invalid UTF-8 should be lossily converted, not rejected"
         );
         assert!(!result_ptr.is_null());
         unsafe { dengjen_tashkeel_free_string(result_ptr) };
+    }
 
-        // Step 3: INFERENCE_ENGINE is now permanently set for this process
-        // (lazily, from Step 1). An explicit dengjen_tashkeel_init call must hit
-        // the "already initialized" branch.
+    #[test]
+    fn dengjen_tashkeel_init_reports_already_initialized_when_engine_exists() {
+        // Force the engine into an initialized state within this test itself
+        // -- don't rely on another test having done it first, since #[test]
+        // fns run in parallel by default and ordering isn't guaranteed.
+        let text = CString::new("بسم الله").unwrap();
+        let mut warm_up_error = new_out_error();
+        let result_ptr = unsafe {
+            dengjenTashkeelTashkeel(
+                FfiStr::from_cstr(&text),
+                std::ptr::null(),
+                true,
+                &mut warm_up_error,
+            )
+        };
+        assert!(
+            warm_up_error.get_code().is_success(),
+            "warm-up must succeed for this test's premise (engine already initialized)"
+        );
+        if !result_ptr.is_null() {
+            unsafe { dengjen_tashkeel_free_string(result_ptr) };
+        }
+
         let mut out_error = new_out_error();
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
         unsafe { dengjen_tashkeel_init(null_path, &mut out_error) };
-        assert_eq!(out_error.get_code().code(), ErrorCodes::UNKNOWN_ERROR);
 
-        // Step 4: bad model path/file report INFERENCE_ERROR regardless of
-        // the above state -- create_inference_engine fails before
-        // do_init_library would ever reach the .set() call.
+        assert_eq!(out_error.get_code().code(), error_codes::UNKNOWN_ERROR);
+    }
+
+    #[test]
+    fn dengjen_tashkeel_init_with_bad_model_path_reports_inference_error() {
+        // Independent of OnceCell state -- create_inference_engine fails
+        // before do_init_library would ever reach the .set() call.
         let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
         let mut out_error = new_out_error();
-        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error) };
-        assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
 
+        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error) };
+
+        assert_eq!(out_error.get_code().code(), error_codes::INFERENCE_ERROR);
+    }
+
+    #[test]
+    fn dengjen_tashkeel_init_with_malformed_model_file_reports_inference_error() {
         let mut malformed = tempfile::NamedTempFile::new().unwrap();
         malformed
             .write_all(b"this is not a valid onnx model")
             .unwrap();
         let path = CString::new(malformed.path().to_str().unwrap()).unwrap();
         let mut out_error = new_out_error();
-        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&path), &mut out_error) };
-        assert_eq!(out_error.get_code().code(), ErrorCodes::INFERENCE_ERROR);
 
-        // Step 5: input over CHAR_LIMIT returns INPUT_TOO_LONG.
+        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&path), &mut out_error) };
+
+        assert_eq!(out_error.get_code().code(), error_codes::INFERENCE_ERROR);
+    }
+
+    #[test]
+    fn tashkeel_over_char_limit_reports_input_too_long() {
         let too_long_text = "ا".repeat(dengjen_tashkeel::CHAR_LIMIT + 1);
         let too_long_cstring = CString::new(too_long_text).unwrap();
         let mut out_error = new_out_error();
+        let taskeen_threshold: *const libc::c_float = std::ptr::null();
+
         let result_ptr = unsafe {
             dengjenTashkeelTashkeel(
                 FfiStr::from_cstr(&too_long_cstring),
@@ -243,7 +287,8 @@ mod tests {
                 &mut out_error,
             )
         };
-        assert_eq!(out_error.get_code().code(), ErrorCodes::INPUT_TOO_LONG);
+
+        assert_eq!(out_error.get_code().code(), error_codes::INPUT_TOO_LONG);
         assert!(result_ptr.is_null());
     }
 

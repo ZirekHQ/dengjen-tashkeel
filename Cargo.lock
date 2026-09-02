@@ -262,6 +262,7 @@ name = "dengjen-tashkeel-python"
 version = "1.5.2"
 dependencies = [
  "dengjen-tashkeel",
+ "log",
  "pyo3",
  "tempfile",
 ]

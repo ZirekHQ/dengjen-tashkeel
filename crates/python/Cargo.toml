@@ -1,12 +1,12 @@
 [package]
 name = "dengjen-tashkeel-python"
-version = "1.5.2"
-authors = ["Musharraf Omer<ibnomer2011@hotmail.com>"]
-license = "MIT/Apache-2.0"
-edition = "2021"
-description = "Arabic-text diacritic restoration using neural networks"
-repository = "https://github.com/ZirekHQ/dengjen-tashkeel"
-documentation = "https://github.com/ZirekHQ/dengjen-tashkeel"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+documentation.workspace = true
 
 [lib]
 name = "dengjen_tashkeel_py"
@@ -17,6 +17,9 @@ default = ["ort"]
 ort = ["dengjen-tashkeel/ort-static"]
 ort-dylib = ["dengjen-tashkeel/ort-dylib"]
 extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+log = "0.4.18"
 
 [dependencies.pyo3]
 version = "0.29"
