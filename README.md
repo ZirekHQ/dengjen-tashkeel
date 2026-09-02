@@ -79,10 +79,10 @@ $ cd crates/python
 $ python3 -m venv .venv
 $ source .venv/bin/activate
 $ pip install maturin
-$ maturin build --release --strip -i .venv/bin/python --features extension-module
+$ maturin build --release --strip
 ```
 
-Then, the built wheel is found under `target/wheels` directory.
+Then, the built wheel is found under `target/wheels` directory. The built wheel requires the `onnxruntime` package at runtime (a declared dependency in `pyproject.toml`, installed automatically via `pip install <wheel>`), and note it shares its `onnxruntime` import name with the `onnxruntime-gpu` package -- don't have both installed in the same environment.
 
 ## Known Limitations
 

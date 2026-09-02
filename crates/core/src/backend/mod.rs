@@ -48,7 +48,13 @@ pub fn create_inference_engine(
 #[cfg(feature = "ort-dylib")]
 pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
     let path = path.as_ref();
-    let committed = ::ort::init_from(path)
+    // `commit()`'s bool return means "environment *options* were newly
+    // applied" (a separate global from the dylib itself, which init_from
+    // has already dlopen'd and version-checked by this point via its own
+    // Result) -- `false` here just means some earlier call already set
+    // options, not that this call's dylib failed to load, so it's not an
+    // error condition worth surfacing.
+    ::ort::init_from(path)
         .map_err(|e| {
             crate::DengjenTashkeelError::InferenceError(format!(
                 "Failed to load onnxruntime dynamic library from `{}`. Caused by: {e}",
@@ -56,13 +62,6 @@ pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResul
             ))
         })?
         .commit();
-
-    if !committed {
-        return Err(crate::DengjenTashkeelError::InferenceError(format!(
-            "onnxruntime environment was already initialized before `{}` could be loaded",
-            path.display()
-        )));
-    }
 
     Ok(())
 }

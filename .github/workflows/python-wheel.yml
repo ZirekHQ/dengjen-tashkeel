@@ -6,7 +6,7 @@ name: Python Wheel
 # this now resolves to) and smoke-tests it across the three most recent
 # Ubuntu LTS releases plus whatever Ubuntu currently calls "latest", to guard
 # the glibc/libstdc++ compatibility floor fixed for issue #29: onnxruntime is
-# now loaded dynamically from the `onnxruntime` pip package (manylinux_2_17)
+# now loaded dynamically from the `onnxruntime` pip package (manylinux_2_28)
 # instead of being statically linked from a prebuilt binary that required
 # glibc 2.38+.
 on:
@@ -83,6 +83,8 @@ jobs:
 
       - name: Install maturin
         run: |
+          # --seed installs pip into the venv; uv venv doesn't by default,
+          # so without it /venv/bin/pip wouldn't exist for the steps below.
           uv venv /venv --python 3.11 --seed
           /venv/bin/pip install --only-binary :all: maturin==1.14.1
           echo "/venv/bin" >> "$GITHUB_PATH"
