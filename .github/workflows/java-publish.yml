@@ -1,0 +1,59 @@
+name: Publish Java bindings
+
+# Publishes the bindings/java Gradle module to Maven Central on the same
+# version-tag push that triggers release.yml (Rust) and python-publish.yml
+# (Python), so a Maven Central release always lines up with the others.
+on:
+  push:
+    tags:
+      - '**[0-9]+.[0-9]+.[0-9]+*'
+
+permissions: {}
+
+jobs:
+  check-version:
+    name: Verify tag matches Gradle module version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Compare tag to bindings/java/build.gradle.kts version
+        run: |
+          set -euo pipefail
+          tag_version="$(echo "${GITHUB_REF_NAME}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
+          gradle_version="$(grep -m1 '^version = ' bindings/java/build.gradle.kts | sed -E 's/version = "(.*)"/\1/')"
+          if [ "${tag_version}" != "${gradle_version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} (version ${tag_version}) does not match bindings/java/build.gradle.kts version ${gradle_version}"
+            exit 1
+          fi
+
+  publish:
+    name: Publish to Maven Central
+    needs: check-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@4733eaac7c1b0da527e4206b7671e0061de1ce37 # v6
+
+      - name: Publish
+        working-directory: bindings/java
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
+        run: ./gradlew publish
