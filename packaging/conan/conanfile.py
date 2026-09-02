@@ -44,7 +44,7 @@ class DengjenTashkeelCapiConan(ConanFile):
     description = "Arabic-text diacritic restoration using neural networks (C API)"
     homepage = "https://github.com/ZirekHQ/dengjen-tashkeel"
     license = "MIT OR Apache-2.0"
-    settings = "os", "arch"
+    settings = "os", "arch", "compiler"
 
     def validate(self):
         if (str(self.settings.os), str(self.settings.arch)) not in _RELEASE_ASSETS:
@@ -52,10 +52,19 @@ class DengjenTashkeelCapiConan(ConanFile):
                 f"dengjen-tashkeel-capi has no prebuilt binary for "
                 f"{self.settings.os}/{self.settings.arch}"
             )
+        # The published Windows archive is MSVC-built (MSVC-linked import
+        # lib, MSVC CRT) -- a MinGW profile can't link against it.
+        if self.settings.os == "Windows" and self.settings.compiler != "msvc":
+            raise ConanInvalidConfiguration(
+                "dengjen-tashkeel-capi's Windows binary is built with MSVC; "
+                f"compiler={self.settings.compiler} is not supported."
+            )
 
     def package_id(self):
         # Prebuilt release-only binary: one package per os/arch, independent
-        # of the consumer's compiler or build_type.
+        # of the consumer's build_type. compiler is dropped from the id too
+        # except that validate() above already rejects non-msvc on Windows,
+        # so no compiler variant reaches this point on that platform.
         self.info.clear()
         self.info.settings.os = self.settings.os
         self.info.settings.arch = self.settings.arch

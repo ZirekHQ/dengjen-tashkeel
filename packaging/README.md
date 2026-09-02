@@ -8,8 +8,12 @@ in its build environment. See [issue #24](https://github.com/ZirekHQ/dengjen-tas
 
 Both were scaffolded before the capi artifacts they reference existed in any
 release, so every checksum in them is a **placeholder** (`0` repeated to the
-right length). Once a release tagged `v<version>` actually ships the
-`dengjen-tashkeel-capi-<target>` archives, a maintainer must fill them in:
+right length), and `versions/baseline.json` deliberately does *not* list
+`dengjen-tashkeel-capi` yet — that keeps the port unresolvable by default
+(a clear "not found" from vcpkg) instead of resolvable-but-broken (a 404 or
+checksum failure mid-download). Once a release tagged `v<version>` actually
+ships the `dengjen-tashkeel-capi-<target>` archives, a maintainer must fill
+these in:
 
 1. Download each release asset and compute its checksum:
    ```bash
@@ -33,12 +37,14 @@ right length). Once a release tagged `v<version>` actually ships the
    `CAPI_VERSION`, and `conanfile.py`'s `version`.
 4. Recompute the port's git-tree hash (vcpkg's version file must match the
    *exact* contents of `ports/dengjen-tashkeel-capi/` after the above edits)
-   and update `versions/d-/dengjen-tashkeel-capi.json` and
-   `versions/baseline.json`:
+   and put the result in `versions/d-/dengjen-tashkeel-capi.json`:
    ```bash
    git add ports/dengjen-tashkeel-capi
    git write-tree --prefix=ports/dengjen-tashkeel-capi/
    ```
+   Then add the port back into `versions/baseline.json`'s `"default"` map
+   (`{"dengjen-tashkeel-capi": {"baseline": "<version>", "port-version": 0}}`)
+   now that it actually resolves.
 5. Verify end-to-end before merging:
    ```bash
    # vcpkg, from a vcpkg checkout with this repo added as a registry
