@@ -37,6 +37,10 @@ jobs:
       # crate publishes, the next 403s on a missing token scope) -- re-running
       # `cargo publish` on a version crates.io already has is a hard failure,
       # not a no-op, so skip crates that are already live at this version.
+      #
+      # crates.io's API 403s any request without a descriptive User-Agent
+      # (the bare "curl/x.y.z" default doesn't qualify) -- set one explicitly
+      # or every lookup below fails before it gets to check anything.
       - name: publish dengjen-tashkeel
         # curl -sf can't tell "confirmed not published" (404) apart from a
         # transient lookup failure (5xx, network blip) -- both are just
@@ -47,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          status="$(curl -s -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/dengjen-tashkeel/${version}")"
+          status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel/${version}")"
           case "$status" in
             200) echo "dengjen-tashkeel ${version} is already published -- skipping" ;;
             404) cargo publish -p dengjen-tashkeel --locked ;;
@@ -60,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          status="$(curl -s -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${version}")"
+          status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${version}")"
           case "$status" in
             200) echo "dengjen-tashkeel-cli ${version} is already published -- skipping" ;;
             404) cargo publish -p dengjen-tashkeel-cli --locked ;;
