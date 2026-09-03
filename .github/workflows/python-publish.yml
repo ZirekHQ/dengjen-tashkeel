@@ -15,13 +15,18 @@ on:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
   # Manual retrigger for a tag whose run failed for a reason unrelated to the
-  # tag itself (e.g. a broken action pin) -- run this with "Use workflow
-  # from" set to the existing vX.Y.Z tag, not a branch. GITHUB_REF_NAME (and
-  # what actions/checkout below fetches) comes from whichever ref is
-  # selected there, so check-version's tag-vs-workspace comparison still
-  # applies unchanged; there's no separate "which version" input to keep in
-  # sync with that.
-  workflow_dispatch: {}
+  # tag itself (e.g. a broken action pin). Takes an explicit tag input rather
+  # than relying on "Use workflow from" -- that dropdown defaults to the
+  # default branch, and a run against main (not a version tag) would fail
+  # confusingly in check-version below instead of just doing what you meant.
+  # Every checkout in this file uses this input, so the ref actually built
+  # doesn't depend on what happened to be selected when the run was started.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing vX.Y.Z tag to (re)publish wheels for"
+        required: true
+        type: string
 
 permissions: {}
 
@@ -34,6 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           persist-credentials: false
 
       - name: Compare tag to workspace version
@@ -48,12 +54,14 @@ jobs:
         # python crate's manifest directly would instead match the first
         # dependency's `version = "..."` line (e.g. pyo3's), which is never
         # the package version.
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          tag_version="$(echo "${GITHUB_REF_NAME}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
+          tag_version="$(echo "${RELEASE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
           cargo_version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
           if [ "${tag_version}" != "${cargo_version}" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} (version ${tag_version}) does not match workspace version ${cargo_version}"
+            echo "::error::Tag ${RELEASE_TAG} (version ${tag_version}) does not match workspace version ${cargo_version}"
             exit 1
           fi
 
@@ -81,6 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           persist-credentials: false
 
       - name: Install Python
