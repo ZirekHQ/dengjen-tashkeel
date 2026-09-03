@@ -45,10 +45,14 @@ fun expectedNativeLibraryFileName(classifier: String): String =
 
 // Builds the debug cdylib that integrationTest/e2e/classpathNativeTest exercise against, so a
 // bare `./gradlew check` works without a separate manual `cargo build` step first. `--locked`
-// matches java-test.yml's own pre-build step; declaring the library file as this task's output
-// (rather than gating with onlyIf) lets Gradle skip re-invoking Cargo whenever that file already
-// exists -- e.g. when CI's separate pre-build step already produced it -- without an onlyIf that
-// would also wrongly skip the build classpathNativeTest unconditionally depends on below.
+// matches java-test.yml's own pre-build step. Deliberately always invokes Cargo rather than
+// trying to reproduce its own incremental-build decision in Gradle (e.g. via `outputs.
+// upToDateWhen { file.exists() }`) -- that would only track the output file, not the Cargo
+// workspace's actual dependency graph (capi's own sources, the core crate it depends on, and
+// so on transitively), so it could serve a stale library after a local source edit. Cargo
+// already tracks all of that correctly and exits in milliseconds when nothing changed, so a
+// redundant invocation here (e.g. right after java-test.yml's own pre-build step) is cheap
+// noise, not a correctness risk worth working around.
 val debugCdylibPath = file("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
 
 val cargoBuildCapi = tasks.register<Exec>("cargoBuildCapi") {
@@ -56,8 +60,11 @@ val cargoBuildCapi = tasks.register<Exec>("cargoBuildCapi") {
     description = "Builds the dengjen-tashkeel-capi debug cdylib for local test runs."
     workingDir = file("${rootDir}/../..")
     commandLine("cargo", "build", "-p", "dengjen-tashkeel-capi", "--locked")
-    outputs.file(debugCdylibPath)
-    outputs.upToDateWhen { debugCdylibPath.exists() }
+    // No declared inputs/outputs, on purpose: declaring only the output file (with no inputs)
+    // would let Gradle mark this UP-TO-DATE whenever that file is merely unchanged from its own
+    // last execution -- silently skipping a rebuild after a Rust source edit. Leaving both
+    // undeclared means Gradle always runs this task and defers entirely to Cargo's own (correct,
+    // fast) incremental-build decision.
 }
 
 // Detects which of nativeClassifiers the machine running the build is, so the
