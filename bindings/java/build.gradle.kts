@@ -29,6 +29,59 @@ dependencyLocking {
 dependencies {
 }
 
+val nativeClassifiers = listOf("linux-x86_64", "windows-x64", "macos-aarch64")
+
+// Matches what java-publish.yml's "Stage native library" step produces per classifier, and what
+// System.mapLibraryName("dengjen_tashkeel_capi") returns on each OS.
+fun expectedNativeLibraryFileName(classifier: String): String =
+    when (classifier) {
+        "linux-x86_64" -> "libdengjen_tashkeel_capi.so"
+        "windows-x64" -> "dengjen_tashkeel_capi.dll"
+        "macos-aarch64" -> "libdengjen_tashkeel_capi.dylib"
+        else -> throw GradleException("unknown classifier: $classifier")
+    }
+
+// Detects which of nativeClassifiers the machine running the build is, so the
+// classpathNativeTest suite (below) knows which debug cdylib to stage and which
+// natives/<classifier>/ resource path to package it under. Mirrors NativePlatform's
+// runtime detection (src/main/java), duplicated here since Gradle config-time code
+// can't call into the project's own compiled classes.
+fun hostNativeClassifier(): String {
+    val osName = System.getProperty("os.name").lowercase()
+    val osArch = System.getProperty("os.arch").lowercase()
+    val isArm64 = osArch == "aarch64" || osArch == "arm64"
+    val isX64 = osArch == "x86_64" || osArch == "amd64" || osArch == "x64"
+    return when {
+        osName.contains("windows") && isX64 -> "windows-x64"
+        (osName.contains("mac") || osName.contains("darwin")) && isArm64 -> "macos-aarch64"
+        osName.contains("linux") && isX64 -> "linux-x86_64"
+        else -> throw GradleException("unsupported host for classpathNativeTest: os=$osName arch=$osArch")
+    }
+}
+
+// classpathNativeTest (registered below) proves that the natives/<classifier>/ layout
+// nativeJar-<classifier> packages for release (further down this file) actually matches
+// what NativeLibraryLoader resolves from the classpath at runtime -- exercised end-to-end
+// against the real debug cdylib built by `cargo build -p dengjen-tashkeel-capi`, with no
+// -Ddengjen.tashkeel.native.library.path override set, unlike integrationTest/e2e below.
+val classpathNativeTestClassifier = hostNativeClassifier()
+
+val stageDebugNativeArtifactForClasspathTest = tasks.register<Copy>("stageDebugNativeArtifactForClasspathTest") {
+    from("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
+    into(layout.buildDirectory.dir("classpath-native-test/$classpathNativeTestClassifier"))
+    rename { expectedNativeLibraryFileName(classpathNativeTestClassifier) }
+}
+
+val classpathNativeTestJar = tasks.register<Jar>("classpathNativeTestJar") {
+    dependsOn(stageDebugNativeArtifactForClasspathTest)
+    archiveBaseName.set("dengjen-tashkeel-classpath-native-test")
+    archiveClassifier.set(classpathNativeTestClassifier)
+    destinationDirectory.set(layout.buildDirectory.dir("classpath-native-test"))
+    from(layout.buildDirectory.dir("classpath-native-test/$classpathNativeTestClassifier")) {
+        into("natives/$classpathNativeTestClassifier")
+    }
+}
+
 testing {
     suites {
         val test by getting(JvmTestSuite::class) {
@@ -60,25 +113,32 @@ testing {
                 }
             }
         }
+        // Deliberately does NOT get the -Ddengjen.tashkeel.native.library.path override
+        // that integrationTest/e2e receive below -- its only source of a native library is
+        // classpathNativeTestJar on its runtime classpath, exactly mirroring a real
+        // consumer's runtimeOnly classifier-jar dependency.
+        val classpathNativeTest by registering(JvmTestSuite::class) {
+            dependencies {
+                implementation(project())
+                runtimeOnly(files(classpathNativeTestJar))
+            }
+            useJUnitJupiter(libs.versions.junit.jupiter.get())
+            targets {
+                all {
+                    testTask.configure {
+                        shouldRunAfter(e2e)
+                    }
+                }
+            }
+        }
     }
 }
 
 tasks.named("check") {
     dependsOn(testing.suites.named("integrationTest"))
     dependsOn(testing.suites.named("e2e"))
+    dependsOn(testing.suites.named("classpathNativeTest"))
 }
-
-val nativeClassifiers = listOf("linux-x86_64", "windows-x64", "macos-aarch64")
-
-// Matches what java-publish.yml's "Stage native library" step produces per classifier, and what
-// System.mapLibraryName("dengjen_tashkeel_capi") returns on each OS.
-fun expectedNativeLibraryFileName(classifier: String): String =
-    when (classifier) {
-        "linux-x86_64" -> "libdengjen_tashkeel_capi.so"
-        "windows-x64" -> "dengjen_tashkeel_capi.dll"
-        "macos-aarch64" -> "libdengjen_tashkeel_capi.dylib"
-        else -> throw GradleException("unknown classifier: $classifier")
-    }
 
 val nativeArtifactsDir: Directory =
     layout.projectDirectory.dir((findProperty("nativeArtifactsDir") as String?) ?: "native-artifacts")
