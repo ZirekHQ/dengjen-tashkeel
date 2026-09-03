@@ -1,0 +1,44 @@
+name: Java Bindings Test
+
+# Builds the dengjen-tashkeel-capi cdylib and runs the bindings/java Gradle
+# test suite against it, so the FFM marshalling in bindings/java is
+# exercised on every push/PR instead of only at release time. This is the
+# CI counterpart to java-publish.yml (tag-triggered, publish-only): that
+# workflow ships the module to Maven Central but never runs its tests.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'crates/capi/**'
+      - 'bindings/java/**'
+      - '.github/workflows/java-test.yml'
+  pull_request:
+    paths:
+      - 'crates/capi/**'
+      - 'bindings/java/**'
+      - '.github/workflows/java-test.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: cargo build (capi cdylib)
+        run: cargo build -p dengjen-tashkeel-capi --locked
+
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Gradle check
+        working-directory: bindings/java
+        run: ./gradlew check

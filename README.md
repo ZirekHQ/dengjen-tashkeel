@@ -3,7 +3,7 @@
 Arabic-text diacritic (tashkeel) restoration using an ONNX neural model,
 trained mainly on MSA data from [Hareef](https://github.com/mush42/hareef).
 
-Available as a Rust crate, a C ABI, a Python package, and a standalone CLI.
+Available as a Rust crate, a C ABI, a Python package, a Java library, and a standalone CLI.
 
 ## Non-scope
 
@@ -91,6 +91,26 @@ then add `dengjen-tashkeel-capi/1.5.2` to your `conanfile.txt`/`conanfile.py`
 `requires`. See [packaging/README.md](./packaging/README.md) for how both
 are maintained.
 
+**Java:**
+
+```kotlin
+implementation("io.github.zirekhq:dengjen-tashkeel:1.5.2")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.5.2:linux-x86_64")
+```
+
+Published to Maven Central by the `java-publish.yml` CI workflow whenever a
+version tag is pushed. The binding uses the JDK Foreign Function & Memory
+API (`java.lang.foreign`), not JNA, to load the native
+`dengjen_tashkeel_capi` shared library. The native library ships as
+per-platform classifier jars — `linux-x86_64`, `windows-x64`, and
+`macos-aarch64` — so add a `runtimeOnly` dependency on the one matching
+your platform alongside the main dependency; it's picked up automatically
+at runtime. To use a library you built or placed yourself instead, set
+`-Ddengjen.tashkeel.native.library.path=/path/to/library` (a file path, not
+a directory — `java.library.path` is not consulted). Either way, add
+`--enable-native-access=ALL-UNNAMED` to your own JVM invocation to avoid a
+native-access warning.
+
 **CLI:** either build from source (see **Building**) or `cargo install
 dengjen-tashkeel-cli` (published to crates.io).
 
@@ -129,6 +149,23 @@ in your embedding process.
 string — see
 [`ffi_usage_example.py`](./crates/capi/ffi_usage_example.py) for sample
 usage against the compiled library via `ctypes`.
+
+**Java:**
+
+```java
+import io.github.zirekhq.dengjen.tashkeel.Tashkeel;
+import java.util.Optional;
+
+Tashkeel tashkeel = Tashkeel.loadDefault();
+String diacritized = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), false);
+```
+
+`diacritize`'s second argument is an optional taskeen threshold (see
+below) and the third is `preprocessed` — pass `true` only if the text is
+already sentence-segmented, otherwise the library segments it for you.
+Errors surface as a checked `TashkeelException`, whose `reason()` is an
+exhaustively switchable sealed type mirroring the `ErrorCode` values in
+`dengjen_tashkeel.h`.
 
 **CLI:**
 
@@ -183,6 +220,10 @@ maturin build --release --strip
 ```
 
 The wheel is written to `target/wheels/`.
+
+## Credits
+
+Created by [mush42](https://github.com/mush42) (Musharraf Omer).
 
 ## License
 

@@ -1,0 +1,114 @@
+name: Publish Java bindings
+
+# Publishes the bindings/java Gradle module to Maven Central on the same
+# version-tag push that triggers release.yml (Rust) and python-publish.yml
+# (Python), so a Maven Central release always lines up with the others.
+on:
+  push:
+    tags:
+      - '**[0-9]+.[0-9]+.[0-9]+*'
+
+permissions: {}
+
+jobs:
+  check-version:
+    name: Verify tag matches Gradle module version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Compare tag to bindings/java/build.gradle.kts version
+        run: |
+          set -euo pipefail
+          tag_version="$(echo "${GITHUB_REF_NAME}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
+          gradle_version="$(grep -m1 '^version = ' bindings/java/build.gradle.kts | sed -E 's/version = "(.*)"/\1/')"
+          if [ "${tag_version}" != "${gradle_version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} (version ${tag_version}) does not match bindings/java/build.gradle.kts version ${gradle_version}"
+            exit 1
+          fi
+
+  build-natives:
+    name: Build native library (${{ matrix.platform.classifier }})
+    needs: check-version
+    runs-on: ${{ matrix.platform.runner }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        platform:
+          - classifier: linux-x86_64
+            runner: ubuntu-22.04
+          - classifier: windows-x64
+            runner: windows-2022
+          - classifier: macos-aarch64
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.97.1"
+
+      - name: Build dengjen_tashkeel_capi
+        run: cargo build --release -p dengjen-tashkeel-capi --locked
+
+      - name: Stage native library
+        shell: bash
+        run: |
+          mkdir -p "native-artifacts/${{ matrix.platform.classifier }}"
+          case "${{ runner.os }}" in
+            Linux) lib="target/release/libdengjen_tashkeel_capi.so" ;;
+            macOS) lib="target/release/libdengjen_tashkeel_capi.dylib" ;;
+            Windows) lib="target/release/dengjen_tashkeel_capi.dll" ;;
+          esac
+          cp "$lib" "native-artifacts/${{ matrix.platform.classifier }}/"
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: native-${{ matrix.platform.classifier }}
+          path: native-artifacts/${{ matrix.platform.classifier }}
+
+  publish:
+    name: Publish to Maven Central
+    needs: build-natives
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@4733eaac7c1b0da527e4206b7671e0061de1ce37 # v6
+
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          path: bindings/java/native-artifacts
+          pattern: "native-*"
+
+      - name: Flatten downloaded native artifacts
+        working-directory: bindings/java/native-artifacts
+        run: for d in native-*; do mv "$d" "${d#native-}"; done
+
+      - name: Publish
+        working-directory: bindings/java
+        env:
+          JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+          JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+          JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+          JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+          JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+        # jreleaserDeploy only uploads to Maven Central -- it does not touch GitHub releases,
+        # which release.yml (cargo-dist) already publishes for this same tag.
+        run: ./gradlew publish jreleaserDeploy --no-daemon --stacktrace
