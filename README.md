@@ -215,6 +215,10 @@ maturin build --release --strip
 
 The wheel is written to `target/wheels/`.
 
+## Credits
+
+Created by [mush42](https://github.com/mush42) (Musharraf Omer).
+
 ## License
 
 Dual-licensed under [MIT](./LICENSE-MIT) or [Apache-2.0](./LICENSE-APACHE), at your option.

@@ -29,8 +29,8 @@ dependencies {
     implementation(libs.jna)
 
     testImplementation(platform(libs.junit.bom))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.test {
@@ -69,8 +69,8 @@ publishing {
                 }
                 developers {
                     developer {
-                        name.set("Musharraf Omer")
-                        email.set("ibnomer2011@hotmail.com")
+                        id.set("austek")
+                        name.set("Ali Ustek")
                     }
                 }
                 scm {
