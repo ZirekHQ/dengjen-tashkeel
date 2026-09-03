@@ -67,12 +67,16 @@ fun hostNativeClassifier(): String {
 val classpathNativeTestClassifier = hostNativeClassifier()
 
 val stageDebugNativeArtifactForClasspathTest = tasks.register<Copy>("stageDebugNativeArtifactForClasspathTest") {
+    group = "verification"
+    description = "Stages the debug cdylib under the natives/<classifier>/ layout classpathNativeTest expects."
     from("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
     into(layout.buildDirectory.dir("classpath-native-test/$classpathNativeTestClassifier"))
     rename { expectedNativeLibraryFileName(classpathNativeTestClassifier) }
 }
 
 val classpathNativeTestJar = tasks.register<Jar>("classpathNativeTestJar") {
+    group = "verification"
+    description = "Packages the staged debug cdylib into a classifier jar for classpathNativeTest's runtime classpath."
     dependsOn(stageDebugNativeArtifactForClasspathTest)
     archiveBaseName.set("dengjen-tashkeel-classpath-native-test")
     archiveClassifier.set(classpathNativeTestClassifier)
@@ -84,10 +88,10 @@ val classpathNativeTestJar = tasks.register<Jar>("classpathNativeTestJar") {
 
 testing {
     suites {
-        val test by getting(JvmTestSuite::class) {
+        val test = getByName<JvmTestSuite>("test") {
             useJUnitJupiter(libs.versions.junit.jupiter.get())
         }
-        val integrationTest by registering(JvmTestSuite::class) {
+        val integrationTest = register<JvmTestSuite>("integrationTest") {
             dependencies {
                 implementation(project())
             }
@@ -100,7 +104,7 @@ testing {
                 }
             }
         }
-        val e2e by registering(JvmTestSuite::class) {
+        val e2e = register<JvmTestSuite>("e2e") {
             dependencies {
                 implementation(project())
             }
@@ -117,7 +121,7 @@ testing {
         // that integrationTest/e2e receive below -- its only source of a native library is
         // classpathNativeTestJar on its runtime classpath, exactly mirroring a real
         // consumer's runtimeOnly classifier-jar dependency.
-        val classpathNativeTest by registering(JvmTestSuite::class) {
+        register<JvmTestSuite>("classpathNativeTest") {
             dependencies {
                 implementation(project())
                 runtimeOnly(files(classpathNativeTestJar))
@@ -146,6 +150,8 @@ val nativeArtifactsDir: Directory =
 val nativeClassifierJars =
     nativeClassifiers.associateWith { classifier ->
         tasks.register<Jar>("nativeJar-$classifier") {
+            group = "build"
+            description = "Packages the $classifier native library into a classifier jar for publishing."
             archiveClassifier.set(classifier)
             val sourceDir = nativeArtifactsDir.dir(classifier)
             from(sourceDir) { into("natives/$classifier") }
