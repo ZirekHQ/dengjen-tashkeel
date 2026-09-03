@@ -44,15 +44,20 @@ fun expectedNativeLibraryFileName(classifier: String): String =
     }
 
 // Builds the debug cdylib that integrationTest/e2e/classpathNativeTest exercise against, so a
-// bare `./gradlew check` works without a separate manual `cargo build` step first. Skips running
-// when dengjen.tashkeel.native.library.path is overridden -- that means the caller is pointing
-// at their own prebuilt library, and this project has no business rebuilding the debug one too.
+// bare `./gradlew check` works without a separate manual `cargo build` step first. `--locked`
+// matches java-test.yml's own pre-build step; declaring the library file as this task's output
+// (rather than gating with onlyIf) lets Gradle skip re-invoking Cargo whenever that file already
+// exists -- e.g. when CI's separate pre-build step already produced it -- without an onlyIf that
+// would also wrongly skip the build classpathNativeTest unconditionally depends on below.
+val debugCdylibPath = file("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
+
 val cargoBuildCapi = tasks.register<Exec>("cargoBuildCapi") {
     group = "build"
     description = "Builds the dengjen-tashkeel-capi debug cdylib for local test runs."
     workingDir = file("${rootDir}/../..")
-    commandLine("cargo", "build", "-p", "dengjen-tashkeel-capi")
-    onlyIf { !project.hasProperty("dengjen.tashkeel.native.library.path") }
+    commandLine("cargo", "build", "-p", "dengjen-tashkeel-capi", "--locked")
+    outputs.file(debugCdylibPath)
+    outputs.upToDateWhen { debugCdylibPath.exists() }
 }
 
 // Detects which of nativeClassifiers the machine running the build is, so the
@@ -83,8 +88,11 @@ val classpathNativeTestClassifier = hostNativeClassifier()
 val stageDebugNativeArtifactForClasspathTest = tasks.register<Copy>("stageDebugNativeArtifactForClasspathTest") {
     group = "verification"
     description = "Stages the debug cdylib under the natives/<classifier>/ layout classpathNativeTest expects."
+    // Unconditional, unlike integrationTest/e2e below -- classpathNativeTest is documented above
+    // to never honor dengjen.tashkeel.native.library.path, so it always needs a real, freshly
+    // built debug cdylib regardless of any override given for the other suites.
     dependsOn(cargoBuildCapi)
-    from("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
+    from(debugCdylibPath)
     into(layout.buildDirectory.dir("classpath-native-test/$classpathNativeTestClassifier"))
     rename { expectedNativeLibraryFileName(classpathNativeTestClassifier) }
 }
@@ -191,13 +199,16 @@ val nativeClassifierJars =
 // different build. `test` needs no native library at all -- everything
 // in it (NativePlatformTest, NativeLibraryLoaderTest,
 // TashkeelExceptionTest) is pure Java.
-val testNativeLibraryPath: String =
-    (project.findProperty("dengjen.tashkeel.native.library.path") as String?)
-        ?: "${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}"
+val nativeLibraryPathOverride = project.findProperty("dengjen.tashkeel.native.library.path") as String?
+val testNativeLibraryPath: String = nativeLibraryPathOverride ?: debugCdylibPath.toString()
 
 listOf("integrationTest", "e2e").forEach { suiteName ->
     tasks.named<Test>(suiteName) {
-        dependsOn(cargoBuildCapi)
+        // Only integrationTest/e2e skip the build on an explicit override -- the caller is
+        // pointing at their own prebuilt library, so rebuilding the debug one is pointless.
+        if (nativeLibraryPathOverride == null) {
+            dependsOn(cargoBuildCapi)
+        }
         systemProperty("dengjen.tashkeel.native.library.path", testNativeLibraryPath)
     }
 }
