@@ -84,10 +84,10 @@ published there. Instead, clone this repository and export the recipe
 into your local Conan cache:
 
 ```bash
-conan create packaging/conan --version=1.5.2
+conan create packaging/conan --version=1.5.3
 ```
 
-then add `dengjen-tashkeel-capi/1.5.2` to your `conanfile.txt`/`conanfile.py`
+then add `dengjen-tashkeel-capi/1.5.3` to your `conanfile.txt`/`conanfile.py`
 `requires`. See [packaging/README.md](./packaging/README.md) for how both
 are maintained.
 
