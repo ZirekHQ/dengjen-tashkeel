@@ -12,34 +12,34 @@ from conan.tools.files import copy, get
 # ConanCenter requires recipes to build from source, so this one isn't
 # submitted there. Consumers use it locally instead:
 #
-#   conan create packaging/conan --version=1.5.2
+#   conan create packaging/conan --version=1.5.3
 #
-# which builds and stores dengjen-tashkeel-capi/1.5.2 in their local cache.
+# which builds and stores dengjen-tashkeel-capi/1.5.3 in their local cache.
 
-# sha256s below are the actual hashes of the v1.5.2 release assets,
+# sha256s below are the actual hashes of the v1.5.3 release assets,
 # cross-checked against the .sha256 files published alongside them.
 _RELEASE_ASSETS = {
     ("Macos", "armv8"): (
         "aarch64-apple-darwin",
         "tar.xz",
-        "5f8edafdc3ee3dfdc0eb4756563376caea8cf1a041a14d8438961a643c752668",
+        "fddcb88329f5dd19b6038d637c077f7160e41f110316f80d7720ac48d17a2696",
     ),
     ("Linux", "x86_64"): (
         "x86_64-unknown-linux-gnu",
         "tar.xz",
-        "d0d4b4d098e9acc7be2f110bd37eb1bee3527ba0d99d0ebd6495fa38b7c09c94",
+        "28213d52d3d78ee58fff95f29d22c0e517b885e6318f0a571a7c263560545997",
     ),
     ("Windows", "x86_64"): (
         "x86_64-pc-windows-msvc",
         "zip",
-        "03b3067dfde43bfc3e9aacba9e7a0ce6c73b9f4d56496520766d7fd8a9e11d7d",
+        "cfdef273138332cf10e4f9a9799b5d2edf32221e266fcd64666d68864418552f",
     ),
 }
 
 
 class DengjenTashkeelCapiConan(ConanFile):
     name = "dengjen-tashkeel-capi"
-    version = "1.5.2"
+    version = "1.5.3"
     description = "Arabic-text diacritic restoration using neural networks (C API)"
     homepage = "https://github.com/ZirekHQ/dengjen-tashkeel"
     license = "MIT OR Apache-2.0"
