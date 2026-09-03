@@ -21,6 +21,10 @@ repositories {
     mavenCentral()
 }
 
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 dependencies {
     implementation(libs.jna)
 
@@ -48,10 +52,9 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
-            artifactId = "dengjen-tashkeel"
 
             pom {
-                name.set("dengjen-tashkeel-java")
+                name.set("dengjen-tashkeel")
                 description.set("Java bindings for dengjen-tashkeel: Arabic-text diacritic restoration using neural networks")
                 url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
                 licenses {
