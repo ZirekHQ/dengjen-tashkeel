@@ -1,3 +1,8 @@
 {
-  "default": {}
+  "default": {
+    "dengjen-tashkeel-capi": {
+      "baseline": "1.5.2",
+      "port-version": 0
+    }
+  }
 }

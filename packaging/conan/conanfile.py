@@ -16,24 +16,23 @@ from conan.tools.files import copy, get
 #
 # which builds and stores dengjen-tashkeel-capi/1.5.2 in their local cache.
 
-# TODO(release): every sha256 below is a placeholder. Replace them with the
-# real hashes of the published assets once the version above ships capi
-# artifacts -- see packaging/README.md for the exact steps.
+# sha256s below are the actual hashes of the v1.5.2 release assets,
+# cross-checked against the .sha256 files published alongside them.
 _RELEASE_ASSETS = {
     ("Macos", "armv8"): (
         "aarch64-apple-darwin",
         "tar.xz",
-        "0000000000000000000000000000000000000000000000000000000000000",
+        "5f8edafdc3ee3dfdc0eb4756563376caea8cf1a041a14d8438961a643c752668",
     ),
     ("Linux", "x86_64"): (
         "x86_64-unknown-linux-gnu",
         "tar.xz",
-        "0000000000000000000000000000000000000000000000000000000000000",
+        "d0d4b4d098e9acc7be2f110bd37eb1bee3527ba0d99d0ebd6495fa38b7c09c94",
     ),
     ("Windows", "x86_64"): (
         "x86_64-pc-windows-msvc",
         "zip",
-        "0000000000000000000000000000000000000000000000000000000000000",
+        "03b3067dfde43bfc3e9aacba9e7a0ce6c73b9f4d56496520766d7fd8a9e11d7d",
     ),
 }
 
@@ -65,9 +64,10 @@ class DengjenTashkeelCapiConan(ConanFile):
         # of the consumer's build_type. compiler is dropped from the id too
         # except that validate() above already rejects non-msvc on Windows,
         # so no compiler variant reaches this point on that platform.
-        self.info.clear()
-        self.info.settings.os = self.settings.os
-        self.info.settings.arch = self.settings.arch
+        # package_id() can only read/mutate self.info.settings (a pre-seeded
+        # copy of self.settings) -- reading self.settings itself is forbidden
+        # here, so drop the unwanted axis instead of rebuilding it from scratch.
+        del self.info.settings.compiler
 
     def build(self):
         target_triple, ext, sha256 = _RELEASE_ASSETS[
