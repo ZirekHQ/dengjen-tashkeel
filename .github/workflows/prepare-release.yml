@@ -1,0 +1,57 @@
+name: Prepare release
+
+# Computes the next semver version from Conventional Commit subjects merged
+# to main since the last vX.Y.Z tag (scripts/next-version.sh) and opens a PR
+# bumping every hand-synced copy of it (scripts/bump-version.sh). Manual
+# trigger only -- this proposes a release, it doesn't cut one. Merging the
+# PR still requires a human to push the vX.Y.Z tag (and the separate
+# publish-* tag for crates.io) themselves, same as every other release step.
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: next
+        run: |
+          set -euo pipefail
+          if ! version="$(bash scripts/next-version.sh)"; then
+            echo "::notice::Nothing release-worthy since the last tag -- skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version
+        if: steps.next.outputs.skip != 'true'
+        run: bash scripts/bump-version.sh "${{ steps.next.outputs.version }}"
+
+      - name: Open release PR
+        if: steps.next.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          set -euo pipefail
+          branch="chore/bump-${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add Cargo.toml bindings/java/build.gradle.kts README.md
+          git commit -m "chore: bump workspace version -> ${VERSION}"
+          git push -u origin "$branch"
+          gh pr create --title "chore: bump workspace version -> ${VERSION}" \
+            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). Merging this does not release anything by itself -- push a \`v${VERSION}\` tag afterward (and a \`publish-N\` tag for crates.io) to actually trigger the release/publish workflows." \
+            --base main --head "$branch"
