@@ -14,6 +14,14 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
+  # Manual retrigger for a tag whose run failed for a reason unrelated to the
+  # tag itself (e.g. a broken action pin) -- run this with "Use workflow
+  # from" set to the existing vX.Y.Z tag, not a branch. GITHUB_REF_NAME (and
+  # what actions/checkout below fetches) comes from whichever ref is
+  # selected there, so check-version's tag-vs-workspace comparison still
+  # applies unchanged; there's no separate "which version" input to keep in
+  # sync with that.
+  workflow_dispatch: {}
 
 permissions: {}
 
