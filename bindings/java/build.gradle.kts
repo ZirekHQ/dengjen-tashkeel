@@ -43,6 +43,30 @@ fun expectedNativeLibraryFileName(classifier: String): String =
         else -> throw GradleException("unknown classifier: $classifier")
     }
 
+// Builds the debug cdylib that integrationTest/e2e/classpathNativeTest exercise against, so a
+// bare `./gradlew check` works without a separate manual `cargo build` step first. `--locked`
+// matches java-test.yml's own pre-build step. Deliberately always invokes Cargo rather than
+// trying to reproduce its own incremental-build decision in Gradle (e.g. via `outputs.
+// upToDateWhen { file.exists() }`) -- that would only track the output file, not the Cargo
+// workspace's actual dependency graph (capi's own sources, the core crate it depends on, and
+// so on transitively), so it could serve a stale library after a local source edit. Cargo
+// already tracks all of that correctly and exits in milliseconds when nothing changed, so a
+// redundant invocation here (e.g. right after java-test.yml's own pre-build step) is cheap
+// noise, not a correctness risk worth working around.
+val debugCdylibPath = file("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
+
+val cargoBuildCapi = tasks.register<Exec>("cargoBuildCapi") {
+    group = "build"
+    description = "Builds the dengjen-tashkeel-capi debug cdylib for local test runs."
+    workingDir = file("${rootDir}/../..")
+    commandLine("cargo", "build", "-p", "dengjen-tashkeel-capi", "--locked")
+    // No declared inputs/outputs, on purpose: declaring only the output file (with no inputs)
+    // would let Gradle mark this UP-TO-DATE whenever that file is merely unchanged from its own
+    // last execution -- silently skipping a rebuild after a Rust source edit. Leaving both
+    // undeclared means Gradle always runs this task and defers entirely to Cargo's own (correct,
+    // fast) incremental-build decision.
+}
+
 // Detects which of nativeClassifiers the machine running the build is, so the
 // classpathNativeTest suite (below) knows which debug cdylib to stage and which
 // natives/<classifier>/ resource path to package it under. Mirrors NativePlatform's
@@ -71,7 +95,11 @@ val classpathNativeTestClassifier = hostNativeClassifier()
 val stageDebugNativeArtifactForClasspathTest = tasks.register<Copy>("stageDebugNativeArtifactForClasspathTest") {
     group = "verification"
     description = "Stages the debug cdylib under the natives/<classifier>/ layout classpathNativeTest expects."
-    from("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
+    // Unconditional, unlike integrationTest/e2e below -- classpathNativeTest is documented above
+    // to never honor dengjen.tashkeel.native.library.path, so it always needs a real, freshly
+    // built debug cdylib regardless of any override given for the other suites.
+    dependsOn(cargoBuildCapi)
+    from(debugCdylibPath)
     into(layout.buildDirectory.dir("classpath-native-test/$classpathNativeTestClassifier"))
     rename { expectedNativeLibraryFileName(classpathNativeTestClassifier) }
 }
@@ -178,12 +206,16 @@ val nativeClassifierJars =
 // different build. `test` needs no native library at all -- everything
 // in it (NativePlatformTest, NativeLibraryLoaderTest,
 // TashkeelExceptionTest) is pure Java.
-val testNativeLibraryPath: String =
-    (project.findProperty("dengjen.tashkeel.native.library.path") as String?)
-        ?: "${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}"
+val nativeLibraryPathOverride = project.findProperty("dengjen.tashkeel.native.library.path") as String?
+val testNativeLibraryPath: String = nativeLibraryPathOverride ?: debugCdylibPath.toString()
 
 listOf("integrationTest", "e2e").forEach { suiteName ->
     tasks.named<Test>(suiteName) {
+        // Only integrationTest/e2e skip the build on an explicit override -- the caller is
+        // pointing at their own prebuilt library, so rebuilding the debug one is pointless.
+        if (nativeLibraryPathOverride == null) {
+            dependsOn(cargoBuildCapi)
+        }
         systemProperty("dengjen.tashkeel.native.library.path", testNativeLibraryPath)
     }
 }
