@@ -220,7 +220,7 @@ checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 
 [[package]]
 name = "dengjen-tashkeel"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "libtqsm",
  "log",
@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-capi"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "cbindgen",
  "dengjen-tashkeel",
@@ -247,7 +247,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-cli"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -259,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-python"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "dengjen-tashkeel",
  "log",
