@@ -10,7 +10,7 @@ plugins {
 group = "io.github.zirekhq"
 // Kept in sync by hand with [workspace.package].version in the repo root's
 // Cargo.toml -- single source of truth is that file, this just mirrors it.
-version = "1.5.2"
+version = "1.5.3"
 
 java {
     toolchain {

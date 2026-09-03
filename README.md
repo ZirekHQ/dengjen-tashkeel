@@ -94,8 +94,8 @@ are maintained.
 **Java:**
 
 ```kotlin
-implementation("io.github.zirekhq:dengjen-tashkeel:1.5.2")
-runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.5.2:linux-x86_64")
+implementation("io.github.zirekhq:dengjen-tashkeel:1.5.3")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.5.3:linux-x86_64")
 ```
 
 Published to Maven Central by the `java-publish.yml` CI workflow whenever a
