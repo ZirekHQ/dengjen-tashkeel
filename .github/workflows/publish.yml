@@ -38,14 +38,21 @@ jobs:
       # `cargo publish` on a version crates.io already has is a hard failure,
       # not a no-op, so skip crates that are already live at this version.
       - name: publish dengjen-tashkeel
+        # curl -sf can't tell "confirmed not published" (404) apart from a
+        # transient lookup failure (5xx, network blip) -- both are just
+        # "nonzero exit" to -f, and treating them the same would attempt a
+        # real publish on the transient-failure path, which cargo then
+        # rejects hard if the version *is* actually already there. Capture
+        # the status code and only branch on a value we've actually seen.
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          if curl -sf "https://crates.io/api/v1/crates/dengjen-tashkeel/${version}" >/dev/null; then
-            echo "dengjen-tashkeel ${version} is already published -- skipping"
-          else
-            cargo publish -p dengjen-tashkeel --locked
-          fi
+          status="$(curl -s -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/dengjen-tashkeel/${version}")"
+          case "$status" in
+            200) echo "dengjen-tashkeel ${version} is already published -- skipping" ;;
+            404) cargo publish -p dengjen-tashkeel --locked ;;
+            *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel ${version}"; exit 1 ;;
+          esac
       - name: wait for crate to index
         run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel "${{ steps.version.outputs.version }}"
 
@@ -53,10 +60,11 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          if curl -sf "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${version}" >/dev/null; then
-            echo "dengjen-tashkeel-cli ${version} is already published -- skipping"
-          else
-            cargo publish -p dengjen-tashkeel-cli --locked
-          fi
+          status="$(curl -s -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${version}")"
+          case "$status" in
+            200) echo "dengjen-tashkeel-cli ${version} is already published -- skipping" ;;
+            404) cargo publish -p dengjen-tashkeel-cli --locked ;;
+            *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel-cli ${version}"; exit 1 ;;
+          esac
       - name: wait for crate to index
         run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel-cli "${{ steps.version.outputs.version }}"
