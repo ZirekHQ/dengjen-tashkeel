@@ -26,8 +26,6 @@ dependencyLocking {
 }
 
 dependencies {
-    implementation(libs.jna)
-
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -35,13 +33,13 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-    // Points JNA at the debug cdylib built by `cargo build -p
+    // Points FFM at the debug cdylib built by `cargo build -p
     // dengjen-tashkeel-capi` (repo root) so tests exercise the real FFI
     // boundary without needing a published release archive. Override with
-    // -Pjna.library.path=/some/dir for a different build.
-    val nativeDir = (project.findProperty("jna.library.path") as String?)
-        ?: "${rootDir}/../../target/debug"
-    systemProperty("jna.library.path", nativeDir)
+    // -Pdengjen.tashkeel.native.library.path=/some/file for a different build.
+    val nativeLibraryPath = (project.findProperty("dengjen.tashkeel.native.library.path") as String?)
+        ?: "${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}"
+    systemProperty("dengjen.tashkeel.native.library.path", nativeLibraryPath)
 }
 
 // JReleaser deploys Maven Central from a plain local Maven repo staged here by
