@@ -10,18 +10,26 @@
 #   only docs/chore/style/refactor/test since the last tag        -> no release
 #
 # Usage: scripts/next-version.sh
-# Prints the next version (e.g. "1.5.3") to stdout and exits 0, or prints
-# nothing and exits 1 if there's nothing release-worthy since the last tag.
+# Prints the next version (e.g. "1.5.3") to stdout and exits 0.
+# Exits 1 (nothing printed) if there's nothing release-worthy since the
+# last tag -- this is the normal "skip" case a caller should treat as
+# not-an-error. Exits 2 for anything that means the computation itself is
+# broken (e.g. no vX.Y.Z tag exists at all) -- a caller must NOT treat this
+# as skip, or a broken tag state silently suppresses every future release.
 set -euo pipefail
 
 # --list's pattern is a glob, not a regex -- 'v[0-9]*.[0-9]*.[0-9]*' would
 # also match a prerelease tag like "v1.5.2-rc1" (the trailing [0-9]* happily
 # absorbs "2-rc1"). Grep with an anchored regex afterward so only an exact
 # vX.Y.Z tag counts.
-last_tag="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)"
+# The `|| true` matters under pipefail: grep exits 1 when no tag matches,
+# and without it that failure would abort the script right here (exit 1,
+# same code as the deliberate "nothing to release" case below) instead of
+# reaching the explicit -z check and its distinct exit 2.
+last_tag="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
 if [ -z "$last_tag" ]; then
   echo "::error::No vX.Y.Z tag found to compute the next version from" >&2
-  exit 1
+  exit 2
 fi
 
 version="${last_tag#v}"

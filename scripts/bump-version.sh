@@ -41,8 +41,10 @@ rm -f README.md.bak
 # Cargo.toml's version changes. cargo check only re-resolves entries that
 # are actually inconsistent with Cargo.toml -- since nothing here changed
 # any external dependency's version constraint, this touches only the 4
-# workspace-local package entries, not third-party deps.
-cargo check --offline --quiet
+# workspace-local package entries, not third-party deps. Not --offline: a
+# fresh CI runner (e.g. prepare-release.yml) has no pre-warmed registry
+# index, and --offline would fail outright rather than just fetch it.
+cargo check --quiet
 
 echo "Bumped ${old_version} -> ${new_version}:"
 git diff --stat -- Cargo.toml Cargo.lock bindings/java/build.gradle.kts README.md
