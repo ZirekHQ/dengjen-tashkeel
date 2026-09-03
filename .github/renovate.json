@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>austek/renovate-config"],
+  "forkProcessing": "enabled",
   "packageRules": [
     {
       "description": "Runtime deps (ort, clap, pyo3, ...) ship in the published crates/wheel/binaries, unlike build tooling or dev/test deps -- re-enable 'fix' so their bumps read as behavior-relevant in history, overriding the shared preset's blanket 'chore'.",
