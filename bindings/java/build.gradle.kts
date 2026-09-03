@@ -42,6 +42,10 @@ tasks.test {
     systemProperty("dengjen.tashkeel.native.library.path", nativeLibraryPath)
 }
 
+tasks.withType<Test>().configureEach {
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+}
+
 // JReleaser deploys Maven Central from a plain local Maven repo staged here by
 // `publish`, rather than from Gradle's in-memory publication model directly.
 val stagingDir: Provider<Directory> = layout.buildDirectory.dir("staging-deploy")
