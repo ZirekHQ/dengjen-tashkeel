@@ -37,9 +37,9 @@ release artifact.
 | Binding technology | JNA (`com.sun.jna`) over JNI | Dynamically loads the existing cdylib; no new native shim to write, cross-compile, and ship per platform. JNI would duplicate capi's release matrix for a second native artifact. |
 | Native library delivery (v1) | User supplies it on `java.library.path` / `jna.library.path` | Matches the issue's own framing and the vcpkg/Conan precedent: download the `dengjen-tashkeel-capi-<target>` archive (or install via vcpkg/Conan) and point JNA at it. No per-OS Java artifacts to build or publish. |
 | Maven namespace | `io.github.zirekhq` | Central Portal auto-verifies `io.github.<org>` against a public GitHub org the publisher admins — no domain/DNS TXT record needed. |
-| Artifact ID | `dengjen-tashkeel-java` | Matches the existing `dengjen-tashkeel-<lang>` convention (`dengjen-tashkeel-capi`, `dengjen-tashkeel-python`, `dengjen-tashkeel-cli`). |
-| Java baseline | 17 (LTS) | Matches the workplace JVM standard of using records, sealed interfaces, `Optional`/`Stream` in the public API, without excluding most current users. |
-| Build tool | Gradle (Kotlin DSL) | Issue names Gradle first; `com.vanniktech.maven.publish` plugin handles Central Portal upload, GPG signing, and POM generation in one step. |
+| Artifact ID | `dengjen-tashkeel` | Matches the sibling `ZirekHQ/dengjen-tts` Java module's naming, and drops the redundant `-java` suffix `groupId` already disambiguates. |
+| Java baseline | 17 (LTS) | Matches the workplace JVM standard of using records, sealed interfaces, `Optional`/`Stream` in the public API, without excluding most current users. Kept at 17 even though `dengjen-tts` targets 25, to preserve this compatibility goal. |
+| Build tool | Gradle (Kotlin DSL) | Issue names Gradle first. Publishing uses the `org.jreleaser` plugin (not `com.vanniktech.maven.publish`), mirroring `ZirekHQ/dengjen-tts`'s Java module: `maven-publish` stages artifacts locally, JReleaser signs and uploads them to Central Portal. |
 | Location | `bindings/java/` at repo root, outside the Cargo workspace | Pure Java, no Rust — keeps it out of `cargo build --workspace`, Sonar Rust scans, and `deny.toml`. |
 
 ## Public API
@@ -98,23 +98,29 @@ The module README documents:
 ## Publishing pipeline
 
 New workflow `.github/workflows/java-publish.yml`, triggered the same way as
-`python-publish.yml` (on release tag push). Steps:
+`python-publish.yml` (on release tag push). Steps, run from `bindings/java`:
 
-1. `./gradlew :bindings:java:publish` using the
-   `com.vanniktech.maven.publish` Gradle plugin, which handles Central
-   Portal upload, GPG signing, and POM generation.
-2. POM metadata (license, repository URL, description) sourced from the same
+1. `./gradlew publish` stages the jar, sources jar, javadoc jar, and POM into
+   a local `build/staging-deploy` Maven repo (the `maven-publish` plugin).
+2. `./gradlew jreleaserDeploy` (the `org.jreleaser` plugin) signs those
+   staged artifacts with PGP and uploads them to Central Portal
+   (`https://central.sonatype.com/api/v1/publisher`). Only the deploy task
+   runs — not `jreleaserFullRelease` — because this project's GitHub
+   releases are already published by the existing cargo-dist `release.yml`
+   pipeline on the same tag.
+3. POM metadata (license, repository URL, description) sourced from the same
    values as `[workspace.package]` in the root `Cargo.toml`, kept in sync by
    hand (no automated cross-sync — low churn, single source of truth noted
    in a comment).
 
 Required repository secrets (added manually by a maintainer before this
 pipeline can run for real — outside the scope of what a coding agent can
-provision):
-- `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` — a Central Portal
-  publishing token, not a personal login.
-- `GPG_PRIVATE_KEY` / `GPG_PASSPHRASE` — the signing key registered with
-  Central Portal.
+provision), named per JReleaser's Gradle plugin convention:
+- `JRELEASER_MAVENCENTRAL_USERNAME` / `JRELEASER_MAVENCENTRAL_PASSWORD` — a
+  Central Portal publishing token, not a personal login.
+- `JRELEASER_GPG_PASSPHRASE` / `JRELEASER_GPG_SECRET_KEY` /
+  `JRELEASER_GPG_PUBLIC_KEY` — the signing key registered with Central
+  Portal.
 
 ## Testing
 

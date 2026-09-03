@@ -1,6 +1,7 @@
 plugins {
     java
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    `maven-publish`
+    alias(libs.plugins.jreleaser)
 }
 
 group = "io.github.zirekhq"
@@ -21,9 +22,9 @@ repositories {
 }
 
 dependencies {
-    implementation("net.java.dev.jna:jna:5.15.0")
+    implementation(libs.jna)
 
-    testImplementation(platform("org.junit:junit-bom:5.11.0"))
+    testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -39,35 +40,73 @@ tasks.test {
     systemProperty("jna.library.path", nativeDir)
 }
 
-mavenPublishing {
-    publishToMavenCentral()
-    signAllPublications()
+// JReleaser deploys Maven Central from a plain local Maven repo staged here by
+// `publish`, rather than from Gradle's in-memory publication model directly.
+val stagingDir: Provider<Directory> = layout.buildDirectory.dir("staging-deploy")
 
-    coordinates(group.toString(), "dengjen-tashkeel-java", version.toString())
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            artifactId = "dengjen-tashkeel"
 
-    pom {
-        name.set("dengjen-tashkeel-java")
-        description.set("Java bindings for dengjen-tashkeel: Arabic-text diacritic restoration using neural networks")
-        url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
-        licenses {
-            license {
-                name.set("MIT")
-                url.set("https://opensource.org/licenses/MIT")
-            }
-            license {
-                name.set("Apache-2.0")
-                url.set("https://www.apache.org/licenses/LICENSE-2.0")
+            pom {
+                name.set("dengjen-tashkeel-java")
+                description.set("Java bindings for dengjen-tashkeel: Arabic-text diacritic restoration using neural networks")
+                url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
+                licenses {
+                    license {
+                        name.set("MIT")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                    license {
+                        name.set("Apache-2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0")
+                    }
+                }
+                developers {
+                    developer {
+                        name.set("Musharraf Omer")
+                        email.set("ibnomer2011@hotmail.com")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
+                    connection.set("scm:git:https://github.com/ZirekHQ/dengjen-tashkeel.git")
+                    developerConnection.set("scm:git:git@github.com:ZirekHQ/dengjen-tashkeel.git")
+                }
             }
         }
-        developers {
-            developer {
-                name.set("Musharraf Omer")
-                email.set("ibnomer2011@hotmail.com")
-            }
+    }
+    repositories {
+        maven { url = uri(stagingDir.get()) }
+    }
+}
+
+configure<org.jreleaser.gradle.plugin.JReleaserExtension> {
+    // bindings/java is a subdirectory of this repo's git root -- without this, JReleaser's git
+    // detection only looks at basedir and fails with "repository not found" instead of walking
+    // up to find the repo's .git.
+    gitRootSearch = true
+
+    // GitHub releases for tagged versions are already handled by the existing cargo-dist
+    // release.yml pipeline; only `jreleaserDeploy` (not `jreleaserFullRelease`) is ever invoked
+    // here, so the release/changelog machinery stays unconfigured on purpose.
+    signing {
+        pgp {
+            active = org.jreleaser.model.Active.ALWAYS
+            armored = true
         }
-        scm {
-            url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
-            connection.set("scm:git:https://github.com/ZirekHQ/dengjen-tashkeel.git")
+    }
+    deploy {
+        maven {
+            mavenCentral {
+                register("sonatype") {
+                    active = org.jreleaser.model.Active.ALWAYS
+                    url = "https://central.sonatype.com/api/v1/publisher"
+                    stagingRepository(stagingDir.get().toString())
+                }
+            }
         }
     }
 }

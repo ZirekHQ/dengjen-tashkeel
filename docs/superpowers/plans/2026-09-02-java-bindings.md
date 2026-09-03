@@ -28,6 +28,38 @@ The spec sketched `TashkeelException` as a `sealed interface` directly implement
 
 The spec's publish step read `./gradlew :bindings:java:publish`. Since `bindings/java/` is its own standalone Gradle build (its own `settings.gradle.kts`, not a subproject of a root multi-project build — this repo's root has no Gradle build at all), the correct invocation is `./gradlew publish` run with `bindings/java` as the working directory (see Task 5).
 
+### Post-review revision: JReleaser, not `com.vanniktech.maven.publish`
+
+After the final whole-branch review and its fix wave, this plan's Task 1 and
+Task 5 were superseded on explicit direction: publishing now goes through
+the `org.jreleaser` Gradle plugin instead of `com.vanniktech.maven.publish`,
+mirroring the sibling `ZirekHQ/dengjen-tts` repo's Java module, whose
+publish pipeline this project's maintainer had already built out and
+proven. `build.gradle.kts` uses Gradle's own `maven-publish` plugin to
+stage the jar/sources/javadoc/POM into a local `build/staging-deploy`
+Maven repo, then JReleaser's `deploy.maven.mavenCentral` block signs and
+uploads that staged repo to Central Portal — CI runs `./gradlew publish
+jreleaserDeploy` (deploy-only, not `jreleaserFullRelease`, since GitHub
+releases for this project are already handled by the cargo-dist
+`release.yml` pipeline on the same tag). Required secrets are renamed
+accordingly to JReleaser's own convention: `JRELEASER_MAVENCENTRAL_USERNAME`
+/ `JRELEASER_MAVENCENTRAL_PASSWORD` / `JRELEASER_GPG_PASSPHRASE` /
+`JRELEASER_GPG_SECRET_KEY` / `JRELEASER_GPG_PUBLIC_KEY`, superseding
+`MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` / `GPG_PRIVATE_KEY` /
+`GPG_PASSPHRASE`.
+
+The same direction also mirrored `dengjen-tts`'s general Gradle tooling:
+the wrapper moved to Gradle 9.7.1, `settings.gradle.kts` gained the
+`org.gradle.toolchains.foojay-resolver-convention` plugin, and plugin/library
+versions moved into `gradle/libs.versions.toml`. The Java 17 toolchain
+baseline was kept as-is (an explicit decision) even though `dengjen-tts`
+targets Java 25 — mirroring covered tooling, not the language-level
+compatibility goal this plan's Java-17 decision protects. Separately, the
+Artifact ID was renamed from `dengjen-tashkeel-java` to `dengjen-tashkeel`
+(also explicit direction), set via an explicit `artifactId` override in the
+`maven-publish` publication rather than by renaming the Gradle module
+itself.
+
 ---
 
 ### Task 1: Scaffold the Gradle module
