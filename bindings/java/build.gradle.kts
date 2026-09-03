@@ -1,5 +1,6 @@
 plugins {
     java
+    `jvm-test-suite`
     `maven-publish`
     alias(libs.plugins.jreleaser)
 }
@@ -26,20 +27,46 @@ dependencyLocking {
 }
 
 dependencies {
-    testImplementation(platform(libs.junit.bom))
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
-tasks.test {
-    useJUnitPlatform()
-    // Points FFM at the debug cdylib built by `cargo build -p
-    // dengjen-tashkeel-capi` (repo root) so tests exercise the real FFI
-    // boundary without needing a published release archive. Override with
-    // -Pdengjen.tashkeel.native.library.path=/some/file for a different build.
-    val nativeLibraryPath = (project.findProperty("dengjen.tashkeel.native.library.path") as String?)
+testing {
+    suites {
+        val test by getting(JvmTestSuite::class) {
+            useJUnitJupiter(libs.versions.junit.jupiter.get())
+        }
+        val integrationTest by registering(JvmTestSuite::class) {
+            dependencies {
+                implementation(project())
+            }
+            useJUnitJupiter(libs.versions.junit.jupiter.get())
+            targets {
+                all {
+                    testTask.configure {
+                        shouldRunAfter(test)
+                    }
+                }
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(testing.suites.named("integrationTest"))
+}
+
+// Points FFM at the debug cdylib built by `cargo build -p
+// dengjen-tashkeel-capi` (repo root) so integrationTest exercises the
+// real FFI boundary without needing a published release archive.
+// Override with -Pdengjen.tashkeel.native.library.path=/some/file for a
+// different build. `test` needs no native library at all -- everything
+// in it (NativePlatformTest, NativeLibraryLoaderTest,
+// TashkeelExceptionTest) is pure Java.
+val testNativeLibraryPath: String =
+    (project.findProperty("dengjen.tashkeel.native.library.path") as String?)
         ?: "${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}"
-    systemProperty("dengjen.tashkeel.native.library.path", nativeLibraryPath)
+
+tasks.named<Test>("integrationTest") {
+    systemProperty("dengjen.tashkeel.native.library.path", testNativeLibraryPath)
 }
 
 tasks.withType<Test>().configureEach {
