@@ -68,6 +68,41 @@ tasks.named("check") {
     dependsOn(testing.suites.named("e2e"))
 }
 
+val nativeClassifiers = listOf("linux-x86_64", "windows-x64", "macos-aarch64")
+
+// Matches what java-publish.yml's "Stage native library" step produces per classifier, and what
+// System.mapLibraryName("dengjen_tashkeel_capi") returns on each OS.
+fun expectedNativeLibraryFileName(classifier: String): String =
+    when (classifier) {
+        "linux-x86_64" -> "libdengjen_tashkeel_capi.so"
+        "windows-x64" -> "dengjen_tashkeel_capi.dll"
+        "macos-aarch64" -> "libdengjen_tashkeel_capi.dylib"
+        else -> throw GradleException("unknown classifier: $classifier")
+    }
+
+val nativeArtifactsDir: Directory =
+    layout.projectDirectory.dir((findProperty("nativeArtifactsDir") as String?) ?: "native-artifacts")
+
+val nativeClassifierJars =
+    nativeClassifiers.associateWith { classifier ->
+        tasks.register<Jar>("nativeJar-$classifier") {
+            archiveClassifier.set(classifier)
+            val sourceDir = nativeArtifactsDir.dir(classifier)
+            from(sourceDir) { into("natives/$classifier") }
+            onlyIf { sourceDir.asFile.exists() }
+            // Maven Central is immutable -- an empty or wrong-content classifier jar would burn
+            // that version forever with a native library nobody can load, so fail loudly instead
+            // of silently publishing whatever (or nothing) happens to be in the directory.
+            doFirst {
+                val expectedName = expectedNativeLibraryFileName(classifier)
+                val files = sourceDir.asFile.listFiles().orEmpty()
+                check(files.size == 1 && files[0].isFile && files[0].name == expectedName) {
+                    "expected exactly one file named '$expectedName' in $sourceDir, found ${files.toList()}"
+                }
+            }
+        }
+    }
+
 // Points FFM at the debug cdylib built by `cargo build -p
 // dengjen-tashkeel-capi` (repo root) so integrationTest exercises the
 // real FFI boundary without needing a published release archive.
@@ -128,6 +163,14 @@ publishing {
     }
     repositories {
         maven { url = uri(stagingDir.get()) }
+    }
+}
+
+publishing {
+    publications {
+        named<MavenPublication>("maven") {
+            nativeClassifierJars.values.forEach { jarTask -> artifact(jarTask) }
+        }
     }
 }
 
