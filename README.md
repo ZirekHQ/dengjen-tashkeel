@@ -95,15 +95,21 @@ are maintained.
 
 ```kotlin
 implementation("io.github.zirekhq:dengjen-tashkeel:1.5.2")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.5.2:linux-x86_64")
 ```
 
 Published to Maven Central by the `java-publish.yml` CI workflow whenever a
-version tag is pushed. The binding loads the native `dengjen_tashkeel_capi`
-shared library via [JNA](https://github.com/java-native-access/jna) at
-runtime rather than bundling it — download the `dengjen-tashkeel-capi-<target>`
-archive for your platform (see the **C** section above), then either place
-the shared library where your OS's default native-library search finds it,
-or pass `-Djna.library.path=/path/to/dir` on the JVM command line.
+version tag is pushed. The binding uses the JDK Foreign Function & Memory
+API (`java.lang.foreign`), not JNA, to load the native
+`dengjen_tashkeel_capi` shared library. The native library ships as
+per-platform classifier jars — `linux-x86_64`, `windows-x64`, and
+`macos-aarch64` — so add a `runtimeOnly` dependency on the one matching
+your platform alongside the main dependency; it's picked up automatically
+at runtime. To use a library you built or placed yourself instead, set
+`-Ddengjen.tashkeel.native.library.path=/path/to/library` (a file path, not
+a directory — `java.library.path` is not consulted). Either way, add
+`--enable-native-access=ALL-UNNAMED` to your own JVM invocation to avoid a
+native-access warning.
 
 **CLI:** either build from source (see **Building**) or `cargo install
 dengjen-tashkeel-cli` (published to crates.io).
@@ -147,7 +153,7 @@ usage against the compiled library via `ctypes`.
 **Java:**
 
 ```java
-import io.github.zirekhq.dengjentashkeel.Tashkeel;
+import io.github.zirekhq.dengjen.tashkeel.Tashkeel;
 import java.util.Optional;
 
 Tashkeel tashkeel = Tashkeel.loadDefault();
