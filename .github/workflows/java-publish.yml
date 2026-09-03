@@ -31,6 +31,28 @@ jobs:
             exit 1
           fi
 
+      # Fails here, before the multi-platform native builds run, rather than deep into the
+      # publish job after paying for build-natives -- a missing secret is a maintainer setup gap,
+      # not something worth burning CI minutes on before discovering it.
+      - name: Verify Maven Central / GPG secrets are set
+        env:
+          JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+          JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+          JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+          JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+          JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in JRELEASER_MAVENCENTRAL_USERNAME JRELEASER_MAVENCENTRAL_PASSWORD \
+              JRELEASER_GPG_PASSPHRASE JRELEASER_GPG_SECRET_KEY JRELEASER_GPG_PUBLIC_KEY; do
+            [ -z "${!name}" ] && missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required repository secret(s): ${missing[*]}"
+            exit 1
+          fi
+
   build-natives:
     name: Build native library (${{ matrix.platform.classifier }})
     needs: check-version

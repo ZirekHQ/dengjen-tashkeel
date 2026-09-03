@@ -43,6 +43,18 @@ fun expectedNativeLibraryFileName(classifier: String): String =
         else -> throw GradleException("unknown classifier: $classifier")
     }
 
+// Builds the debug cdylib that integrationTest/e2e/classpathNativeTest exercise against, so a
+// bare `./gradlew check` works without a separate manual `cargo build` step first. Skips running
+// when dengjen.tashkeel.native.library.path is overridden -- that means the caller is pointing
+// at their own prebuilt library, and this project has no business rebuilding the debug one too.
+val cargoBuildCapi = tasks.register<Exec>("cargoBuildCapi") {
+    group = "build"
+    description = "Builds the dengjen-tashkeel-capi debug cdylib for local test runs."
+    workingDir = file("${rootDir}/../..")
+    commandLine("cargo", "build", "-p", "dengjen-tashkeel-capi")
+    onlyIf { !project.hasProperty("dengjen.tashkeel.native.library.path") }
+}
+
 // Detects which of nativeClassifiers the machine running the build is, so the
 // classpathNativeTest suite (below) knows which debug cdylib to stage and which
 // natives/<classifier>/ resource path to package it under. Mirrors NativePlatform's
@@ -71,6 +83,7 @@ val classpathNativeTestClassifier = hostNativeClassifier()
 val stageDebugNativeArtifactForClasspathTest = tasks.register<Copy>("stageDebugNativeArtifactForClasspathTest") {
     group = "verification"
     description = "Stages the debug cdylib under the natives/<classifier>/ layout classpathNativeTest expects."
+    dependsOn(cargoBuildCapi)
     from("${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}")
     into(layout.buildDirectory.dir("classpath-native-test/$classpathNativeTestClassifier"))
     rename { expectedNativeLibraryFileName(classpathNativeTestClassifier) }
@@ -184,6 +197,7 @@ val testNativeLibraryPath: String =
 
 listOf("integrationTest", "e2e").forEach { suiteName ->
     tasks.named<Test>(suiteName) {
+        dependsOn(cargoBuildCapi)
         systemProperty("dengjen.tashkeel.native.library.path", testNativeLibraryPath)
     }
 }
