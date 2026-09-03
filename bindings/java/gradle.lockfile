@@ -13,4 +13,4 @@ org.junit.platform:junit-platform-engine:6.1.3=testRuntimeClasspath
 org.junit.platform:junit-platform-launcher:6.1.3=testRuntimeClasspath
 org.junit:junit-bom:6.1.3=testCompileClasspath,testRuntimeClasspath
 org.opentest4j:opentest4j:1.3.0=testCompileClasspath,testRuntimeClasspath
-empty=annotationProcessor,combinedGraphClasspath,compileClasspath,projectHealthClasspath,projectMetadataClasspath,publicClassesClasspath,resolvedDepsClasspath,runtimeClasspath,testAnnotationProcessor,typeUsageClasspath
+empty=annotationProcessor,compileClasspath,runtimeClasspath,testAnnotationProcessor

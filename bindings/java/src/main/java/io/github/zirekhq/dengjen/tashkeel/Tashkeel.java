@@ -114,8 +114,12 @@ public final class Tashkeel implements AutoCloseable {
             return;
         }
         MemorySegment messagePtr = outError.get(ValueLayout.ADDRESS, TashkeelLib.EXTERN_ERROR_MESSAGE_OFFSET);
-        String message = readString(messagePtr);
-        freeString(messagePtr);
+        String message;
+        try {
+            message = readString(messagePtr);
+        } finally {
+            freeString(messagePtr);
+        }
         throw new TashkeelException(switch (code) {
             case INPUT_TOO_LONG -> new TashkeelException.InputTooLong(message);
             case INFERENCE_ERROR -> new TashkeelException.InferenceError(message);
