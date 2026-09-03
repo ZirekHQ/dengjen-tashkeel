@@ -1,4 +1,4 @@
-package io.github.zirekhq.dengjentashkeel;
+package io.github.zirekhq.dengjen.tashkeel;
 
 import com.sun.jna.Library;
 import com.sun.jna.Pointer;

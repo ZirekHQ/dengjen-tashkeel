@@ -1,4 +1,4 @@
-package io.github.zirekhq.dengjentashkeel;
+package io.github.zirekhq.dengjen.tashkeel;
 
 /**
  * Thrown when the native dengjen-tashkeel engine reports an error.

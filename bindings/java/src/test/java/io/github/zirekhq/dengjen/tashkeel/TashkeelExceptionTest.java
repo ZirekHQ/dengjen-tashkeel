@@ -1,4 +1,4 @@
-package io.github.zirekhq.dengjentashkeel;
+package io.github.zirekhq.dengjen.tashkeel;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
