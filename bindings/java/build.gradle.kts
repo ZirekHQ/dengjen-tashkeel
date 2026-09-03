@@ -47,11 +47,25 @@ testing {
                 }
             }
         }
+        val e2e by registering(JvmTestSuite::class) {
+            dependencies {
+                implementation(project())
+            }
+            useJUnitJupiter(libs.versions.junit.jupiter.get())
+            targets {
+                all {
+                    testTask.configure {
+                        shouldRunAfter(integrationTest)
+                    }
+                }
+            }
+        }
     }
 }
 
 tasks.named("check") {
     dependsOn(testing.suites.named("integrationTest"))
+    dependsOn(testing.suites.named("e2e"))
 }
 
 // Points FFM at the debug cdylib built by `cargo build -p
@@ -65,8 +79,10 @@ val testNativeLibraryPath: String =
     (project.findProperty("dengjen.tashkeel.native.library.path") as String?)
         ?: "${rootDir}/../../target/debug/${System.mapLibraryName("dengjen_tashkeel_capi")}"
 
-tasks.named<Test>("integrationTest") {
-    systemProperty("dengjen.tashkeel.native.library.path", testNativeLibraryPath)
+listOf("integrationTest", "e2e").forEach { suiteName ->
+    tasks.named<Test>(suiteName) {
+        systemProperty("dengjen.tashkeel.native.library.path", testNativeLibraryPath)
+    }
 }
 
 tasks.withType<Test>().configureEach {
