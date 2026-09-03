@@ -18,15 +18,22 @@
 # as skip, or a broken tag state silently suppresses every future release.
 set -euo pipefail
 
+# --merged HEAD restricts to tags actually reachable from the current
+# branch -- a vX.Y.Z tag pushed on some other branch (a future hotfix, a
+# stray release cut elsewhere) must not become "the last release" here just
+# because its number sorts higher; only a tag that's actually an ancestor
+# of HEAD is a real baseline to diff from.
+#
 # --list's pattern is a glob, not a regex -- 'v[0-9]*.[0-9]*.[0-9]*' would
 # also match a prerelease tag like "v1.5.2-rc1" (the trailing [0-9]* happily
 # absorbs "2-rc1"). Grep with an anchored regex afterward so only an exact
 # vX.Y.Z tag counts.
+#
 # The `|| true` matters under pipefail: grep exits 1 when no tag matches,
 # and without it that failure would abort the script right here (exit 1,
 # same code as the deliberate "nothing to release" case below) instead of
 # reaching the explicit -z check and its distinct exit 2.
-last_tag="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+last_tag="$(git tag --list 'v*' --merged HEAD --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
 if [ -z "$last_tag" ]; then
   echo "::error::No vX.Y.Z tag found to compute the next version from" >&2
   exit 2
