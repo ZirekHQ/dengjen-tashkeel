@@ -2,13 +2,14 @@ package io.github.zirekhq.dengjen.tashkeel;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.SymbolLookup;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 
@@ -93,7 +94,12 @@ final class NativeLibraryLoader {
             Path extracted = Files.createTempFile(
                     "dengjen-tashkeel-native-", "-" + resourcePath.replace('/', '_'), OWNER_ONLY_PERMISSIONS);
             extracted.toFile().deleteOnExit();
-            Files.copy(in, extracted, StandardCopyOption.REPLACE_EXISTING);
+            // Files.copy(..., REPLACE_EXISTING) deletes and recreates the target, discarding
+            // createTempFile's owner-only permissions. The temp file was just created uniquely
+            // above, so there's nothing to replace -- write directly into it instead.
+            try (OutputStream out = Files.newOutputStream(extracted, StandardOpenOption.TRUNCATE_EXISTING)) {
+                in.transferTo(out);
+            }
             return extracted;
         }
     }
