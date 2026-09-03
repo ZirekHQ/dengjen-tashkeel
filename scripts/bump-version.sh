@@ -36,5 +36,13 @@ rm -f bindings/java/build.gradle.kts.bak
 sed -i.bak "s/dengjen-tashkeel:${old_version}/dengjen-tashkeel:${new_version}/g" README.md
 rm -f README.md.bak
 
+# Cargo.lock pins each workspace member's own version (matched via --locked
+# in several CI steps, e.g. cargo publish), so it goes stale the moment
+# Cargo.toml's version changes. cargo check only re-resolves entries that
+# are actually inconsistent with Cargo.toml -- since nothing here changed
+# any external dependency's version constraint, this touches only the 4
+# workspace-local package entries, not third-party deps.
+cargo check --offline --quiet
+
 echo "Bumped ${old_version} -> ${new_version}:"
-git diff --stat -- Cargo.toml bindings/java/build.gradle.kts README.md
+git diff --stat -- Cargo.toml Cargo.lock bindings/java/build.gradle.kts README.md
