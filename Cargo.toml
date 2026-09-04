@@ -16,43 +16,17 @@ description = "Arabic-text diacritic restoration using neural networks"
 repository = "https://github.com/ZirekHQ/dengjen-tashkeel"
 documentation = "https://github.com/ZirekHQ/dengjen-tashkeel"
 
-# Config for 'cargo dist'
 [workspace.metadata.dist]
-# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.32.0"
-# CI backends to support
 ci = "github"
-# release.yml has hand-patches on top of what 'dist generate' would produce
-# (Sonar S8482/S8233 fixes -- see the "Hand-patched for Sonar..." comments in
-# that file), so `dist plan`'s own drift check would otherwise fail every CI
-# run on this repo. This tells dist to accept that divergence instead of
-# demanding `dist init`/`dist generate` be re-run (which would silently
-# revert those fixes).
 allow-dirty = ["ci"]
-# The installers to generate for each app
 installers = ["shell", "powershell", "msi"]
-# Target platforms to build apps for (Rust target-triple syntax)
-# x86_64-apple-darwin (Intel Mac) dropped: no longer supported.
 targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
-# Path that installers should place binaries in
 install-path = "CARGO_HOME"
-# Whether to install an updater program
 install-updater = false
-# dist unconditionally links the static CRT (+crt-static) on windows-msvc by
-# default, but ort-sys's prebuilt onnxruntime static libs were built against
-# the dynamic CRT (they reference __imp_-prefixed dynamic import symbols like
-# __imp_strtol/__imp__beginthreadex that only the dynamic-CRT import libs
-# provide) -- linking fails with hundreds of unresolved externals otherwise.
 msvc-crt-static = false
-# ort-sys's prebuilt onnxruntime static libs require symbols only present in
-# glibc >=2.38 (__isoc23_strtol and friends); dist's default ubuntu-22.04
-# runner ships an older glibc that lacks them, so the linux build fails.
 [workspace.metadata.dist.github-custom-runners]
 x86_64-unknown-linux-gnu = "ubuntu-latest"
-# dist's own default for the non-build orchestration jobs (plan/host/
-# announce/global-artifacts) is ubuntu-22.04, whose GitHub-hosted runner
-# image starts deprecating 2026-09-17 (fully removed 2027-04-17). Pin these
-# to the current latest LTS instead of trailing dist's default.
 global = "ubuntu-24.04"
 
 [profile.release]
@@ -61,7 +35,6 @@ lto = true
 strip = true
 codegen-units = 1
 
-# The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"
 lto = "thin"

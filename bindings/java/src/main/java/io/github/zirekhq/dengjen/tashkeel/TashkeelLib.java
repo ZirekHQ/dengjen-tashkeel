@@ -12,22 +12,11 @@ import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 
-/**
- * MethodHandles for every {@code dengjen_tashkeel_capi} C function
- * (crates/capi/src/lib.rs). Loading this class loads the native library;
- * see {@link NativeLibraryLoader} for how it's found.
- */
 final class TashkeelLib {
 
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup LOOKUP = NativeLibraryLoader.load();
 
-    /**
-     * Mirrors {@code struct ExternError { ErrorCode code; char *message; }}
-     * from {@code dengjen_tashkeel.h}. Field order matters -- it must
-     * match the C layout exactly (code first, then message, with 4 bytes
-     * of padding between them so message stays 8-byte aligned).
-     */
     static final GroupLayout EXTERN_ERROR = MemoryLayout.structLayout(
                     JAVA_INT.withName("code"), MemoryLayout.paddingLayout(4), ADDRESS.withName("message"))
             .withName("ExternError");

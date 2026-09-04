@@ -12,13 +12,6 @@ import java.nio.file.Path;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/**
- * The native engine lives in a single process-wide slot (see {@link
- * Tashkeel}'s class Javadoc), so -- like dengjen-tashkeel's own capi tests
- * -- these are written to be correct regardless of execution order: each
- * either avoids touching the global engine, or warms it up itself via the
- * idempotent lazy-init path before asserting on "already initialized".
- */
 class TashkeelTest {
 
     // Must match dengjen_tashkeel::CHAR_LIMIT (crates/core/src/lib.rs).
@@ -79,8 +72,6 @@ class TashkeelTest {
 
     @Test
     void loadAfterTheEngineIsAlreadyInitializedThrowsUnknown() throws Exception {
-        // Warm-up: idempotent regardless of whether an earlier test already
-        // initialized the global engine.
         new Tashkeel().diacritize("بسم الله", Optional.empty(), true);
 
         TashkeelException exception = assertThrows(TashkeelException.class, Tashkeel::loadDefault);

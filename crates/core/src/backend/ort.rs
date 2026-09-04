@@ -40,9 +40,6 @@ fn ort_session_run(
             ))
         })?;
         let outputs = session.run(inputs)?;
-        // outputs[0]/outputs[1] (ort::SessionOutputs's Index<usize>) panics
-        // if the model returns fewer than 2 tensors -- checked up front
-        // since seq_length mismatches above cover shape, not output count.
         if outputs.len() < 2 {
             return Err(DengjenTashkeelError::InferenceError(format!(
                 "model returned {} output tensor(s), expected 2 (target_ids, logits)",
@@ -51,13 +48,6 @@ fn ort_session_run(
         }
         let (target_shape, target_ids) = outputs[0].try_extract_tensor::<u8>()?;
         let (logits_shape, logits) = outputs[1].try_extract_tensor::<f32>()?;
-        // target_ids: exactly one id per input position. logits: per-class
-        // scores per position (seq_length * len(TARGET_ID_MAP), 15 today),
-        // of which the annotation loops in lib.rs zip-consume a
-        // diacritics.len() <= seq_length prefix -- so logits only needs to
-        // cover at least seq_length entries, not equal it exactly. Either
-        // falling short is a genuine inference failure, not something to
-        // flatten and propagate into a silent misalignment downstream.
         if target_ids.len() != seq_length {
             return Err(DengjenTashkeelError::InferenceError(format!(
                 "model returned {} target ids (shape {target_shape:?}) for a sequence of length {seq_length}",
@@ -133,10 +123,6 @@ mod tests {
     #[test]
     fn infer_runs_against_the_bundled_model_directly() {
         let engine = OrtEngine::with_bundled_model().unwrap();
-        // "بسم" tokenized via the same maps do_tashkeel uses internally;
-        // this test only needs *some* valid, non-empty token sequence to
-        // exercise ort_session_run's Tensor::from_array/try_extract_tensor
-        // path independent of the full do_tashkeel pipeline.
         let input_ids = vec![1i64, 2, 3];
         let diac_ids = vec![0i64, 0, 0];
 
@@ -151,8 +137,6 @@ mod tests {
     #[test]
     fn infer_errors_instead_of_panicking_on_seq_length_mismatch() {
         let engine = OrtEngine::with_bundled_model().unwrap();
-        // diac_ids has 2 entries but seq_length claims 3 -- from_shape_vec
-        // must reject this as an error, not panic.
         let input_ids = vec![1i64, 2, 3];
         let diac_ids = vec![0i64, 0];
 

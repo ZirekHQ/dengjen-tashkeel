@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Bumps every hand-synced copy of the workspace version to the given value.
-#
-# Cargo.toml's [workspace.package].version is the single source of truth;
-# every other file here mirrors it because it can't consume it directly
-# (bindings/java/build.gradle.kts per its own comment; README's Java
-# coordinate examples mirror that file). vcpkg/Conan are NOT touched here --
-# those can't be bumped until the release archives they hash actually exist,
-# so they always land in a follow-up PR once the tag has been pushed (see
-# packaging/README.md).
-#
-# Usage: scripts/bump-version.sh 1.5.3
 set -euo pipefail
 
 new_version="${1:?usage: scripts/bump-version.sh <new-version>}"
@@ -36,14 +25,6 @@ rm -f bindings/java/build.gradle.kts.bak
 sed -i.bak "s/dengjen-tashkeel:${old_version}/dengjen-tashkeel:${new_version}/g" README.md
 rm -f README.md.bak
 
-# Cargo.lock pins each workspace member's own version (matched via --locked
-# in several CI steps, e.g. cargo publish), so it goes stale the moment
-# Cargo.toml's version changes. cargo check only re-resolves entries that
-# are actually inconsistent with Cargo.toml -- since nothing here changed
-# any external dependency's version constraint, this touches only the 4
-# workspace-local package entries, not third-party deps. Not --offline: a
-# fresh CI runner (e.g. prepare-release.yml) has no pre-warmed registry
-# index, and --offline would fail outright rather than just fetch it.
 cargo check --quiet
 
 echo "Bumped ${old_version} -> ${new_version}:"
