@@ -9,16 +9,22 @@ const TASKEEN_REJECTION_THRESHOLD: &str = "0.95";
 #[derive(Parser)]
 #[command(name = "dengjen-tashkeel", author, version, about, long_about = None)]
 struct Cli {
+    /// Input file (default `stdin`)
     #[arg(short = 'f', long, value_name = "INPUT_FILE")]
     input_file: Option<PathBuf>,
+    /// Output file (default `stdout`)
     #[arg(short, long, value_name = "OUTPUT_FILE")]
     output_file: Option<PathBuf>,
+    /// Use interactive mode (useful for testing)
     #[arg(short, long)]
     interactive: bool,
+    /// Use sukoon for case-ending diacritic if the model is uncertain
     #[arg(short, long)]
     taskeen: bool,
+    /// Taskeen threshold probability
     #[arg(long, short, default_value = TASKEEN_REJECTION_THRESHOLD, required = false)]
     prob: Option<f32>,
+    /// ONNX model (default: use bundled model if available)
     #[arg(short = 'x', long, value_name = "ONNX_MODEL")]
     onnx: Option<PathBuf>,
 }
@@ -248,7 +254,7 @@ mod tests {
     fn tashkeel_main_writes_single_shot_output_to_file() {
         let output_file = tempfile::NamedTempFile::new().unwrap();
         let mut args = parse(&["--output-file", output_file.path().to_str().unwrap()]);
-        args.input_file = None; 
+        args.input_file = None;
 
         tashkeel_main(&ENGINE, &args, "بسم الله الرحمن الرحيم".to_string()).unwrap();
 

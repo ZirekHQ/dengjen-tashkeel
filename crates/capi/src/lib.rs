@@ -43,11 +43,25 @@ impl From<DengjenTashkeelFFIError> for ExternError {
 
 type DengjenTashkeelFFIResult<T> = Result<T, DengjenTashkeelFFIError>;
 
+/// # Safety
+/// `s` must be either null or one such pointer, not yet freed. Passing any
+/// other pointer, freeing it twice, or using `s` after this call is
+/// undefined behavior.
 #[no_mangle]
 pub unsafe extern "C" fn dengjen_tashkeel_free_string(s: *mut c_char) {
     unsafe { ffi_support::destroy_c_string(s) }
 }
 
+/// # Safety
+/// `taskeen_threshold` must be either null or point to a single, properly
+/// aligned `c_float` that remains valid for the duration of this call.
+/// Ownership of the pointee is NOT transferred: this function only reads
+/// through the pointer and never frees it. The caller retains ownership
+/// and is responsible for freeing it (if heap-allocated) after this call
+/// returns.
+/// `out_error` must be either null (in which case this call reports no
+/// error and returns a null pointer) or point to a single, properly
+/// aligned, writable `ExternError` valid for the duration of this call.
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn dengjenTashkeelTashkeel(
@@ -69,6 +83,10 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
     })
 }
 
+/// # Safety
+/// `out_error` must be either null (in which case this call is a silent
+/// no-op) or point to a single, properly aligned, writable `ExternError`
+/// valid for the duration of this call.
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn dengjen_tashkeel_init(
