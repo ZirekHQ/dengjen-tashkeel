@@ -309,7 +309,6 @@ pub fn _do_tashkeel_impl(
     }
 }
 
-// ==============================
 #[cfg(test)]
 mod tests {
     use super::*;
