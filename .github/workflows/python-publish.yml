@@ -37,6 +37,34 @@ jobs:
     permissions:
       contents: read
     steps:
+      # A real tag push (github.ref_name) is trustworthy by construction --
+      # it genuinely is the ref that was pushed. A workflow_dispatch's
+      # `inputs.tag`, though, is free text from whoever has dispatch access:
+      # unvalidated, it'd flow straight into the checkout below and every
+      # step after builds and publishes whatever that ref actually points
+      # to -- e.g. a branch named "release/v1.2.3" would pass a bare
+      # version-substring check and get built as if it were the real tag.
+      # Requires the exact vX.Y.Z shape this repo's own tagging convention
+      # always produces (tag-and-release.yml, scripts/bump-version.sh), and
+      # that it resolves to an actual tag ref, not merely a name containing
+      # matching digits.
+      - name: Validate release tag input
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! echo "${RELEASE_TAG}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+.*$'; then
+            echo "::error::'${RELEASE_TAG}' doesn't look like a vX.Y.Z tag"
+            exit 1
+          fi
+          if ! gh api "repos/${REPO}/git/refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "::error::'${RELEASE_TAG}' is not an existing tag on this repository -- refusing to build from an arbitrary ref"
+            exit 1
+          fi
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.tag || github.ref_name }}

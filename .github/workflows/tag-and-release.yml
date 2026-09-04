@@ -1,0 +1,102 @@
+name: Tag and trigger release
+
+# Fires on every push to main, but only acts on the commit that lands
+# prepare-release.yml's version-bump PR (identified by its exact commit
+# subject -- squash- or rebase-merging that PR always produces this
+# message, since it's the only commit on that branch). Every other push to
+# main is a no-op here.
+#
+# Tags that commit vX.Y.Z (the baseline scripts/next-version.sh's next run
+# diffs Conventional Commits from) and directly triggers every downstream
+# release workflow, collapsing what used to be two separate manual tag
+# pushes -- push vX.Y.Z (triggering release.yml, python-publish.yml,
+# java-publish.yml), then push a second, differently-named publish-N tag
+# (triggering publish.yml) -- into the single "review and merge the bump
+# PR" gate. That merge is the last human decision before four different
+# registries (crates.io, PyPI, Maven Central, GitHub Releases) actually
+# publish; the vcpkg/Conan follow-up in CONTRIBUTING.md's step 5 stays
+# separate and manual, since real per-platform hashes can't exist before
+# the release archives do.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    # head_commit is the single new commit a squash/rebase merge produces;
+    # a push landing more than one new commit at once (not this repo's
+    # normal PR flow) would only inspect the last of them.
+    if: "startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
+    permissions:
+      contents: write
+      # workflow_dispatch is the one event type GITHUB_TOKEN is explicitly
+      # allowed to trigger a new run for -- unlike `push`, which it's
+      # deliberately blocked from re-triggering to prevent recursive runs
+      # (see "Triggering a workflow" in GitHub's Actions docs). No PAT
+      # needed for the "Trigger downstream releases" step below because of
+      # that; it's also why the vX.Y.Z tag pushed here doesn't itself fire
+      # release.yml/python-publish.yml/java-publish.yml's own tag triggers
+      # -- they're invoked explicitly instead.
+      actions: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: true
+
+      - name: Resolve workspace version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Push release tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Trigger downstream releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        # No -e: the tag above is already pushed and can't be re-pushed on a
+        # retry (git rejects an existing tag), so a transient failure on one
+        # `gh workflow run` call must not abort the rest -- every dispatch
+        # gets attempted regardless, and the step only fails at the end,
+        # after every workflow that COULD be dispatched was.
+        run: |
+          set -uo pipefail
+          failed=0
+          # release.yml (cargo-dist / GitHub Release) reads the version from
+          # github.ref_name itself, so it's dispatched directly against the
+          # tag -- workflow_dispatch runs the workflow file's own content as
+          # it exists at --ref, same as a real tag push would have used.
+          gh workflow run release.yml --ref "v${VERSION}" || failed=1
+          # python-publish.yml / java-publish.yml take an explicit `tag`
+          # input instead (python-publish.yml's own existing pattern, now
+          # mirrored by java-publish.yml too) and are dispatched against
+          # main, since every checkout inside them already resolves the ref
+          # to actually build from `inputs.tag`, not the dispatch ref.
+          gh workflow run python-publish.yml --ref main -f "tag=v${VERSION}" || failed=1
+          gh workflow run java-publish.yml --ref main -f "tag=v${VERSION}" || failed=1
+          # publish.yml (crates.io) takes no tag input, so it's dispatched
+          # directly against the tag ref rather than main -- otherwise a
+          # second, unrelated merge landing on main between the tag push
+          # above and this dispatch would make it build (and publish to
+          # crates.io) a different commit than the one v${VERSION} points
+          # at.
+          gh workflow run publish.yml --ref "v${VERSION}" || failed=1
+          if [ "$failed" -eq 1 ]; then
+            echo "::error::One or more downstream workflow dispatches failed -- check the Actions tab and manually dispatch any that didn't fire (safe to re-dispatch one that already ran; each is independently idempotent or version-checked)."
+            exit 1
+          fi

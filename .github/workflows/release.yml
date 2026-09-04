@@ -38,7 +38,16 @@ permissions: {}
 #
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
+#
+# Hand-patched: added `workflow_dispatch` so tag-and-release.yml can
+# dispatch this directly against a tag ref (`--ref vX.Y.Z`) -- re-apply if
+# regenerating via 'cargo dist generate'. Harmless alongside the generated
+# triggers: the `plan` job's tag/tag-flag/publishing outputs only branch on
+# `!github.event.pull_request`, and github.ref_name resolves to the tag
+# name either way, whether the run came from a real tag push or a
+# workflow_dispatch against one.
 on:
+  workflow_dispatch: {}
   pull_request:
   push:
     tags:
