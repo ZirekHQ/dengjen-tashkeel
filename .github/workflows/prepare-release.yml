@@ -4,8 +4,10 @@ name: Prepare release
 # to main since the last vX.Y.Z tag (scripts/next-version.sh) and opens a PR
 # bumping every hand-synced copy of it (scripts/bump-version.sh). Manual
 # trigger only -- this proposes a release, it doesn't cut one. Merging the
-# PR still requires a human to push the vX.Y.Z tag (and the separate
-# publish-* tag for crates.io) themselves, same as every other release step.
+# PR is the one remaining human gate: tag-and-release.yml then tags that
+# commit vX.Y.Z and triggers every downstream release workflow (crates.io,
+# PyPI, Maven Central, GitHub Releases) automatically, no further manual
+# steps.
 on:
   workflow_dispatch: {}
 
@@ -67,5 +69,5 @@ jobs:
           git commit -m "chore: bump workspace version -> ${VERSION}"
           git push -u origin "$branch"
           gh pr create --title "chore: bump workspace version -> ${VERSION}" \
-            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). Merging this does not release anything by itself -- push a \`v${VERSION}\` tag afterward (and a \`publish-N\` tag for crates.io) to actually trigger the release/publish workflows." \
+            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`tag-and-release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`release.yml\` (GitHub Release), \`python-publish.yml\` (PyPI), \`java-publish.yml\` (Maven Central), and \`publish.yml\` (crates.io) automatically. Review the version and the diff before merging -- there's no further manual gate after this (the vcpkg/Conan follow-up in CONTRIBUTING.md's step 5 still needs its own PR once the release archives exist)." \
             --base main --head "$branch"

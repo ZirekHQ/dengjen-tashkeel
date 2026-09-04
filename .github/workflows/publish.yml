@@ -1,9 +1,17 @@
 name: Publish to crates.io
 
+# Triggered automatically by tag-and-release.yml right after it tags a
+# merged version-bump PR's commit vX.Y.Z (via `gh workflow run`, using the
+# one event type GITHUB_TOKEN is allowed to start a new run for). Also
+# dispatchable by hand -- from the Actions tab, or `gh workflow run
+# publish.yml` -- which is the retry path if a partial run fails: every
+# step below is idempotent (skips a crate crates.io already has), so
+# re-running this from scratch after a failure is always safe, no new tag
+# needed. Deliberately not tag-triggered itself: a `push: tags:` listener
+# here would mean any human pushing an unrelated v*-shaped tag by mistake
+# fires a real, irreversible crates.io publish.
 on:
-  push:
-    tags:
-      - "publish-*"
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -33,10 +41,15 @@ jobs:
           version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      # A "publish-*" tag can be re-pushed to retry a partial failure (e.g. one
-      # crate publishes, the next 403s on a missing token scope) -- re-running
-      # `cargo publish` on a version crates.io already has is a hard failure,
-      # not a no-op, so skip crates that are already live at this version.
+      # Every step below passes the version through `env:` rather than
+      # interpolating `${{ steps.version.outputs.version }}` directly into
+      # `run:` -- the latter is a template-expansion script injection shape
+      # (flagged by zizmor/CodeQL) even though this particular value only
+      # ever comes from Cargo.toml, not attacker input: GitHub Actions
+      # expands `${{ }}` as literal text into the script *before* the shell
+      # runs it, so anything containing shell metacharacters would execute,
+      # whereas an env var is passed as a real environment variable and
+      # can't reinterpret the script around it.
       #
       # crates.io's API 403s any request without a descriptive User-Agent
       # (the bare "curl/x.y.z" default doesn't qualify) -- set one explicitly
@@ -48,27 +61,33 @@ jobs:
         # real publish on the transient-failure path, which cargo then
         # rejects hard if the version *is* actually already there. Capture
         # the status code and only branch on a value we've actually seen.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel/${version}")"
+          status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel/${VERSION}")"
           case "$status" in
-            200) echo "dengjen-tashkeel ${version} is already published -- skipping" ;;
+            200) echo "dengjen-tashkeel ${VERSION} is already published -- skipping" ;;
             404) cargo publish -p dengjen-tashkeel --locked ;;
-            *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel ${version}"; exit 1 ;;
+            *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel ${VERSION}"; exit 1 ;;
           esac
       - name: wait for crate to index
-        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel "$VERSION"
 
       - name: publish dengjen-tashkeel-cli
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${version}")"
+          status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${VERSION}")"
           case "$status" in
-            200) echo "dengjen-tashkeel-cli ${version} is already published -- skipping" ;;
+            200) echo "dengjen-tashkeel-cli ${VERSION} is already published -- skipping" ;;
             404) cargo publish -p dengjen-tashkeel-cli --locked ;;
-            *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel-cli ${version}"; exit 1 ;;
+            *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel-cli ${VERSION}"; exit 1 ;;
           esac
       - name: wait for crate to index
-        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel-cli "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel-cli "$VERSION"

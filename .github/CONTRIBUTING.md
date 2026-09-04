@@ -35,16 +35,17 @@ packages to diverge, so don't let them.
    /refactor/test-only since the last tag means no release) and opens a PR
    bumping every hand-synced copy of it (`scripts/next-version.sh` /
    `scripts/bump-version.sh`).
-2. Review and merge that PR.
-3. Push a `vX.Y.Z` tag at the merge commit -- triggers `release.yml`
-   (GitHub Release), `python-publish.yml` (PyPI), and `java-publish.yml`
-   (Maven Central).
-4. Push a **separate** `publish-N` tag (e.g. `publish-6`) -- triggers
-   `publish.yml` (crates.io). Different pattern from step 3's tag, on
-   purpose: it's the retry mechanism if a partial publish fails, since
-   `cargo publish` on an already-published version is a hard failure, not a
-   no-op (`publish.yml` skips crates it finds already live).
-5. Once the release archives exist, refresh the vcpkg port and Conan
+2. Review and merge that PR. **This is the release gate** -- merging it
+   releases the version in the diff, with nothing further to confirm:
+   [`tag-and-release.yml`](workflows/tag-and-release.yml) tags that merge
+   commit `vX.Y.Z` and triggers `release.yml` (GitHub Release),
+   `python-publish.yml` (PyPI), `java-publish.yml` (Maven Central), and
+   `publish.yml` (crates.io) automatically. If any of them fails partway
+   through, re-run that specific workflow (Actions tab, or `gh workflow
+   run`) rather than pushing a new tag -- `publish.yml`'s steps are
+   idempotent, and the others already support re-running against an
+   existing tag via their own `workflow_dispatch` input.
+3. Once the release archives exist, refresh the vcpkg port and Conan
    recipe's checksums against them and open a PR -- see
    [packaging/README.md](../packaging/README.md). These necessarily lag one
    PR behind the tag (real per-platform hashes can't exist before the
