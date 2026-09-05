@@ -1,0 +1,27 @@
+= dengjen-tashkeel
+
+Arabic-text diacritic (tashkeel) restoration using an ONNX neural model, trained mainly on MSA
+data from https://github.com/mush42/hareef[Hareef].
+
+Available as a Rust crate, a C ABI, a Python package, a Java library, and a standalone CLI.
+
+== Non-scope
+
+Diacritization only — not a general-purpose Arabic NLP toolkit.
+
+== Known limitation
+
+Accuracy is bounded by the underlying Hareef model: it can mis-diacritize proper nouns and other
+words whose correct case ending depends on context it wasn't trained to resolve. For example,
+given `عن أمير المؤمنين أبي حفص عمر بن الخطاب`, the name `حفص` comes out as `حِفَصِ` ("hifsi")
+instead of the grammatically correct `حَفْصٍ` ("hafsin"). See
+https://github.com/ZirekHQ/dengjen-tashkeel/issues/28[issue #28] for the full discrepancy. This
+is a model-accuracy limitation, not a bug in this library's code.
+
+== Credits
+
+Created by https://github.com/mush42[mush42] (Musharraf Omer).
+
+== License
+
+Dual-licensed under MIT or Apache-2.0, at your option.

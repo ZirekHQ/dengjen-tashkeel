@@ -1,0 +1,83 @@
+= Quick start
+
+== Rust
+
+[source,rust]
+----
+use dengjen_tashkeel::{create_inference_engine, do_tashkeel};
+
+// None = use the bundled model.
+let engine = create_inference_engine(None)?;
+let diacritized = do_tashkeel(&engine, "بسم الله الرحمن الرحيم", None, false)?;
+----
+
+`do_tashkeel`'s third argument is an optional taskeen threshold (see below) and the fourth is
+`preprocessed` — pass `true` only if `text` is already sentence-segmented, otherwise the library
+segments it for you. Input is capped at `CHAR_LIMIT` (12,000 characters); longer input returns
+`Err(DengjenTashkeelError::InputTooLong(_))`.
+
+== Python
+
+[source,python]
+----
+from dengjen_tashkeel_py import tashkeel
+
+tashkeel("بسم الله الرحمن الرحيم")
+----
+
+The Rust side logs via the `log` facade but installs no backend; if you want its diagnostics
+(e.g. a redundant-init warning) surfaced through Python's own `logging` module, install
+https://github.com/vorner/pyo3-log[pyo3-log] in your embedding process.
+
+== C
+
+The API is a single entry point for diacritizing a UTF-8 encoded string — see
+`crates/capi/ffi_usage_example.py` in the repository for sample usage against the compiled
+library via `ctypes`.
+
+== Java
+
+[source,java]
+----
+import io.github.zirekhq.dengjen.tashkeel.Tashkeel;
+import java.util.Optional;
+
+Tashkeel tashkeel = Tashkeel.loadDefault();
+String diacritized = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), false);
+----
+
+`diacritize`'s second argument is an optional taskeen threshold (see below) and the third is
+`preprocessed` — pass `true` only if the text is already sentence-segmented, otherwise the
+library segments it for you. Errors surface as a checked `TashkeelException`, whose `reason()` is
+an exhaustively switchable sealed type mirroring the `ErrorCode` values in
+`dengjen_tashkeel.h`.
+
+== CLI
+
+[source,bash]
+----
+echo "بسم الله الرحمن الرحيم" > input.txt
+dengjen-tashkeel -f input.txt
+----
+
+[source]
+----
+Usage: dengjen-tashkeel [OPTIONS]
+
+Options:
+  -f, --input-file <INPUT_FILE>    Input file (default `stdin`)
+  -o, --output-file <OUTPUT_FILE>  Output file (default `stdout`)
+  -i, --interactive                Use interactive mode (useful for testing)
+  -t, --taskeen                    Use sukoon for case-ending diacritic if the model is uncertain
+  -p, --prob <PROB>                Taskeen threshold probability [default: 0.95]
+  -x, --onnx <ONNX_MODEL>          ONNX model (default: use bundled model if available)
+  -h, --help                       Print help
+  -V, --version                    Print version
+----
+
+With neither `--input-file` nor `--output-file`, the CLI runs in interactive mode by default.
+
+== The taskeen option
+
+When enabled (`taskeen_threshold` in Rust/Python, `--taskeen`/`--prob` in the CLI), the model
+substitutes a sukoon for a case-ending diacritic it isn't confident about, instead of guessing.
