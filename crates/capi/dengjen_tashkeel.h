@@ -208,20 +208,10 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- * The matching deallocator for every non-null `char *` this library hands
- * back to the caller: both `dengjenTashkeelTashkeel`'s return value and a
- * populated `ExternError.message` (set via `ffi_support::rust_string_to_c`,
- * same allocation this frees) must be released with this function.
- *
  * # Safety
  * `s` must be either null or one such pointer, not yet freed. Passing any
  * other pointer, freeing it twice, or using `s` after this call is
  * undefined behavior.
- *
- * Hand-written (rather than `define_string_destructor!`) purely so
- * cbindgen -- which parses source syntactically and never expands foreign
- * macros -- can see this symbol and declare it in dengjen_tashkeel.h; behavior
- * is identical to what that macro would generate.
  */
 void dengjen_tashkeel_free_string(char *s);
 

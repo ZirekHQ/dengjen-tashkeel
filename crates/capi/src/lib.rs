@@ -43,20 +43,10 @@ impl From<DengjenTashkeelFFIError> for ExternError {
 
 type DengjenTashkeelFFIResult<T> = Result<T, DengjenTashkeelFFIError>;
 
-/// The matching deallocator for every non-null `char *` this library hands
-/// back to the caller: both `dengjenTashkeelTashkeel`'s return value and a
-/// populated `ExternError.message` (set via `ffi_support::rust_string_to_c`,
-/// same allocation this frees) must be released with this function.
-///
 /// # Safety
 /// `s` must be either null or one such pointer, not yet freed. Passing any
 /// other pointer, freeing it twice, or using `s` after this call is
 /// undefined behavior.
-///
-/// Hand-written (rather than `define_string_destructor!`) purely so
-/// cbindgen -- which parses source syntactically and never expands foreign
-/// macros -- can see this symbol and declare it in dengjen_tashkeel.h; behavior
-/// is identical to what that macro would generate.
 #[no_mangle]
 pub unsafe extern "C" fn dengjen_tashkeel_free_string(s: *mut c_char) {
     unsafe { ffi_support::destroy_c_string(s) }
@@ -85,10 +75,6 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
     };
     let taskeen_threshold = unsafe { taskeen_threshold.as_ref().copied() };
     call_with_result(out_error, move || {
-        // Deliberately inside this closure: text_ptr.into_string() panics on
-        // a null pointer, and call_with_result's catch_unwind converts that
-        // panic into a clean ExternError (code PANIC = -1) instead of
-        // letting it unwind past this extern "C" boundary and abort.
         let text = text_ptr.into_string();
         let engine = INFERENCE_ENGINE.get_or_try_init(|| create_inference_engine(None))?;
         let diacritized_text = ffi_do_tashkeel(engine, &text, taskeen_threshold, preprocessed)?;
@@ -147,11 +133,6 @@ mod tests {
 
     #[test]
     fn tashkeel_lazily_initializes_engine_and_diacritizes_without_prior_init() {
-        // This exact sequence used to deadlock before #13 was fixed: the old
-        // lazy-init path re-entered the same std::sync::Once it was already
-        // running inside. Doesn't assert anything about prior test state --
-        // get_or_try_init is idempotent, so this passes whether or not some
-        // other test in this binary already initialized the engine.
         let text = CString::new("بسم الله الرحمن الرحيم").unwrap();
         let mut out_error = new_out_error();
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
@@ -177,10 +158,6 @@ mod tests {
 
     #[test]
     fn null_text_ptr_is_caught_as_panic_not_ub() {
-        // into_string() panics on a null pointer; that panic happens inside
-        // call_with_result's closure, so its catch_unwind converts it into a
-        // clean ExternError (code PANIC = -1) instead of unwinding past this
-        // extern "C" frame. Doesn't touch the engine at all -- order-independent.
         let mut out_error = new_out_error();
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
         let null_text_ptr = unsafe { FfiStr::from_raw(std::ptr::null()) };
@@ -218,9 +195,6 @@ mod tests {
 
     #[test]
     fn dengjen_tashkeel_init_reports_already_initialized_when_engine_exists() {
-        // Force the engine into an initialized state within this test itself
-        // -- don't rely on another test having done it first, since #[test]
-        // fns run in parallel by default and ordering isn't guaranteed.
         let text = CString::new("بسم الله").unwrap();
         let mut warm_up_error = new_out_error();
         let result_ptr = unsafe {
@@ -248,8 +222,6 @@ mod tests {
 
     #[test]
     fn dengjen_tashkeel_init_with_bad_model_path_reports_inference_error() {
-        // Independent of OnceCell state -- create_inference_engine fails
-        // before do_init_library would ever reach the .set() call.
         let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
         let mut out_error = new_out_error();
 

@@ -8,13 +8,6 @@ import java.nio.file.Path;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/**
- * Exercises {@link Tashkeel#load} against a real, externally-supplied
- * ONNX model file -- as opposed to {@code TashkeelTest} (the
- * integrationTest suite), which only ever uses the bundled default model.
- * Soft-skips when no such file is configured: no real model asset is
- * checked into this repo.
- */
 class TashkeelE2ETest {
 
     private static final String MODEL_PATH_ENV_VAR = "DENGJEN_TASHKEEL_TEST_MODEL_PATH";

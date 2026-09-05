@@ -10,9 +10,6 @@ use pyo3::types::PyModule;
 
 static INFERENCE_ENGINE: PyOnceLock<DynamicInferenceEngine> = PyOnceLock::new();
 
-// InputTooLong is the caller's mistake (bad argument), so it maps to
-// Python's conventional exception for that; anything else is treated as an
-// internal/runtime failure.
 fn to_py_err(error: DengjenTashkeelError) -> PyErr {
     match error {
         DengjenTashkeelError::InputTooLong(max_len) => {
@@ -22,7 +19,6 @@ fn to_py_err(error: DengjenTashkeelError) -> PyErr {
     }
 }
 
-/// Diacritize Arabic text.
 #[pyfunction]
 #[pyo3(signature = (text, taskeen_threshold=None, preprocessed=None))]
 fn tashkeel(
@@ -40,9 +36,6 @@ fn tashkeel(
             return Err(error);
         }
     };
-    // Release the GIL for the inference call itself so other Python
-    // threads aren't blocked for its duration; nothing inside touches
-    // Python objects.
     py.detach(|| do_tashkeel(engine, &text, taskeen_threshold, preprocessed))
         .map_err(to_py_err)
 }
@@ -92,7 +85,6 @@ fn resolve_dylib_path(py: Python, module_name: &str) -> PyResult<std::path::Path
     })
 }
 
-/// A Python wrapper for dengjen_tashkeel.
 #[pymodule]
 fn dengjen_tashkeel_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
@@ -115,12 +107,6 @@ fn dengjen_tashkeel_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
         }
     };
     // Mirrors capi's do_init_library: losing this race means some other
-    // caller already initialized the engine first, which is fine -- but
-    // log it instead of going fully silent like capi's UNKNOWN_ERROR path
-    // does for the identical condition. Note: this uses the `log` facade
-    // only -- nothing in this crate installs a logger backend, so the
-    // warning is discarded unless the embedding process installs one
-    // (e.g. `pyo3-log`, which routes it to Python's own `logging` module).
     if INFERENCE_ENGINE.set(py, engine).is_err() {
         log::warn!("Inference engine was already initialized; ignoring redundant init.");
     }

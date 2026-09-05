@@ -13,40 +13,10 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 
-/**
- * Resolves the native {@code dengjen_tashkeel_capi} shared library for
- * {@link TashkeelLib}. Two paths:
- *
- * <ul>
- *   <li>{@code -Ddengjen.tashkeel.native.library.path=<file>} -- an
- *       explicit override, used by this module's own test suites (see
- *       {@code build.gradle.kts}) and available to any consumer who wants
- *       to point at a native library they built or placed themselves.
- *   <li>Otherwise: detect the running platform (see {@link
- *       NativePlatform}) and look for that platform's native library as a
- *       classpath resource under {@code natives/<classifier>/}, which is
- *       exactly what this project's per-platform classifier jars contain.
- *       The resource is copied to a temp file -- {@code
- *       SymbolLookup.libraryLookup} needs a real filesystem path, not an
- *       in-jar one.
- * </ul>
- *
- * <p>Plain {@code java.library.path} is not consulted here: one of the
- * two paths above always either resolves or throws. JNA transparently
- * fell back to {@code java.library.path} before this migration, and
- * FFM's {@code SymbolLookup.libraryLookup(String, Arena)} overload offers
- * the same fallback -- but this class always has the more specific
- * classpath-resource path available instead, so that overload is never
- * used here.
- */
 final class NativeLibraryLoader {
 
     private static final String OVERRIDE_PROPERTY = "dengjen.tashkeel.native.library.path";
 
-    // Owner-only permissions for the extracted native library: the system
-    // temp directory is world-writable on multi-user hosts, and this file
-    // gets loaded and executed. POSIX permissions aren't supported on
-    // Windows, so fall back to the platform default there.
     private static final FileAttribute<?>[] OWNER_ONLY_PERMISSIONS =
             FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
                     ? new FileAttribute<?>[] {
@@ -94,9 +64,6 @@ final class NativeLibraryLoader {
             Path extracted = Files.createTempFile(
                     "dengjen-tashkeel-native-", "-" + resourcePath.replace('/', '_'), OWNER_ONLY_PERMISSIONS);
             extracted.toFile().deleteOnExit();
-            // Files.copy(..., REPLACE_EXISTING) deletes and recreates the target, discarding
-            // createTempFile's owner-only permissions. The temp file was just created uniquely
-            // above, so there's nothing to replace -- write directly into it instead.
             try (OutputStream out = Files.newOutputStream(extracted, StandardOpenOption.TRUNCATE_EXISTING)) {
                 in.transferTo(out);
             }

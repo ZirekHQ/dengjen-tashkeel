@@ -5,7 +5,6 @@ jreleaser = "1.25.0"
 
 [libraries]
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit-jupiter" }
-# Versions come from the junit-bom platform on testImplementation, not from this catalog.
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 

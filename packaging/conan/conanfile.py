@@ -4,20 +4,7 @@ from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.files import copy, get
 
-# dengjen-tashkeel-capi ships as a prebuilt cdylib + C header in each GitHub
-# Release (see https://github.com/ZirekHQ/dengjen-tashkeel/issues/23) -- Conan
-# has no Rust build environment, so this recipe downloads the release archive
-# for the current os/arch instead of building from source.
-#
-# ConanCenter requires recipes to build from source, so this one isn't
-# submitted there. Consumers use it locally instead:
-#
-#   conan create packaging/conan --version=1.5.3
-#
-# which builds and stores dengjen-tashkeel-capi/1.5.3 in their local cache.
 
-# sha256s below are the actual hashes of the v1.5.3 release assets,
-# cross-checked against the .sha256 files published alongside them.
 _RELEASE_ASSETS = {
     ("Macos", "armv8"): (
         "aarch64-apple-darwin",
@@ -51,8 +38,6 @@ class DengjenTashkeelCapiConan(ConanFile):
                 f"dengjen-tashkeel-capi has no prebuilt binary for "
                 f"{self.settings.os}/{self.settings.arch}"
             )
-        # The published Windows archive is MSVC-built (MSVC-linked import
-        # lib, MSVC CRT) -- a MinGW profile can't link against it.
         if self.settings.os == "Windows" and self.settings.compiler != "msvc":
             raise ConanInvalidConfiguration(
                 "dengjen-tashkeel-capi's Windows binary is built with MSVC; "
@@ -60,13 +45,6 @@ class DengjenTashkeelCapiConan(ConanFile):
             )
 
     def package_id(self):
-        # Prebuilt release-only binary: one package per os/arch, independent
-        # of the consumer's build_type. compiler is dropped from the id too
-        # except that validate() above already rejects non-msvc on Windows,
-        # so no compiler variant reaches this point on that platform.
-        # package_id() can only read/mutate self.info.settings (a pre-seeded
-        # copy of self.settings) -- reading self.settings itself is forbidden
-        # here, so drop the unwanted axis instead of rebuilding it from scratch.
         del self.info.settings.compiler
 
     def build(self):
@@ -82,14 +60,6 @@ class DengjenTashkeelCapiConan(ConanFile):
         )
 
     def package(self):
-        # get() extracts the release archive into build_folder as-is, which
-        # means every file lands under a top-level
-        # dengjen-tashkeel-capi-<target-triple>/ directory (that's how the
-        # archives are built). A bare filename pattern only matches Conan's
-        # copy() at that exact relative path, so it silently copies nothing
-        # for a nested file -- hence the leading "*" on every pattern here,
-        # plus keep_path=False so the package layout is flat regardless of
-        # how the archive is laid out.
         copy(self, "*dengjen_tashkeel.h", src=self.build_folder,
              dst=os.path.join(self.package_folder, "include"), keep_path=False)
         copy(self, "*.so", src=self.build_folder,

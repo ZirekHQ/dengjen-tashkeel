@@ -2,14 +2,6 @@ package io.github.zirekhq.dengjen.tashkeel;
 
 import java.util.Locale;
 
-/**
- * Maps the running JVM's {@code os.name}/{@code os.arch} to one of the
- * three native-library classifiers this project publishes (see the
- * cargo-dist {@code targets} in the repo root's {@code Cargo.toml}).
- * Deliberately narrow: anything outside those three combinations is a
- * platform this project does not ship a native artifact for, and callers
- * need a clear error rather than a guess.
- */
 final class NativePlatform {
 
     private static final String WINDOWS = "windows";

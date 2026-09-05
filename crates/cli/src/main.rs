@@ -66,11 +66,6 @@ fn write_output_file(path: &std::path::Path, text: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-// Each (input_file, output_file) combination writes its output exactly
-// once, through exactly one of write_to_stdout/write_output_file below --
-// unlike the single shared accumulator this replaced, it's structurally
-// impossible for a branch to both stream per-line output and then emit a
-// second, empty final write.
 fn tashkeel_main(
     model: &DynamicInferenceEngine,
     args: &Cli,
@@ -259,7 +254,7 @@ mod tests {
     fn tashkeel_main_writes_single_shot_output_to_file() {
         let output_file = tempfile::NamedTempFile::new().unwrap();
         let mut args = parse(&["--output-file", output_file.path().to_str().unwrap()]);
-        args.input_file = None; // single-shot ("stdin") code path in tashkeel_main
+        args.input_file = None;
 
         tashkeel_main(&ENGINE, &args, "بسم الله الرحمن الرحيم".to_string()).unwrap();
 
@@ -288,12 +283,6 @@ mod tests {
 
     #[test]
     fn tashkeel_main_reading_a_file_to_stdout_does_not_error() {
-        // Regression test: this (input_file: Some, output_file: None)
-        // combination used to also run the single-shot accumulator's final
-        // write_to_stdout call on an empty string, printing a spurious
-        // trailing blank line after the real per-line output. There's no
-        // stdout-capture harness here to assert on the extra line directly,
-        // but this exercises the code path end to end without panicking.
         let mut input_file = tempfile::NamedTempFile::new().unwrap();
         writeln!(input_file, "بسم الله\nالرحمن الرحيم").unwrap();
         let args = parse(&["--input-file", input_file.path().to_str().unwrap()]);

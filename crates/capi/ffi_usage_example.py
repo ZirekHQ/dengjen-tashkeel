@@ -4,12 +4,6 @@ import ctypes
 import os
 
 
-# Change this based on your platform and build: libdengjen_tashkeel_capi.so
-# (Linux), libdengjen_tashkeel_capi.dylib (macOS), or dengjen_tashkeel_capi.dll
-# (Windows). The library's crate name is "dengjen_tashkeel_capi" (see
-# crates/capi/Cargo.toml's [lib] section), and cargo prefixes cdylib outputs
-# with "lib" on Unix. This script assumes it's run from crates/capi/ (its
-# own directory) -- the workspace's target/ dir is two levels up from there.
 DENGJEN_TASHKEEL_PATH = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__), "..", "..", "target", "debug", "libdengjen_tashkeel_capi.so"
@@ -63,10 +57,6 @@ def init(model_path=None):
 
 def tashkeel(text, taskeen_threshold=None, preprocessed=False):
     err = ExternError()
-    # taskeen_threshold is borrowed by dengjenTashkeelTashkeel for the
-    # duration of this call only -- it is never freed on the Rust side.
-    # ctypes keeps this local c_float alive for exactly that long via the
-    # pointer's internal reference, so no explicit cleanup is needed here.
     threshold_ptr = (
         ctypes.pointer(ctypes.c_float(taskeen_threshold))
         if taskeen_threshold is not None

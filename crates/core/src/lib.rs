@@ -33,9 +33,6 @@ static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
 static HINT_ID_MAP: Lazy<HashMap<String, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/hint_id_map.json")).unwrap());
 static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
-    // Read PAD's id from target_id_map.json's own vocabulary instead of
-    // borrowing INPUT_ID_MAP's id for it: the two vocab files are maintained
-    // independently, so nothing guarantees they agree on this value.
     let pad = PAD.to_string();
     TARGET_ID_MAP
         .iter()
@@ -145,10 +142,6 @@ fn hint_to_ids(hints: Vec<String>) -> Vec<i64> {
     Vec::from_iter(hints.into_iter().map(|s| HINT_ID_MAP[&s]))
 }
 
-// target_ids comes straight from the loaded ONNX model's output tensor
-// (potentially a user-supplied model via `--onnx`/`dengjen_tashkeel_init`), so
-// its values are untrusted: an id outside TARGET_ID_MAP's vocabulary must
-// become an error here, not an index panic.
 fn target_to_diacritics(
     target_ids: impl Iterator<Item = u8>,
 ) -> DengjenTashkeelResult<Vec<String>> {
@@ -164,11 +157,6 @@ fn target_to_diacritics(
         .collect()
 }
 
-// `diacritics` must have exactly one entry per annotatable character in
-// `input`; that invariant depends on the model producing a diacritic (or
-// PAD, filtered out by target_to_diacritics) for every input position, so
-// it can't be proven at compile time. Treat a mismatch as inference
-// failure -- not a panic -- same untrusted-model-output rationale as above.
 fn annotate_text_with_diacritics(
     input: &str,
     diacritics: Vec<String>,
@@ -309,7 +297,6 @@ pub fn _do_tashkeel_impl(
     }
 }
 
-// ==============================
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -402,11 +389,6 @@ mod tests {
     #[test]
     fn do_tashkeel_errors_on_input_over_char_limit() {
         let too_long_text: String = "ا".repeat(CHAR_LIMIT + 1);
-        // The CHAR_LIMIT check in _do_tashkeel_impl runs before engine.infer
-        // is ever called, so this never needs the real model -- a stub with
-        // no configured output still proves the guard fires. preprocessed =
-        // true skips libtqsm sentence segmentation, so the full length
-        // reaches the check directly.
         let engine = StubEngine {
             target_ids: vec![],
             logits: vec![],
@@ -419,7 +401,6 @@ mod tests {
 
     #[test]
     fn do_tashkeel_errors_on_unknown_target_id_instead_of_panicking() {
-        // 255 is not a valid key in target_id_map.json's value set.
         let engine = StubEngine {
             target_ids: vec![255],
             logits: vec![0.0],
@@ -434,14 +415,6 @@ mod tests {
 
     #[test]
     fn do_tashkeel_errors_when_model_returns_fewer_diacritics_than_input_chars() {
-        // Two input characters ("با") need two diacritics; the stub returns a
-        // real diacritic (5 = fatha, per target_id_map.json) for the first slot
-        // and PAD (filtered out by target_to_diacritics) for the second, so the
-        // annotation loop runs out one character short -- on the second char,
-        // not the first.
-        // Looked up from TARGET_ID_MAP directly, independent of
-        // TARGET_META_CHAR_IDS, so this test still catches a regression in
-        // how TARGET_META_CHAR_IDS derives that id.
         let pad_id = *TARGET_ID_MAP
             .iter()
             .find(|(_, name)| name.as_str() == "_")

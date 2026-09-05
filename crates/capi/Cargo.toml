@@ -34,11 +34,7 @@ cbindgen = "0.29"
 tempfile = "3"
 
 [package.metadata.dist]
-# Package the built cdylib (.so/.dylib/.dll) and its cbindgen-generated header
-# together in release archives, per https://github.com/ZirekHQ/dengjen-tashkeel/issues/23
 cdylibs = ["dengjen_tashkeel_capi"]
 package-libraries = ["cdylib"]
 include = ["dengjen_tashkeel.h"]
-# capi has no binaries to install, so the shell/powershell/msi installers
-# (workspace defaults, meant for the `cli` package) don't apply here.
 installers = []
