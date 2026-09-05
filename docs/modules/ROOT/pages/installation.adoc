@@ -1,0 +1,96 @@
+= Installation
+
+== Rust
+
+[source,bash]
+----
+cargo add dengjen-tashkeel
+----
+
+The default features (`ort-static`, `rayon`) statically link a bundled ONNX Runtime, so this
+works with no extra setup.
+
+== Python
+
+[source,bash]
+----
+pip install dengjen-tashkeel-py
+----
+
+Published to PyPI as `dengjen-tashkeel-py` by the `python-publish.yml` CI workflow whenever a
+version tag is pushed — availability at any given moment depends on whether a tag has been
+pushed since this was set up, so if the install fails, build the wheel yourself instead (see
+xref:building.adoc[Building]). The wheel depends on `onnxruntime` (installed automatically by
+`pip`); don't have `onnxruntime-gpu` installed alongside it — they share the same import name.
+
+== C
+
+Download the prebuilt `dengjen-tashkeel-capi-<target>` archive for your platform from
+https://github.com/ZirekHQ/dengjen-tashkeel/releases[GitHub Releases]. Each archive bundles the
+built shared library (`.so`/`.dylib`/`.dll`) together with `dengjen_tashkeel.h` — link against
+the library and include the header, no need to build from source.
+
+The library and header are also available through a self-hosted
+https://learn.microsoft.com/en-us/vcpkg/consuming/git-registries[vcpkg custom registry] — this
+repository itself, referenced directly by git, no separate server needed. Add it to your
+project's `vcpkg-configuration.json`:
+
+[source,json]
+----
+{
+  "default-registry": {
+    "kind": "builtin",
+    "baseline": "<current vcpkg builtin-registry baseline>"
+  },
+  "registries": [
+    {
+      "kind": "git",
+      "repository": "https://github.com/ZirekHQ/dengjen-tashkeel",
+      "baseline": "<commit-sha of the dengjen-tashkeel commit to pin>",
+      "packages": ["dengjen-tashkeel-capi"]
+    }
+  ]
+}
+----
+
+then add `dengjen-tashkeel-capi` to your `vcpkg.json` dependencies and run `vcpkg install`.
+
+https://github.com/conan-io/conan-center-index[ConanCenter] requires recipes to build from
+source, which this project's C API can't do without a Rust toolchain in Conan's build
+environment, so this isn't published there. Instead, clone this repository and export the recipe
+into your local Conan cache:
+
+[source,bash]
+----
+conan create packaging/conan --version=1.5.3
+----
+
+then add `dengjen-tashkeel-capi/1.5.3` to your `conanfile.txt`/`conanfile.py` `requires`. See
+`packaging/README.md` in the repository for how both are maintained.
+
+== Java
+
+[source,kotlin]
+----
+implementation("io.github.zirekhq:dengjen-tashkeel:1.5.3")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.5.3:linux-x86_64")
+----
+
+Published to Maven Central by the `java-publish.yml` CI workflow whenever a version tag is
+pushed. The binding uses the JDK Foreign Function & Memory API (`java.lang.foreign`), not JNA, to
+load the native `dengjen_tashkeel_capi` shared library. The native library ships as per-platform
+classifier jars — `linux-x86_64`, `windows-x64`, and `macos-aarch64` — so add a `runtimeOnly`
+dependency on the one matching your platform alongside the main dependency; it's picked up
+automatically at runtime. To use a library you built or placed yourself instead, set
+`-Ddengjen.tashkeel.native.library.path=/path/to/library` (a file path, not a directory —
+`java.library.path` is not consulted). Either way, add `--enable-native-access=ALL-UNNAMED` to
+your own JVM invocation to avoid a native-access warning.
+
+== CLI
+
+Either build from source (see xref:building.adoc[Building]) or:
+
+[source,bash]
+----
+cargo install dengjen-tashkeel-cli
+----

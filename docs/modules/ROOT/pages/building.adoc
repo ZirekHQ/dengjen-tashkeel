@@ -1,0 +1,25 @@
+= Building
+
+Requires https://www.rust-lang.org/tools/install[Rust].
+
+[source,bash]
+----
+cargo build --release
+----
+
+Builds the `dengjen_tashkeel_capi` library and the `dengjen-tashkeel` CLI under `target/`.
+
+== Python wheel
+
+Install https://github.com/pyo3/maturin[maturin]:
+
+[source,bash]
+----
+cd crates/python
+python3 -m venv .venv
+source .venv/bin/activate
+pip install maturin
+maturin build --release --strip
+----
+
+The wheel is written to `target/wheels/`.
