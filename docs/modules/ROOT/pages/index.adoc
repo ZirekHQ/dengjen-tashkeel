@@ -1,0 +1,13 @@
+= dengjen-tashkeel
+
+A cross-platform library for diacritic restoration of Arabic text (tashkeel/harakat).
+
+Written in Rust, it provides both a standalone linkable library and a command line tool.
+Bindings exist for Python, C++, and WASM. Models are trained mainly on MSA data, from
+https://github.com/mush42/hareef[Hareef].
+
+License: MIT (permissive by design -- this is a general-purpose Arabic NLP library meant to
+be embeddable in non-GPL projects, not just the dengjen TTS stack).
+
+Docs spike: this component is aggregated into the org-wide
+https://zirekhq.github.io[ZirekHQ documentation site].
