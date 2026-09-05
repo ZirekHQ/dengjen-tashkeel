@@ -30,7 +30,8 @@ jobs:
           else
             ref="${INPUT_REF:-$DEFAULT_REF}"
           fi
-          if ! [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+          if ! git check-ref-format --branch "$ref" >/dev/null 2>&1 \
+             && ! git check-ref-format "refs/tags/$ref" >/dev/null 2>&1; then
             echo "Invalid ref: $ref" >&2
             exit 1
           fi
