@@ -4,15 +4,18 @@ This page shows dengjen-tashkeel's own structure as a
 https://c4model.com/[C4] Container, Component, and Code diagram. For how it
 fits into the wider ZirekHQ speech stack, see the
 https://zirekhq.github.io/en/home/architecture.html[org-wide System Context
-diagram]. Nothing in this repo references dengjen-nvda, dengjen-tts, or
-dengjen-piper-rs -- as far as this codebase shows, it's a standalone tool.
-(dengjen-tts optionally depends on it, feature-gated, from its side.)
+diagram]. No source code in this repository references dengjen-nvda,
+dengjen-tts, or dengjen-piper-rs -- as far as this codebase shows, it's a
+standalone tool. (dengjen-tts optionally depends on it, feature-gated, from
+its side; that's a reference the other way, not from here.)
 
 == Container
 
-The same core inference logic is exposed through five different frontends:
-a CLI, a C ABI, a Python package, a Java library that loads that same C ABI
-directly, and (indirectly) dengjen-tts's optional `tashkeel` feature.
+The same core inference logic is exposed through three frontends: a CLI, a
+C ABI, and a Python package. Java bindings load that same C ABI directly
+rather than being a separate frontend, and dengjen-tts consumes the Rust
+crate directly via Cargo (optional, feature-gated) rather than through any
+of these frontends.
 
 [source,mermaid]
 ----
@@ -72,7 +75,7 @@ classDiagram
         +infer(input_ids, diac_ids, seq_length) InferResult
     }
     class DynamicInferenceEngine {
-        -0: InferenceEngine
+        -0: Box~InferenceEngine~
     }
     class OrtEngine {
         -0: Mutex~Session~
