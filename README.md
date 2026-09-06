@@ -1,5 +1,7 @@
 # dengjen-tashkeel
 
+[Project board](https://github.com/orgs/ZirekHQ/projects/1) — live roadmap and status for this repo's issues.
+
 Arabic-text diacritic (tashkeel) restoration using an ONNX neural model,
 trained mainly on MSA data from [Hareef](https://github.com/mush42/hareef).
 
