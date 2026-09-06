@@ -1,0 +1,84 @@
+= Architecture
+
+This page shows dengjen-tashkeel's own structure as a
+https://c4model.com/[C4] Container, Component, and Code diagram. For how it
+fits into the wider ZirekHQ speech stack, see the
+https://zirekhq.github.io/en/home/architecture.html[org-wide System Context
+diagram]. Nothing in this repo references dengjen-nvda, dengjen-tts, or
+dengjen-piper-rs -- as far as this codebase shows, it's a standalone tool.
+(dengjen-tts optionally depends on it, feature-gated, from its side.)
+
+== Container
+
+The same core inference logic is exposed through five different frontends:
+a CLI, a C ABI, a Python package, a Java library that loads that same C ABI
+directly, and (indirectly) dengjen-tts's optional `tashkeel` feature.
+
+[source,mermaid]
+----
+C4Container
+    Person(caller, "Caller", "A CLI user, another process, or a bound language")
+
+    System_Boundary(tashkeel, "dengjen-tashkeel") {
+        Container(cli, "CLI", "Rust binary (crates/cli)")
+        Container(capi, "C ABI", "Shared library (crates/capi, ffi_support)", "Packaged for GitHub Releases and a self-hosted vcpkg registry")
+        Container(pyext, "dengjen-tashkeel-py", "Python extension (PyO3)", "Published to PyPI")
+        Container(core, "Core", "Rust library (crates/core)", "ONNX-based inference -- see Component diagram")
+    }
+
+    Container_Ext(java, "Java bindings", "bindings/java (separate Gradle project)", "Loads the C ABI's native library directly (JNI/JNA-style)")
+    System_Ext(dengjentts, "dengjen-tts", "Optionally links this crate for Arabic phonemization (feature-gated)")
+
+    Rel(caller, cli, "Invokes")
+    Rel(cli, core, "Uses")
+    Rel(capi, core, "Uses")
+    Rel(pyext, core, "Uses")
+    Rel(java, capi, "Loads native library")
+    Rel(dengjentts, core, "Depends on (Cargo, optional feature)")
+----
+
+== Component
+
+`do_tashkeel()` segments input text into sentences, then runs each sentence
+through a pluggable inference engine -- currently only implemented for ONNX
+Runtime, but factored so other backends could be added.
+
+[source,mermaid]
+----
+C4Component
+    Container_Boundary(core, "crates/core") {
+        Component(libpub, "lib.rs", "Rust module", "Public API: do_tashkeel(); segments text via libtqsm, then runs per-sentence inference")
+        Component(backendmod, "backend/mod.rs", "Rust module", "create_inference_engine() factory; DynamicInferenceEngine wrapper")
+        Component(ort, "backend/ort.rs", "Rust module", "OrtEngine -- the concrete ONNX Runtime backend")
+    }
+
+    Rel(libpub, backendmod, "Obtains an engine from")
+    Rel(backendmod, ort, "Constructs")
+----
+
+== Code
+
+`DynamicInferenceEngine` is a thin decorator around a boxed trait object --
+it exists purely so callers depend on one concrete type instead of a raw
+`Box<dyn InferenceEngine>` everywhere. `OrtEngine` is the only real
+implementor today, and wraps its ONNX Runtime session in a `Mutex` for
+thread-safe shared access.
+
+[source,mermaid]
+----
+classDiagram
+    class InferenceEngine {
+        <<trait>>
+        +infer(input_ids, diac_ids, seq_length) InferResult
+    }
+    class DynamicInferenceEngine {
+        -0: InferenceEngine
+    }
+    class OrtEngine {
+        -0: Mutex~Session~
+    }
+
+    InferenceEngine <|.. DynamicInferenceEngine
+    InferenceEngine <|.. OrtEngine
+    DynamicInferenceEngine o-- InferenceEngine : delegates to
+----
