@@ -81,8 +81,10 @@ jobs:
 
       # Fails here, before the multi-platform native builds run, rather than deep into the
       # publish job after paying for build-natives -- a missing secret is a maintainer setup gap,
-      # not something worth burning CI minutes on before discovering it.
+      # not something worth burning CI minutes on before discovering it. Skipped on a dry run:
+      # dry runs must build through build-natives without requiring deploy credentials to exist.
       - name: Verify Maven Central / GPG secrets are set
+        if: inputs.dry_run != true
         env:
           JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
           JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
