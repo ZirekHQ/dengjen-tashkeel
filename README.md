@@ -230,3 +230,13 @@ Created by [mush42](https://github.com/mush42) (Musharraf Omer).
 ## License
 
 Dual-licensed under [MIT](./LICENSE-MIT) or [Apache-2.0](./LICENSE-APACHE), at your option.
+
+---
+
+## 💝 Support This Project
+
+If this repository saves you time and effort, please consider supporting it!
+
+- ⭐ [Star on GitHub](https://github.com/ZirekHQ/dengjen-tashkeel)
+- 🐦 [Share on Twitter](https://twitter.com/intent/tweet?text=dengjen-tashkeel%20-%20Arabic%20diacritic%20restoration&url=https%3A%2F%2Fgithub.com%2FZirekHQ%2Fdengjen-tashkeel)
+- 💖 [More ways to support](https://github.com/ZirekHQ) — Open Collective coming soon
