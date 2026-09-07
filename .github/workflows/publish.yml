@@ -11,7 +11,13 @@ name: Publish to crates.io
 # here would mean any human pushing an unrelated v*-shaped tag by mistake
 # fires a real, irreversible crates.io publish.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry Run: publish nothing"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,6 +29,7 @@ jobs:
       contents: read
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      DRY_RUN: ${{ inputs.dry_run == true }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
         with:
@@ -68,10 +75,12 @@ jobs:
           status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel/${VERSION}")"
           case "$status" in
             200) echo "dengjen-tashkeel ${VERSION} is already published -- skipping" ;;
-            404) cargo publish -p dengjen-tashkeel --locked ;;
+            404) cargo publish -p dengjen-tashkeel --locked ${{ inputs.dry_run && '--dry-run' || '' }} ;;
             *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel ${VERSION}"; exit 1 ;;
           esac
+      # --dry-run doesn't actually publish, so there's nothing on crates.io for this step to wait on.
       - name: wait for crate to index
+        if: env.DRY_RUN != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel "$VERSION"
@@ -84,10 +93,11 @@ jobs:
           status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${VERSION}")"
           case "$status" in
             200) echo "dengjen-tashkeel-cli ${VERSION} is already published -- skipping" ;;
-            404) cargo publish -p dengjen-tashkeel-cli --locked ;;
+            404) cargo publish -p dengjen-tashkeel-cli --locked ${{ inputs.dry_run && '--dry-run' || '' }} ;;
             *) echo "::error::Unexpected status ${status} checking crates.io for dengjen-tashkeel-cli ${VERSION}"; exit 1 ;;
           esac
       - name: wait for crate to index
+        if: env.DRY_RUN != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel-cli "$VERSION"

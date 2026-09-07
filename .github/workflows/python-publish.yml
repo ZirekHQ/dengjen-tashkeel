@@ -27,6 +27,11 @@ on:
         description: "Existing vX.Y.Z tag to (re)publish wheels for"
         required: true
         type: string
+      dry_run:
+        description: "Dry Run: build wheels but publish nothing"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -160,7 +165,11 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # gh-action-pypi-publish has no dry-run mode of its own, so the wheels
+      # still build above (real validation) and only this network upload is
+      # skipped.
       - name: Publish to PyPI
+        if: inputs.dry_run != true
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist

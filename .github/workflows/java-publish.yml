@@ -18,6 +18,11 @@ on:
         description: "Existing vX.Y.Z tag to (re)publish Java bindings for"
         required: true
         type: string
+      dry_run:
+        description: "Dry Run: build natives but publish nothing"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -168,7 +173,12 @@ jobs:
         working-directory: bindings/java/native-artifacts
         run: for d in native-*; do mv "$d" "${d#native-}"; done
 
+      # Gated rather than passed a JReleaser-native dry-run flag: this workflow's own
+      # Gradle-plugin invocation isn't the place to guess at that flag's exact form, so
+      # `build-natives` (the expensive, genuinely validating part) still runs in full and
+      # only this network deploy is skipped.
       - name: Publish
+        if: inputs.dry_run != true
         working-directory: bindings/java
         env:
           JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
