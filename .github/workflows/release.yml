@@ -48,9 +48,7 @@ permissions: {}
 # workflow_dispatch against one.
 #
 # Hand-patched: added the `dry_run` input, threaded into the `host` job's
-# `if:` below -- re-apply if regenerating via 'cargo dist generate'. Only a
-# real tag push or a workflow_dispatch can carry it, so a `pull_request` run
-# (dry_run always empty there) is unaffected either way.
+# `if:` below -- re-apply if regenerating via 'cargo dist generate'.
 on:
   workflow_dispatch:
     inputs:

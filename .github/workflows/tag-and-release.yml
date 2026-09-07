@@ -13,25 +13,16 @@ name: Tag and trigger release
 # pushes -- push vX.Y.Z (triggering release.yml, python-publish.yml,
 # java-publish.yml), then push a second, differently-named publish-N tag
 # (triggering publish.yml) -- into the single "review and merge the bump
-# PR" gate, now additionally covered by one `environment: release`
-# approval click before the downstream dispatches fire. That merge (or
-# manual dispatch) is the last human decision before four different
-# registries (crates.io, PyPI, Maven Central, GitHub Releases) actually
-# publish; the vcpkg/Conan follow-up in CONTRIBUTING.md's step 5 stays
-# separate and manual, since real per-platform hashes can't exist before
-# the release archives do.
+# PR" gate. That merge (or manual dispatch) is the last human decision
+# before four different registries (crates.io, PyPI, Maven Central,
+# GitHub Releases) actually publish; the vcpkg/Conan follow-up in
+# CONTRIBUTING.md's step 5 stays separate and manual, since real
+# per-platform hashes can't exist before the release archives do.
 #
-# Unlike dengjen-tts's dry_run, the tag push itself is NOT skipped on a
-# dry run: python-publish.yml/java-publish.yml validate `inputs.tag`
-# against an existing tag ref, and release.yml (cargo-dist) parses the
-# version straight out of `github.ref_name`, so all three structurally
-# need a real tag to dispatch against. tts's downstream jobs avoid this
-# because they're `uses:` jobs of the same run, fed `VERSION` as a plain
-# input rather than reading it back off a ref. A pushed tag alone isn't a
-# publish and "Push release tag" is already idempotent, so dry-running
-# this repo twice in a row is still safe -- only the four
-# `environment: release`-gated network publishes are what `dry_run`
-# actually gates here.
+# The tag push itself is NOT skipped on a dry run: python-publish.yml,
+# java-publish.yml, and release.yml (cargo-dist) all need a real tag ref
+# to dispatch against. Only the four environment:release-gated publishes
+# are what dry_run actually gates here.
 on:
   push:
     branches:

@@ -81,8 +81,7 @@ jobs:
 
       # Fails here, before the multi-platform native builds run, rather than deep into the
       # publish job after paying for build-natives -- a missing secret is a maintainer setup gap,
-      # not something worth burning CI minutes on before discovering it. Skipped on a dry run:
-      # dry runs must build through build-natives without requiring deploy credentials to exist.
+      # not something worth burning CI minutes on before discovering it.
       - name: Verify Maven Central / GPG secrets are set
         if: inputs.dry_run != true
         env:
@@ -175,10 +174,8 @@ jobs:
         working-directory: bindings/java/native-artifacts
         run: for d in native-*; do mv "$d" "${d#native-}"; done
 
-      # Gated rather than passed a JReleaser-native dry-run flag: this workflow's own
-      # Gradle-plugin invocation isn't the place to guess at that flag's exact form, so
-      # `build-natives` (the expensive, genuinely validating part) still runs in full and
-      # only this network deploy is skipped.
+      # Gated instead of passed a JReleaser-native dry-run flag -- its exact form wasn't
+      # verified, and build-natives already runs in full either way for real validation.
       - name: Publish
         if: inputs.dry_run != true
         working-directory: bindings/java
