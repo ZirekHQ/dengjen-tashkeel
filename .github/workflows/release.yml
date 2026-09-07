@@ -46,8 +46,17 @@ permissions: {}
 # `!github.event.pull_request`, and github.ref_name resolves to the tag
 # name either way, whether the run came from a real tag push or a
 # workflow_dispatch against one.
+#
+# Hand-patched: added the `dry_run` input, threaded into the `host` job's
+# `if:` below -- re-apply if regenerating via 'cargo dist generate'.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry Run: build artifacts but don't upload or release"
+        required: false
+        type: boolean
+        default: false
   pull_request:
   push:
     tags:
@@ -239,8 +248,15 @@ jobs:
       - plan
       - build-local-artifacts
       - build-global-artifacts
-    # Only run if we're "publishing", and only if plan, local and global didn't fail (skipped is fine)
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
+    # Only run if we're "publishing", and only if plan, local and global didn't fail (skipped is fine).
+    # Hand-patched: `&& inputs.dry_run != true` -- re-apply if regenerating via 'cargo dist
+    # generate'. Stopping before this job means artifacts still built and packaged (real
+    # validation) but nothing was uploaded or released.
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' && inputs.dry_run != true && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
+    # Hand-patched: environment gate -- re-apply if regenerating via 'cargo dist generate'. Closes
+    # the same bypass as publish.yml/java-publish.yml: without it, a write-access user pushing a
+    # vX.Y.Z tag directly skips tag-and-release.yml's own approve gate entirely.
+    environment: release
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: "ubuntu-24.04"
