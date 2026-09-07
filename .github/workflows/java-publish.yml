@@ -150,6 +150,10 @@ jobs:
     name: Publish to Maven Central
     needs: build-natives
     runs-on: ubuntu-latest
+    # Required even on a dry run (the Publish step below still skips) -- environment protection
+    # is per-job-per-run, so a direct dispatch of this workflow would otherwise bypass
+    # tag-and-release.yml's `approve` gate entirely.
+    environment: release
     permissions:
       contents: read
     steps:

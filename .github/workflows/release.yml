@@ -253,6 +253,10 @@ jobs:
     # generate'. Stopping before this job means artifacts still built and packaged (real
     # validation) but nothing was uploaded or released.
     if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' && inputs.dry_run != true && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
+    # Hand-patched: environment gate -- re-apply if regenerating via 'cargo dist generate'. Closes
+    # the same bypass as publish.yml/java-publish.yml: without it, a write-access user pushing a
+    # vX.Y.Z tag directly skips tag-and-release.yml's own approve gate entirely.
+    environment: release
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: "ubuntu-24.04"

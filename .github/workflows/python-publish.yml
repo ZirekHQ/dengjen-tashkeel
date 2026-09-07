@@ -148,9 +148,20 @@ jobs:
           path: crates/python/dist/*.whl
           if-no-files-found: error
 
+  # A job can only declare one environment, and `publish` below already needs `pypi` for its own
+  # OIDC trust boundary -- this separate job carries the `release` approval gate instead, so a
+  # direct dispatch of this workflow can't bypass it the way it could before.
+  approve:
+    name: Approve release
+    runs-on: ubuntu-latest
+    environment: release
+    permissions: {}
+    steps:
+      - run: echo "Approved for release"
+
   publish:
     name: Publish to PyPI
-    needs: build-wheels
+    needs: [build-wheels, approve]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

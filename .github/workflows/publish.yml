@@ -25,10 +25,15 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Required on every dispatch of this job, dry-run included -- environment protection is
+    # evaluated per-job-per-run, so a direct `gh workflow run publish.yml` bypassing
+    # tag-and-release.yml's own `approve` gate would otherwise reach a real `cargo publish`
+    # ungated.
+    environment: release
     permissions:
       contents: read
+      id-token: write
     env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       DRY_RUN: ${{ inputs.dry_run == true }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
@@ -37,6 +42,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: "1.97.1"
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
 
       - name: Resolve workspace version
         # Read from [workspace.package] rather than hardcoding the version here,
@@ -70,6 +78,7 @@ jobs:
         # the status code and only branch on a value we've actually seen.
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           set -euo pipefail
           status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel/${VERSION}")"
@@ -88,6 +97,7 @@ jobs:
       - name: publish dengjen-tashkeel-cli
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           set -euo pipefail
           status="$(curl -s -o /dev/null -w '%{http_code}' -H "User-Agent: dengjen-tashkeel-ci (https://github.com/ZirekHQ/dengjen-tashkeel)" "https://crates.io/api/v1/crates/dengjen-tashkeel-cli/${VERSION}")"

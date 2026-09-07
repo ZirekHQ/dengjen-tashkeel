@@ -88,13 +88,18 @@ jobs:
       - name: Push release tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't reliably reflect a tag pushed by an earlier attempt.
+        # Checked against origin, not the local clone. An annotated tag peels to the commit SHA
+        # via a separate `^{}`-suffixed query -- ls-remote only returns that line when asked for
+        # it by name, so one unsuffixed query can't tell the two cases apart.
         # Not gated by dry_run -- see the workflow-level comment above.
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
+          if [ -z "$existing" ]; then
+            existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          fi
           if [ -n "$existing" ]; then
             if [ "$existing" != "$GITHUB_SHA" ]; then
               echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${GITHUB_SHA})" >&2
