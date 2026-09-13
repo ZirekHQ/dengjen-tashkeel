@@ -1,26 +1,19 @@
 name: Publish Python wheels
 
-# Builds real dengjen-tashkeel-py wheels and publishes them to PyPI on a
-# version-tag push (same tag pattern release.yml uses for the GitHub Release,
-# so a PyPI release always lines up with a Rust release). This is separate
-# from python-wheel.yml, which builds an ubuntu-latest smoke-test wheel on
-# every push/PR to guard the glibc floor -- not a real release artifact.
+# Builds real dengjen-tashkeel-py wheels and publishes to PyPI on a
+# version-tag push. Separate from python-wheel.yml, which builds an
+# ubuntu-latest smoke-test wheel on every push/PR, not a release artifact.
 #
-# Platform matrix mirrors [workspace.metadata.dist]'s targets in Cargo.toml
-# (Intel macOS is dropped there as unsupported, so it's dropped here too).
-# PyO3 is built abi3-py39 (crates/python/Cargo.toml), so one wheel per
-# platform covers every CPython >=3.9 -- no Python-version axis needed.
+# Platform matrix mirrors [workspace.metadata.dist]'s Cargo.toml targets
+# (Intel macOS dropped there, dropped here too). PyO3 is abi3-py39, so one
+# wheel per platform covers every CPython >=3.9 -- no version axis needed.
 on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
-  # Manual retrigger for a tag whose run failed for a reason unrelated to the
-  # tag itself (e.g. a broken action pin). Takes an explicit tag input rather
-  # than relying on "Use workflow from" -- that dropdown defaults to the
-  # default branch, and a run against main (not a version tag) would fail
-  # confusingly in check-version below instead of just doing what you meant.
-  # Every checkout in this file uses this input, so the ref actually built
-  # doesn't depend on what happened to be selected when the run was started.
+  # Manual retrigger for a tag whose run failed for an unrelated reason.
+  # Takes an explicit `tag` input rather than "Use workflow from" (which
+  # defaults to main); every checkout in this file uses this input.
   workflow_dispatch:
     inputs:
       tag:
@@ -42,17 +35,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      # A real tag push (github.ref_name) is trustworthy by construction --
-      # it genuinely is the ref that was pushed. A workflow_dispatch's
-      # `inputs.tag`, though, is free text from whoever has dispatch access:
-      # unvalidated, it'd flow straight into the checkout below and every
-      # step after builds and publishes whatever that ref actually points
-      # to -- e.g. a branch named "release/v1.2.3" would pass a bare
-      # version-substring check and get built as if it were the real tag.
-      # Requires the exact vX.Y.Z shape this repo's own tagging convention
-      # always produces (tag-and-release.yml, scripts/bump-version.sh), and
-      # that it resolves to an actual tag ref, not merely a name containing
-      # matching digits.
+      # inputs.tag (workflow_dispatch) is free text from whoever has dispatch
+      # access -- unvalidated it'd build+publish whatever ref it names.
+      # Requires the exact vX.Y.Z tag shape, not just matching digits.
       - name: Validate release tag input
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -77,16 +62,12 @@ jobs:
 
       - name: Compare tag to workspace version
         # Tags are cargo-dist style ("v1.5.1", "1.5.1", ...) -- strip any
-        # leading non-digit prefix so this matches release.yml's own tag
-        # parsing, then fail the publish rather than ship a wheel whose
-        # version doesn't match what the tag announces.
+        # leading non-digit prefix to match release.yml's own tag parsing,
+        # then fail rather than ship a wheel whose version doesn't match the tag.
         #
-        # crates/python/Cargo.toml declares `version.workspace = true`, so it
-        # has no literal package-version line of its own -- the version lives
-        # in the root Cargo.toml's [workspace.package] table. Grepping the
-        # python crate's manifest directly would instead match the first
-        # dependency's `version = "..."` line (e.g. pyo3's), which is never
-        # the package version.
+        # crates/python/Cargo.toml has `version.workspace = true` -- no literal
+        # package-version line of its own; it lives in root Cargo.toml's
+        # [workspace.package]. Grepping this file directly would hit a dependency's version instead.
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |

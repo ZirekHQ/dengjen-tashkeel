@@ -1,14 +1,8 @@
 name: Python Wheel
 
-# Builds the dengjen_tashkeel_py wheel exactly the way an external build
-# pipeline would (plain `maturin build`, no --features flag -- see
-# pyproject.toml's [tool.maturin] for the ort-dylib/extension-module features
-# this now resolves to) and smoke-tests it across the three most recent
-# Ubuntu LTS releases plus whatever Ubuntu currently calls "latest", to guard
-# the glibc/libstdc++ compatibility floor fixed for issue #29: onnxruntime is
-# now loaded dynamically from the `onnxruntime` pip package (manylinux_2_28)
-# instead of being statically linked from a prebuilt binary that required
-# glibc 2.38+.
+# Builds the wheel the way an external pipeline would (plain `maturin
+# build`) and smoke-tests it across recent Ubuntu LTS releases, to guard the
+# glibc/libstdc++ floor fixed for issue #29 (onnxruntime now loads dynamically).
 on:
   push:
     branches: [ main ]
@@ -25,17 +19,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pin the three most recent Ubuntu LTS releases for reproducibility
-        # (re-derive which three, at implementation time, from today's date
-        # -- LTS ships every April; as of 2026-09-02 that's 22.04/24.04/26.04,
-        # NOT 20.04, whose mainstream support has already ended -- confirmed
-        # by deadsnakes no longer even building packages for it). "latest" is
-        # Docker Hub's unpinned tag, deliberately left to drift so CI keeps
-        # testing against whatever Ubuntu currently calls "latest" over time.
-        # Every one of these ships a default `python3` already >= pyproject
-        # .toml's `requires-python = ">=3.9"` floor (22.04 -> 3.10, 24.04 ->
-        # 3.12, 26.04 newer still), so no PPA/alternate-Python dance is
-        # needed -- that was only ever required for the now-dropped 20.04.
+        # Pins the three most recent Ubuntu LTS releases (re-derive at update
+        # time -- LTS ships every April); "latest" is Docker Hub's unpinned
+        # tag, left to drift deliberately so CI tests whatever that currently means.
         ubuntu: ["22.04", "24.04", "26.04", "latest"]
     steps:
       - name: Install build prerequisites
@@ -67,16 +53,9 @@ jobs:
           rustup default 1.97.1
 
       - name: Install uv and Python 3.11
-        # onnxruntime>=1.28 (this crate's runtime dependency -- see
-        # pyproject.toml) stopped publishing cp310 wheels from 1.24.1
-        # onward, so several of these Ubuntu releases' stock python3
-        # (22.04 -> 3.10) can't install it, and older releases don't ship
-        # a newer python3 in their own repos either. Rather than depend on
-        # each release's own apt repos or an external PPA (deadsnakes had
-        # already dropped 20.04/focal entirely -- the reason this matrix
-        # no longer includes 20.04 at all), use uv to fetch a
-        # self-contained Python 3.11 build directly, uniformly across
-        # every matrix entry, regardless of what that release ships.
+        # onnxruntime>=1.28 dropped cp310 wheels, so 22.04's stock python3
+        # (3.10) can't install it. deadsnakes dropped 20.04/focal entirely
+        # (why it's not in this matrix) -- fetch a self-contained Python 3.11 via uv instead.
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -94,12 +73,9 @@ jobs:
         run: maturin build --release --out dist
 
       - name: Install wheel and smoke-test the import
-        # Installs the exact wheel file just built, not an unpinned package
-        # name -- SonarCloud's githubactions:S8544 flags unresolved-version
-        # dependency installs, and "dengjen_tashkeel_py" with no pinned
-        # version (even with --no-index) reads as one of those to static
-        # analysis. onnxruntime comes along automatically via the wheel's
-        # own [project.dependencies], since this isn't --no-deps.
+        # Installs the exact wheel file, not a package name -- SonarCloud's
+        # githubactions:S8544 flags unpinned-version installs. onnxruntime
+        # comes along via the wheel's own [project.dependencies] since this isn't --no-deps.
         run: |
           pip install --only-binary :all: crates/python/dist/*.whl
           python3 -c "

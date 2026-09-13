@@ -8,7 +8,6 @@ reviews:
     - "!.idea/**"
     - "!.serena/**"
 
-  # General repository-wide instructions
   instructions: |
     - This is Dengjen Tashkeel, a Rust library for diacritic restoration of Arabic text (ONNX model inference), exposed via a C ABI, a CLI, and Python bindings.
     - Focus strictly on correctness, panic-safety, and FFI/memory safety. Avoid nitpicking style or formatting.
@@ -17,7 +16,6 @@ reviews:
     - CHAR_LIMIT and other input-validation constants are a stability contract; flag any change that would silently allow unbounded input into the ONNX inference path.
     - Keep comments concise: explain the root cause and provide a targeted code fix.
 
-  # Path-specific instructions
   path_instructions:
     # 1. Core diacritization engine & ONNX inference
     - path: "crates/core/src/**"

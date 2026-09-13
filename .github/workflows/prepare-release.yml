@@ -1,13 +1,8 @@
 name: Prepare release
 
-# Computes the next semver version from Conventional Commit subjects merged
-# to main since the last vX.Y.Z tag (scripts/next-version.sh) and opens a PR
-# bumping every hand-synced copy of it (scripts/bump-version.sh). Manual
-# trigger only -- this proposes a release, it doesn't cut one. Merging the
-# PR is the one remaining human gate: tag-and-release.yml then tags that
-# commit vX.Y.Z and triggers every downstream release workflow (crates.io,
-# PyPI, Maven Central, GitHub Releases) automatically, no further manual
-# steps.
+# Computes the next semver from Conventional Commits since the last vX.Y.Z
+# tag and opens a PR bumping every hand-synced version copy. Manual trigger
+# only -- merging that PR is what lets tag-and-release.yml cut the release.
 on:
   workflow_dispatch: {}
 
@@ -33,11 +28,9 @@ jobs:
         id: next
         run: |
           set -uo pipefail
-          # next-version.sh exits 1 for the normal "nothing release-worthy"
-          # case, which this step treats as skip -- but exit 2 (or anything
-          # else unexpected) means the computation itself is broken (e.g. no
-          # vX.Y.Z tag exists at all), and must fail loudly instead, or a
-          # broken tag state would silently suppress every future release.
+          # exit 1 = normal "nothing release-worthy", treated as skip. Any
+          # other exit means the computation itself is broken and must fail
+          # loudly, or a broken tag state would silently suppress every future release.
           version="$(bash scripts/next-version.sh)"
           rc=$?
           if [ "$rc" -eq 0 ]; then

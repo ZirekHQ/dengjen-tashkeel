@@ -7,11 +7,9 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
-  # Manual retrigger for a tag whose run failed for a reason unrelated to the
-  # tag itself -- mirrors python-publish.yml's own workflow_dispatch input
-  # exactly, for the same reason: "Use workflow from" defaults to the
-  # default branch, and a run against main (not a version tag) would fail
-  # confusingly in check-version below instead of just doing what you meant.
+  # Manual retrigger for a tag whose run failed for an unrelated reason --
+  # mirrors python-publish.yml's `tag` input, since "Use workflow from"
+  # defaults to main, which would fail confusingly in check-version below.
   workflow_dispatch:
     inputs:
       tag:
@@ -33,18 +31,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      # A real tag push (github.ref_name) is trustworthy by construction --
-      # it genuinely is the ref that was pushed. A workflow_dispatch's
-      # `inputs.tag`, though, is free text from whoever has dispatch access:
-      # unvalidated, it'd flow straight into the checkout below (and every
-      # step after, including the Maven Central publish with real GPG/OSSRH
-      # secrets) building and publishing whatever that ref actually points
-      # to -- e.g. a branch named "release/v1.2.3" would pass a bare
-      # version-substring check and get built as if it were the real tag.
-      # Requires the exact vX.Y.Z shape this repo's own tagging convention
-      # always produces (tag-and-release.yml, scripts/bump-version.sh), and
-      # that it resolves to an actual tag ref, not merely a name containing
-      # matching digits.
+      # inputs.tag (workflow_dispatch) is free text from whoever has dispatch
+      # access -- unvalidated it'd publish whatever ref it names, real GPG/
+      # OSSRH secrets included. Requires the exact vX.Y.Z tag shape, not just matching digits.
       - name: Validate release tag input
         if: github.event_name == 'workflow_dispatch'
         env:

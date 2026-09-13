@@ -106,7 +106,6 @@ fn dengjen_tashkeel_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
             return Err(error);
         }
     };
-    // Mirrors capi's do_init_library: losing this race means some other
     if INFERENCE_ENGINE.set(py, engine).is_err() {
         log::warn!("Inference engine was already initialized; ignoring redundant init.");
     }
