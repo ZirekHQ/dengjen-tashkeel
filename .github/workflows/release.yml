@@ -173,9 +173,16 @@ jobs:
         run: |
           ${{ matrix.packages_install }}
       - name: Build artifacts
+        # Hand-patched for zizmor template-injection (tag-flag/dist_args -> env vars) --
+        # re-apply if regenerating via 'cargo dist generate'. Forced to bash, same as the
+        # neighboring Post-build step, so $VAR syntax is unambiguous on the Windows runner too.
+        shell: bash
+        env:
+          TAG_FLAG: ${{ needs.plan.outputs.tag-flag }}
+          DIST_ARGS: ${{ matrix.dist_args }}
         run: |
           # Actually do builds and make zips and whatnot
-          dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
+          dist build $TAG_FLAG --print=linkage --output-format=json $DIST_ARGS > dist-manifest.json
           echo "dist ran successfully"
       - id: cargo-dist
         name: Post-build
