@@ -87,6 +87,10 @@ jobs:
         # Installs the exact wheel file, not a package name -- SonarCloud's
         # githubactions:S8544 flags unpinned-version installs. onnxruntime
         # comes along via the wheel's own [project.dependencies] since this isn't --no-deps.
+        #
+        # onnxruntime resolves within pyproject.toml's own declared range
+        # (unpinned by design, to track compatible 1.x releases) -- --only-binary
+        # :all: still blocks the severe case, arbitrary sdist build-script execution.
         run: |
           pip install --only-binary :all: crates/python/dist/*.whl
           python3 -c "
