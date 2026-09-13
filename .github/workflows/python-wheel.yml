@@ -43,6 +43,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
+        # bash for pipefail -- otherwise a curl failure in this pipe goes
+        # unnoticed and only surfaces later as a confusing "rustup: not found".
+        shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
@@ -56,6 +59,10 @@ jobs:
         # onnxruntime>=1.28 dropped cp310 wheels, so 22.04's stock python3
         # (3.10) can't install it. deadsnakes dropped 20.04/focal entirely
         # (why it's not in this matrix) -- fetch a self-contained Python 3.11 via uv instead.
+        #
+        # bash for pipefail -- otherwise a curl failure in this pipe goes
+        # unnoticed and only surfaces later as a confusing "uv: not found".
+        shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
