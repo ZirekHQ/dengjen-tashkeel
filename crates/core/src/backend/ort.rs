@@ -37,7 +37,9 @@ fn ort_session_run(
             Tensor::from_array(diac_ids)?,
             Tensor::from_array(input_length)?,
         ];
-        let mut session = pool.acquire();
+        let mut session = pool
+            .acquire()
+            .map_err(|e| DengjenTashkeelError::InferenceError(e.to_string()))?;
         let outputs = session.run(inputs)?;
         if outputs.len() < 2 {
             return Err(DengjenTashkeelError::InferenceError(format!(
