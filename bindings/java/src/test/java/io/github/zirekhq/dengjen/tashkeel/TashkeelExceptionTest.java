@@ -23,16 +23,11 @@ class TashkeelExceptionTest {
     }
 
     private static String describe(TashkeelException.Reason reason) {
-        if (reason instanceof TashkeelException.InputTooLong r) {
-            return "too long: " + r.message();
-        } else if (reason instanceof TashkeelException.InferenceError r) {
-            return "inference: " + r.message();
-        } else if (reason instanceof TashkeelException.ModelLoadError r) {
-            return "model: " + r.message();
-        } else if (reason instanceof TashkeelException.Unknown r) {
-            return "unknown(" + r.code() + "): " + r.message();
-        } else {
-            throw new AssertionError("unreachable: Reason is sealed to these four variants");
-        }
+        return switch (reason) {
+            case TashkeelException.InputTooLong r -> "too long: " + r.message();
+            case TashkeelException.InferenceError r -> "inference: " + r.message();
+            case TashkeelException.ModelLoadError r -> "model: " + r.message();
+            case TashkeelException.Unknown r -> "unknown(" + r.code() + "): " + r.message();
+        };
     }
 }
