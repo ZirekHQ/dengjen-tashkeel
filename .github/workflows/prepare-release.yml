@@ -20,7 +20,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
           persist-credentials: true
@@ -52,7 +52,9 @@ jobs:
 
       - name: Bump version
         if: steps.next.outputs.skip != 'true'
-        run: bash scripts/bump-version.sh "${{ steps.next.outputs.version }}"
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: bash scripts/bump-version.sh "$VERSION"
 
       - name: Open release PR
         if: steps.next.outputs.skip != 'true'
