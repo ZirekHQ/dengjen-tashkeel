@@ -155,21 +155,23 @@ jobs:
           # github.ref_name itself, so it's dispatched directly against the
           # tag -- workflow_dispatch runs the workflow file's own content as
           # it exists at --ref, same as a real tag push would have used.
-          gh workflow run release.yml --ref "v${VERSION}" "${dry_run_flag[@]}" || failed=1
+          # No checkout in this job, so gh can't infer the target repo from
+          # a local .git -- every call needs --repo explicitly.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "v${VERSION}" "${dry_run_flag[@]}" || failed=1
           # python-publish.yml / java-publish.yml take an explicit `tag`
           # input instead (python-publish.yml's own existing pattern, now
           # mirrored by java-publish.yml too) and are dispatched against
           # main, since every checkout inside them already resolves the ref
           # to actually build from `inputs.tag`, not the dispatch ref.
-          gh workflow run python-publish.yml --ref main -f "tag=v${VERSION}" "${dry_run_flag[@]}" || failed=1
-          gh workflow run java-publish.yml --ref main -f "tag=v${VERSION}" "${dry_run_flag[@]}" || failed=1
+          gh workflow run python-publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=v${VERSION}" "${dry_run_flag[@]}" || failed=1
+          gh workflow run java-publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=v${VERSION}" "${dry_run_flag[@]}" || failed=1
           # publish.yml (crates.io) takes no tag input, so it's dispatched
           # directly against the tag ref rather than main -- otherwise a
           # second, unrelated merge landing on main between the tag push
           # above and this dispatch would make it build (and publish to
           # crates.io) a different commit than the one v${VERSION} points
           # at.
-          gh workflow run publish.yml --ref "v${VERSION}" "${dry_run_flag[@]}" || failed=1
+          gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref "v${VERSION}" "${dry_run_flag[@]}" || failed=1
           if [ "$failed" -eq 1 ]; then
             echo "::error::One or more downstream workflow dispatches failed -- check the Actions tab and manually dispatch any that didn't fire (safe to re-dispatch one that already ran; each is independently idempotent or version-checked)."
             exit 1
