@@ -46,6 +46,8 @@ jobs:
         # bash for pipefail -- otherwise a curl failure in this pipe goes
         # unnoticed and only surfaces later as a confusing "rustup: not found".
         shell: bash
+        # Sonar S8482: rustup.rs is a live, server-side-mutable redirect with
+        # no static checksum by design -- same accepted tradeoff as release.yml's own rustup install.
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
@@ -63,6 +65,8 @@ jobs:
         # bash for pipefail -- otherwise a curl failure in this pipe goes
         # unnoticed and only surfaces later as a confusing "uv: not found".
         shell: bash
+        # Sonar S8482: astral.sh/uv/install.sh is a live, server-side-mutable
+        # script with no static checksum by design -- same tradeoff as sh.rustup.rs above.
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
