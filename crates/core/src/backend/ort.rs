@@ -67,6 +67,118 @@ fn ort_session_run(
     Ok((target_ids, logits))
 }
 
+/// Pads a batch of independently-sized sequences to a common length and runs them
+/// through one `session.run()` call, splitting the result back into one entry per
+/// input in the same order. Padding position values don't matter beyond being valid
+/// vocabulary ids -- the model masks them out itself via the `input_lengths` tensor,
+/// and every result here is trimmed back to its own real (unpadded) length before
+/// returning, so a batch of one reproduces [`ort_session_run`]'s output exactly.
+fn ort_session_run_batch(
+    pool: &SessionPool<Session>,
+    batch: Vec<(Vec<i64>, Vec<i64>, usize)>,
+) -> DengjenTashkeelResult<Vec<(Vec<u8>, Vec<f32>)>> {
+    if batch.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    const PAD_ID: i64 = 0;
+    let batch_size = batch.len();
+    let max_seq_length = batch
+        .iter()
+        .map(|(_, _, seq_length)| *seq_length)
+        .max()
+        .expect("batch checked non-empty above");
+    let classes_per_position = crate::TARGET_ID_MAP.len();
+
+    // A mismatched row can't be caught by the aggregate length check on the flattened
+    // batch below: a too-long row and a correspondingly too-short row can sum to the
+    // expected total, silently shifting every row's data across its real boundary.
+    for (i, (input_ids, diac_ids, seq_length)) in batch.iter().enumerate() {
+        if input_ids.len() != *seq_length {
+            return Err(DengjenTashkeelError::InferenceError(format!(
+                "batch item {i} has {} input_ids but a declared seq_length of {seq_length}",
+                input_ids.len()
+            )));
+        }
+        if diac_ids.len() != *seq_length {
+            return Err(DengjenTashkeelError::InferenceError(format!(
+                "batch item {i} has {} diac_ids but a declared seq_length of {seq_length}",
+                diac_ids.len()
+            )));
+        }
+    }
+
+    let mut char_inputs = Vec::with_capacity(batch_size * max_seq_length);
+    let mut diac_inputs = Vec::with_capacity(batch_size * max_seq_length);
+    let mut input_lengths = Vec::with_capacity(batch_size);
+    for (input_ids, diac_ids, seq_length) in &batch {
+        char_inputs.extend_from_slice(input_ids);
+        char_inputs.extend(std::iter::repeat_n(PAD_ID, max_seq_length - seq_length));
+        diac_inputs.extend_from_slice(diac_ids);
+        diac_inputs.extend(std::iter::repeat_n(PAD_ID, max_seq_length - seq_length));
+        input_lengths.push(*seq_length as i64);
+    }
+
+    let char_inputs = Array2::<i64>::from_shape_vec((batch_size, max_seq_length), char_inputs)
+        .map_err(|e| {
+            DengjenTashkeelError::InferenceError(format!("batch char_inputs shape mismatch: {e}"))
+        })?;
+    let diac_inputs = Array2::<i64>::from_shape_vec((batch_size, max_seq_length), diac_inputs)
+        .map_err(|e| {
+            DengjenTashkeelError::InferenceError(format!("batch diac_inputs shape mismatch: {e}"))
+        })?;
+    let input_lengths = Array1::<i64>::from_iter(input_lengths);
+
+    let inputs = ort::inputs![
+        Tensor::from_array(char_inputs)?,
+        Tensor::from_array(diac_inputs)?,
+        Tensor::from_array(input_lengths)?,
+    ];
+    let mut session = pool
+        .acquire()
+        .map_err(|e| DengjenTashkeelError::InferenceError(e.to_string()))?;
+    let outputs = session.run(inputs)?;
+    if outputs.len() < 2 {
+        return Err(DengjenTashkeelError::InferenceError(format!(
+            "model returned {} output tensor(s), expected 2 (predictions, logits)",
+            outputs.len()
+        )));
+    }
+    let (pred_shape, predictions) = outputs[0].try_extract_tensor::<u8>()?;
+    let (logits_shape, logits) = outputs[1].try_extract_tensor::<f32>()?;
+    let expected_pred_shape = [batch_size as i64, max_seq_length as i64];
+    if pred_shape[..] != expected_pred_shape {
+        return Err(DengjenTashkeelError::InferenceError(format!(
+            "model returned predictions with shape {pred_shape:?}, expected {expected_pred_shape:?}"
+        )));
+    }
+    let expected_logits_shape = [
+        batch_size as i64,
+        max_seq_length as i64,
+        classes_per_position as i64,
+    ];
+    if logits_shape[..] != expected_logits_shape {
+        return Err(DengjenTashkeelError::InferenceError(format!(
+            "model returned logits with shape {logits_shape:?}, expected {expected_logits_shape:?}"
+        )));
+    }
+
+    Ok(batch
+        .iter()
+        .enumerate()
+        .map(|(i, (_, _, seq_length))| {
+            let pred_start = i * max_seq_length;
+            let target_ids = predictions[pred_start..pred_start + seq_length].to_vec();
+
+            let logits_start = i * max_seq_length * classes_per_position;
+            let logits_end = logits_start + seq_length * classes_per_position;
+            let sample_logits = logits[logits_start..logits_end].to_vec();
+
+            (target_ids, sample_logits)
+        })
+        .collect())
+}
+
 const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
 
 /// Number of pooled sessions to build when the caller doesn't request a specific size.
@@ -125,6 +237,13 @@ impl InferenceEngine for OrtEngine {
         seq_length: usize,
     ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
         ort_session_run(&self.0, input_ids, diac_ids, seq_length)
+    }
+
+    fn infer_batch(
+        &self,
+        batch: Vec<(Vec<i64>, Vec<i64>, usize)>,
+    ) -> DengjenTashkeelResult<Vec<(Vec<u8>, Vec<f32>)>> {
+        ort_session_run_batch(&self.0, batch)
     }
 }
 
@@ -190,5 +309,102 @@ mod tests {
             assert_eq!(target_ids.len(), 3);
             assert!(!logits.is_empty());
         }
+    }
+
+    fn bundled_pool() -> SessionPool<Session> {
+        let session = Session::builder()
+            .unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .unwrap()
+            .with_intra_threads(1)
+            .unwrap()
+            .commit_from_memory(MODEL_BYTES)
+            .unwrap();
+        SessionPool::new(vec![session])
+    }
+
+    #[test]
+    fn batch_of_one_matches_a_direct_single_item_run() {
+        let pool = bundled_pool();
+        let input_ids = vec![1i64, 2, 3];
+        let diac_ids = vec![0i64, 0, 0];
+
+        let direct = ort_session_run(&pool, input_ids.clone(), diac_ids.clone(), 3).unwrap();
+        let batched = ort_session_run_batch(&pool, vec![(input_ids, diac_ids, 3)]).unwrap();
+
+        assert_eq!(batched.len(), 1);
+        assert_eq!(batched[0], direct);
+    }
+
+    #[test]
+    fn batched_results_are_trimmed_to_each_items_own_seq_length() {
+        let pool = bundled_pool();
+        let batch = vec![
+            (vec![1i64, 2, 3], vec![0i64, 0, 0], 3),
+            (vec![1i64, 2, 3, 4, 5], vec![0i64, 0, 0, 0, 0], 5),
+            (vec![1i64, 2], vec![0i64, 0], 2),
+        ];
+
+        let results = ort_session_run_batch(&pool, batch).unwrap();
+
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].0.len(), 3);
+        assert_eq!(results[1].0.len(), 5);
+        assert_eq!(results[2].0.len(), 2);
+        assert_eq!(results[0].1.len(), 3 * crate::TARGET_ID_MAP.len());
+        assert_eq!(results[1].1.len(), 5 * crate::TARGET_ID_MAP.len());
+        assert_eq!(results[2].1.len(), 2 * crate::TARGET_ID_MAP.len());
+    }
+
+    #[test]
+    fn empty_batch_short_circuits_without_touching_the_pool() {
+        let pool = bundled_pool();
+
+        let results = ort_session_run_batch(&pool, vec![]).unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn batch_errors_when_an_items_input_ids_length_does_not_match_its_seq_length() {
+        let pool = bundled_pool();
+        let batch = vec![(vec![1i64, 2, 3], vec![0i64, 0, 0], 5)];
+
+        let result = ort_session_run_batch(&pool, batch);
+
+        assert!(
+            matches!(result, Err(DengjenTashkeelError::InferenceError(msg)) if msg.contains("input_ids"))
+        );
+    }
+
+    #[test]
+    fn batch_errors_when_an_items_diac_ids_length_does_not_match_its_seq_length() {
+        let pool = bundled_pool();
+        let batch = vec![(vec![1i64, 2, 3], vec![0i64, 0], 3)];
+
+        let result = ort_session_run_batch(&pool, batch);
+
+        assert!(
+            matches!(result, Err(DengjenTashkeelError::InferenceError(msg)) if msg.contains("diac_ids"))
+        );
+    }
+
+    #[test]
+    fn a_malformed_pair_of_batch_items_does_not_silently_corrupt_row_boundaries() {
+        // Without per-item validation, an over-long first row and a correspondingly
+        // short second row could sum to the expected total element count and slip
+        // past `Array2::from_shape_vec`'s aggregate length check.
+        let pool = bundled_pool();
+        let batch = vec![
+            (vec![1i64, 2, 3, 4, 5], vec![0i64, 0, 0, 0, 0], 3),
+            (vec![1i64], vec![0i64], 3),
+        ];
+
+        let result = ort_session_run_batch(&pool, batch);
+
+        assert!(matches!(
+            result,
+            Err(DengjenTashkeelError::InferenceError(_))
+        ));
     }
 }

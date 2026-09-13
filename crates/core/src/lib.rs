@@ -57,6 +57,20 @@ pub trait InferenceEngine {
         diac_ids: Vec<i64>,
         seq_length: usize,
     ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)>;
+
+    /// Runs a batch of independent sequences through the model, one result per input in
+    /// the same order. The default implementation calls [`infer`](InferenceEngine::infer)
+    /// once per item; backends that can serve a whole batch in one model call should
+    /// override this instead.
+    fn infer_batch(
+        &self,
+        batch: Vec<(Vec<i64>, Vec<i64>, usize)>,
+    ) -> DengjenTashkeelResult<Vec<(Vec<u8>, Vec<f32>)>> {
+        batch
+            .into_iter()
+            .map(|(input_ids, diac_ids, seq_length)| self.infer(input_ids, diac_ids, seq_length))
+            .collect()
+    }
 }
 
 #[derive(Error, Debug)]
@@ -215,25 +229,116 @@ fn annotate_text_with_diacritics_taskeen(
     Ok(output)
 }
 
+/// A sentence's text alongside everything inference needs, computed once up front so a
+/// batch of sentences can share a single model call instead of one call each.
+struct Tokenized {
+    text: String,
+    input_ids: Vec<i64>,
+    diac_ids: Vec<i64>,
+    seq_length: usize,
+    removed_chars: HashSet<char>,
+}
+
+fn tokenize(text: &str) -> DengjenTashkeelResult<Tokenized> {
+    let text = text.trim();
+
+    if text.chars().count() > CHAR_LIMIT {
+        return Err(DengjenTashkeelError::InputTooLong(CHAR_LIMIT));
+    }
+
+    let (input_text, removed_chars) = to_valid_chars(text.chars());
+    let (input_text, diacritics) = extract_chars_and_diacritics(&input_text, true);
+
+    let input_ids = input_to_ids(input_text.chars());
+    let diac_ids = hint_to_ids(diacritics);
+    let seq_length = input_ids.len();
+
+    Ok(Tokenized {
+        text: text.to_string(),
+        input_ids,
+        diac_ids,
+        seq_length,
+        removed_chars,
+    })
+}
+
+fn postprocess(
+    text: String,
+    removed_chars: HashSet<char>,
+    target_ids: Vec<u8>,
+    logits: Vec<f32>,
+    taskeen_threshold: Option<f32>,
+) -> DengjenTashkeelResult<String> {
+    let diacritics = target_to_diacritics(target_ids.into_iter())?;
+    if taskeen_threshold.is_none() {
+        annotate_text_with_diacritics(&text, diacritics, removed_chars)
+    } else {
+        annotate_text_with_diacritics_taskeen(
+            &text,
+            diacritics,
+            removed_chars,
+            logits,
+            taskeen_threshold,
+        )
+    }
+}
+
 fn map_sentences(
     sentences: &[String],
     engine: &(impl InferenceEngine + Send + Sync),
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<Vec<String>> {
+    if sentences.is_empty() {
+        return Ok(Vec::new());
+    }
+
     #[cfg(feature = "rayon")]
-    {
-        sentences
-            .par_iter()
-            .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
-            .collect()
-    }
+    let tokenized = sentences
+        .par_iter()
+        .map(|sent| tokenize(sent))
+        .collect::<DengjenTashkeelResult<Vec<_>>>()?;
     #[cfg(not(feature = "rayon"))]
-    {
-        sentences
-            .iter()
-            .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
-            .collect()
+    let tokenized = sentences
+        .iter()
+        .map(|sent| tokenize(sent))
+        .collect::<DengjenTashkeelResult<Vec<_>>>()?;
+
+    // A sentence that tokenizes to nothing (all-out-of-vocabulary chars) has no
+    // defined inference behavior; exclude it from the batch and pass it through unchanged.
+    let mut batch = Vec::new();
+    let mut batch_positions = Vec::new();
+    for (i, tok) in tokenized.iter().enumerate() {
+        if tok.seq_length > 0 {
+            batch.push((tok.input_ids.clone(), tok.diac_ids.clone(), tok.seq_length));
+            batch_positions.push(i);
+        }
     }
+
+    let timer = std::time::Instant::now();
+    let batch_results = engine.infer_batch(batch)?;
+    log::debug!("Inference time: {} ms", timer.elapsed().as_millis() as f32);
+
+    let mut results: Vec<Option<(Vec<u8>, Vec<f32>)>> = vec![None; tokenized.len()];
+    for (position, result) in batch_positions.into_iter().zip(batch_results) {
+        results[position] = Some(result);
+    }
+
+    #[cfg(feature = "rayon")]
+    let iter = tokenized.into_par_iter().zip(results);
+    #[cfg(not(feature = "rayon"))]
+    let iter = tokenized.into_iter().zip(results);
+
+    iter.map(|(tok, result)| match result {
+        Some((target_ids, logits)) => postprocess(
+            tok.text,
+            tok.removed_chars,
+            target_ids,
+            logits,
+            taskeen_threshold,
+        ),
+        None => Ok(tok.text),
+    })
+    .collect()
 }
 
 pub fn do_tashkeel(
@@ -260,41 +365,23 @@ pub fn _do_tashkeel_impl(
     text: &str,
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<String> {
-    let text = text.trim();
+    let tok = tokenize(text)?;
 
-    if text.chars().count() > CHAR_LIMIT {
-        return Err(DengjenTashkeelError::InputTooLong(CHAR_LIMIT));
-    }
-
-    let (input_text, removed_chars) = to_valid_chars(text.chars());
-    let (input_text, diacritics) = extract_chars_and_diacritics(&input_text, true);
-
-    let input_ids = input_to_ids(input_text.chars());
-    let diac_ids = hint_to_ids(diacritics);
-    let seq_length = input_ids.len();
-
-    if seq_length > 0 {
-        let timer = std::time::Instant::now();
-        let (target_ids, logits) = engine.infer(input_ids, diac_ids, seq_length)?;
-        let inference_ms = timer.elapsed().as_millis() as f32;
-        log::debug!("Inference time: {} ms", inference_ms);
-        let diacritics = target_to_diacritics(target_ids.into_iter())?;
-        let final_text = if taskeen_threshold.is_none() {
-            annotate_text_with_diacritics(text, diacritics, removed_chars)?
-        } else {
-            annotate_text_with_diacritics_taskeen(
-                text,
-                diacritics,
-                removed_chars,
-                logits,
-                taskeen_threshold,
-            )?
-        };
-        Ok(final_text)
-    } else {
+    if tok.seq_length == 0 {
         log::debug!("Inference time: {} ms", 0.0);
-        Ok(text.into())
+        return Ok(tok.text);
     }
+
+    let timer = std::time::Instant::now();
+    let (target_ids, logits) = engine.infer(tok.input_ids, tok.diac_ids, tok.seq_length)?;
+    log::debug!("Inference time: {} ms", timer.elapsed().as_millis() as f32);
+    postprocess(
+        tok.text,
+        tok.removed_chars,
+        target_ids,
+        logits,
+        taskeen_threshold,
+    )
 }
 
 #[cfg(test)]
@@ -452,5 +539,102 @@ mod tests {
             result,
             Err(DengjenTashkeelError::InferenceError(_))
         ));
+    }
+
+    struct CountingEngine {
+        infer_calls: std::sync::atomic::AtomicUsize,
+        infer_batch_calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl CountingEngine {
+        fn new() -> Self {
+            Self {
+                infer_calls: std::sync::atomic::AtomicUsize::new(0),
+                infer_batch_calls: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl InferenceEngine for CountingEngine {
+        fn infer(
+            &self,
+            _input_ids: Vec<i64>,
+            _diac_ids: Vec<i64>,
+            seq_length: usize,
+        ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
+            self.infer_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok((vec![5; seq_length], vec![0.0; seq_length]))
+        }
+
+        fn infer_batch(
+            &self,
+            batch: Vec<(Vec<i64>, Vec<i64>, usize)>,
+        ) -> DengjenTashkeelResult<Vec<(Vec<u8>, Vec<f32>)>> {
+            self.infer_batch_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            batch
+                .into_iter()
+                .map(|(_, _, seq_length)| Ok((vec![5; seq_length], vec![0.0; seq_length])))
+                .collect()
+        }
+    }
+
+    #[test]
+    fn infer_batch_default_implementation_calls_infer_once_per_item() {
+        let engine = StubEngine {
+            target_ids: vec![5],
+            logits: vec![0.0],
+        };
+
+        let results = engine
+            .infer_batch(vec![(vec![1], vec![0], 1), (vec![2], vec![0], 1)])
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn map_sentences_routes_through_infer_batch_instead_of_infer_per_sentence() {
+        let engine = CountingEngine::new();
+        let sentences = vec!["اب".to_string(), "تث".to_string(), "جح".to_string()];
+
+        let results = map_sentences(&sentences, &engine, None).unwrap();
+
+        assert_eq!(results.len(), 3);
+        assert_eq!(
+            engine
+                .infer_batch_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "map_sentences should call infer_batch exactly once for the whole paragraph"
+        );
+        assert_eq!(
+            engine.infer_calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "map_sentences should not fall back to per-sentence infer"
+        );
+    }
+
+    #[test]
+    fn map_sentences_passes_through_sentences_that_tokenize_to_nothing() {
+        let engine = CountingEngine::new();
+        // "@@@" has no chars in INPUT_ID_MAP or ARABIC_DIACRITICS, so it tokenizes to a
+        // zero-length sequence.
+        let sentences = vec!["اب".to_string(), "@@@".to_string(), "جح".to_string()];
+
+        let results = map_sentences(&sentences, &engine, None).unwrap();
+
+        assert_eq!(results.len(), 3);
+        assert_eq!(
+            results[1], "@@@",
+            "an untokenizable sentence passes through unchanged"
+        );
+        assert_eq!(
+            engine
+                .infer_batch_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
     }
 }
