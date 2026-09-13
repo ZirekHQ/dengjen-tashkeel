@@ -44,7 +44,7 @@ static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
     HashSet::from_iter(
         [1618, 1617, 1614, 1615, 1616, 1611, 1612, 1613]
             .iter()
-            .map(|i| unsafe { char::from_u32_unchecked(*i) }),
+            .map(|i| char::from_u32(*i).unwrap()),
     )
 });
 static NORMALIZED_DIAC_MAP: Lazy<HashMap<&str, &str>> =
@@ -307,8 +307,8 @@ mod tests {
     #[test]
     fn test_extract_diacritics_when_empty() {
         let (chars, diacritics) = extract_chars_and_diacritics("", false);
-        assert_eq!(chars.is_empty(), true);
-        assert_eq!(diacritics.is_empty(), true);
+        assert!(chars.is_empty());
+        assert!(diacritics.is_empty());
     }
 
     #[test]
@@ -318,7 +318,7 @@ mod tests {
 
         assert_eq!(chars.chars().count(), diacritics.len());
 
-        assert_eq!(chars.chars().nth(0), Some('ب'));
+        assert_eq!(chars.chars().next(), Some('ب'));
         assert_eq!(diacritics[0], "ِ");
 
         assert_eq!(chars.chars().nth(6), Some('ل'));
@@ -352,21 +352,21 @@ mod tests {
         let no_taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, None, false)?;
         let taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, Some(0.8), false)?;
 
-        assert_eq!(taskeen == no_taskeen, false);
+        assert_ne!(taskeen, no_taskeen);
 
         let sukoon = char::from_u32(0x652).unwrap();
         let no_taskeen_sukoon_count = no_taskeen.chars().filter(|c| c == &sukoon).count();
         let taskeen_sukoon_count = taskeen.chars().filter(|c| c == &sukoon).count();
-        assert_eq!(taskeen_sukoon_count > no_taskeen_sukoon_count, true);
+        assert!(taskeen_sukoon_count > no_taskeen_sukoon_count);
 
         Ok(())
     }
     #[test]
     fn test_hints() -> DengjenTashkeelResult<()> {
         let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";
-        do_tashkeel(&*INFERENCE_ENGINE, &text, None, false)?;
+        do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
         let text = "مّنْ يُقلِّب  ABC";
-        do_tashkeel(&*INFERENCE_ENGINE, &text, None, false)?;
+        do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
         Ok(())
     }
 
