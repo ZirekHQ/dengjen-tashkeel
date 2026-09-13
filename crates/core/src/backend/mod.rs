@@ -34,7 +34,7 @@ pub fn create_inference_engine(
     match model_path {
         Some(path) => {
             log::info!("Loading model from path: `{}`", path.display());
-            let engine = OrtEngine::from_path(&path)?;
+            let engine = OrtEngine::from_path(&path, None)?;
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
         None => {

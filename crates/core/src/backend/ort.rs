@@ -2,8 +2,11 @@ use crate::{DengjenTashkeelError, DengjenTashkeelResult, InferenceEngine};
 use ndarray::{Array1, Array2};
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::value::Tensor;
+use std::num::NonZeroUsize;
 use std::path::Path;
-use std::sync::Mutex;
+
+mod session_pool;
+use session_pool::SessionPool;
 
 impl<R> From<ort::Error<R>> for DengjenTashkeelError {
     fn from(other: ort::Error<R>) -> Self {
@@ -15,7 +18,7 @@ impl<R> From<ort::Error<R>> for DengjenTashkeelError {
 }
 
 fn ort_session_run(
-    session: &Mutex<Session>,
+    pool: &SessionPool<Session>,
     input_ids: Vec<i64>,
     diac_ids: Vec<i64>,
     seq_length: usize,
@@ -34,11 +37,9 @@ fn ort_session_run(
             Tensor::from_array(diac_ids)?,
             Tensor::from_array(input_length)?,
         ];
-        let mut session = session.lock().map_err(|e| {
-            DengjenTashkeelError::InferenceError(format!(
-                "Inference session mutex was poisoned by a panic on another thread: {e}"
-            ))
-        })?;
+        let mut session = pool
+            .acquire()
+            .map_err(|e| DengjenTashkeelError::InferenceError(e.to_string()))?;
         let outputs = session.run(inputs)?;
         if outputs.len() < 2 {
             return Err(DengjenTashkeelError::InferenceError(format!(
@@ -68,28 +69,51 @@ fn ort_session_run(
 
 const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
 
-pub struct OrtEngine(Mutex<Session>);
+/// Number of pooled sessions to build when the caller doesn't request a specific size.
+///
+/// One session per available thread of parallelism lets `rayon`'s sentence fan-out (or
+/// any other concurrent caller) run inference without queuing on a single session, while
+/// each session itself uses a single intra-op thread to avoid oversubscribing the machine.
+fn default_pool_size() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(1).unwrap())
+}
+
+fn build_session(model_bytes: &[u8]) -> DengjenTashkeelResult<Session> {
+    Ok(Session::builder()?
+        .with_optimization_level(GraphOptimizationLevel::Level3)?
+        .with_intra_threads(1)?
+        .commit_from_memory(model_bytes)?)
+}
+
+pub struct OrtEngine(SessionPool<Session>);
 
 impl OrtEngine {
-    pub fn from_bytes(model_bytes: &[u8]) -> DengjenTashkeelResult<OrtEngine> {
-        let session = Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .with_parallel_execution(true)?
-            .with_inter_threads(2)?
-            .with_intra_threads(2)?
-            .commit_from_memory(model_bytes)?;
+    pub fn from_bytes(
+        model_bytes: &[u8],
+        pool_size: Option<NonZeroUsize>,
+    ) -> DengjenTashkeelResult<OrtEngine> {
+        let pool_size = pool_size.unwrap_or_else(default_pool_size).get();
+        let sessions = (0..pool_size)
+            .map(|_| build_session(model_bytes))
+            .collect::<DengjenTashkeelResult<Vec<_>>>()?;
 
-        Ok(Self(Mutex::new(session)))
+        Ok(Self(SessionPool::new(sessions)))
     }
-    pub fn from_path(model_path: impl AsRef<Path>) -> DengjenTashkeelResult<Self> {
-        let session = Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .commit_from_file(model_path)?;
-
-        Ok(Self(Mutex::new(session)))
+    pub fn from_path(
+        model_path: impl AsRef<Path>,
+        pool_size: Option<NonZeroUsize>,
+    ) -> DengjenTashkeelResult<Self> {
+        let model_path = model_path.as_ref();
+        let model_bytes = std::fs::read(model_path).map_err(|e| {
+            DengjenTashkeelError::InferenceError(format!(
+                "Failed to read model file `{}`. Caused by: {e}",
+                model_path.display()
+            ))
+        })?;
+        Self::from_bytes(&model_bytes, pool_size)
     }
     pub fn with_bundled_model() -> DengjenTashkeelResult<OrtEngine> {
-        Self::from_bytes(MODEL_BYTES)
+        Self::from_bytes(MODEL_BYTES, None)
     }
 }
 
@@ -107,12 +131,13 @@ impl InferenceEngine for OrtEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn from_bytes_errors_on_malformed_model_data() {
         let malformed_bytes = b"this is not a valid onnx model";
 
-        let result = OrtEngine::from_bytes(malformed_bytes);
+        let result = OrtEngine::from_bytes(malformed_bytes, None);
 
         assert!(matches!(
             result,
@@ -146,5 +171,24 @@ mod tests {
             result,
             Err(DengjenTashkeelError::InferenceError(_))
         ));
+    }
+
+    #[test]
+    fn infer_succeeds_when_called_concurrently_from_multiple_threads() {
+        let pool_size = std::num::NonZeroUsize::new(2).unwrap();
+        let engine = Arc::new(OrtEngine::from_bytes(MODEL_BYTES, Some(pool_size)).unwrap());
+
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let engine = Arc::clone(&engine);
+                std::thread::spawn(move || engine.infer(vec![1i64, 2, 3], vec![0i64, 0, 0], 3))
+            })
+            .collect();
+
+        for handle in handles {
+            let (target_ids, logits) = handle.join().unwrap().unwrap();
+            assert_eq!(target_ids.len(), 3);
+            assert!(!logits.is_empty());
+        }
     }
 }
