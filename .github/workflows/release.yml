@@ -328,17 +328,21 @@ jobs:
       - name: Create GitHub Release
         # Hand-patched for zizmor template-injection (tag -> env var) -- re-apply if
         # regenerating via 'cargo dist generate'.
+        #
+        # Hand-patched: dropped `--target "$RELEASE_COMMIT"` -- re-apply if
+        # regenerating via 'cargo dist generate'. It's a no-op (tag already
+        # exists by now) that costs an extra `workflows: write` grant on
+        # GITHUB_TOKEN, since the target commit's tree includes workflow files.
         env:
           PRERELEASE_FLAG: "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease' || '' }}"
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
           ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
-          RELEASE_COMMIT: "${{ github.sha }}"
           RELEASE_TAG: "${{ needs.plan.outputs.tag }}"
         run: |
           # Write and read notes from a file to avoid quoting breaking things
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
 
-          gh release create "$RELEASE_TAG" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          gh release create "$RELEASE_TAG" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
 
   announce:
     needs:
