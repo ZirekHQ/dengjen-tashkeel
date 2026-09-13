@@ -43,8 +43,6 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        # Sonar S8482: rustup.rs is a live, server-side-mutable redirect with
-        # no static checksum by design -- same accepted tradeoff as release.yml's own rustup install.
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup-init.sh
           sh rustup-init.sh -y --default-toolchain none
@@ -61,13 +59,12 @@ jobs:
         # (3.10) can't install it. deadsnakes dropped 20.04/focal entirely
         # (why it's not in this matrix) -- fetch a self-contained Python 3.11 via uv instead.
         #
-        # bash for pipefail -- otherwise a curl failure in this pipe goes
-        # unnoticed and only surfaces later as a confusing "uv: not found".
-        shell: bash
         # Sonar S8482: astral.sh/uv/install.sh is a live, server-side-mutable
         # script with no static checksum by design -- same tradeoff as sh.rustup.rs above.
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | sh
+          curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o uv-install.sh
+          sh uv-install.sh
+          rm uv-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install maturin
