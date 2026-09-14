@@ -179,9 +179,8 @@ jobs:
     needs: [check-version, build-natives]
     if: needs.check-version.outputs.skip != 'true'
     runs-on: ubuntu-latest
-    # No environment gate here -- tag-and-release.yml's shared `approve` job (environment:
-    # release) covers it when called from there. A manual workflow_dispatch of this file
-    # directly bypasses that gate.
+    # No environment gate here -- merging the version-bump PR is the real decision point
+    # (see #92), so there's nothing left to approve by the time this runs.
     permissions:
       contents: read
     steps:
