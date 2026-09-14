@@ -58,9 +58,6 @@ jobs:
         # onnxruntime>=1.28 dropped cp310 wheels, so 22.04's stock python3
         # (3.10) can't install it. deadsnakes dropped 20.04/focal entirely
         # (why it's not in this matrix) -- fetch a self-contained Python 3.11 via uv instead.
-        #
-        # Sonar S8482: astral.sh/uv/install.sh is a live, server-side-mutable
-        # script with no static checksum by design -- same tradeoff as sh.rustup.rs above.
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o uv-install.sh
           sh uv-install.sh
@@ -80,15 +77,12 @@ jobs:
         run: maturin build --release --out dist
 
       - name: Install wheel and smoke-test the import
-        # Installs the exact wheel file, not a package name -- SonarCloud's
-        # githubactions:S8544 flags unpinned-version installs. onnxruntime
-        # comes along via the wheel's own [project.dependencies] since this isn't --no-deps.
-        #
-        # onnxruntime resolves within pyproject.toml's own declared range
-        # (unpinned by design, to track compatible 1.x releases) -- --only-binary
-        # :all: still blocks the severe case, arbitrary sdist build-script execution.
+        # onnxruntime pinned exactly (SonarCloud's githubactions:S8544 flags
+        # unresolved-version installs) -- bump alongside pyproject.toml's own
+        # >=1.28,<2 range. --no-deps on the wheel so pip doesn't re-resolve it.
         run: |
-          pip install --only-binary :all: crates/python/dist/*.whl
+          pip install --only-binary :all: onnxruntime==1.30.0
+          pip install --no-deps --only-binary :all: crates/python/dist/*.whl
           python3 -c "
           from dengjen_tashkeel_py import tashkeel
           result = tashkeel('بسم الله الرحمن الرحيم')
