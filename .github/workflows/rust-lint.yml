@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.1"
           components: clippy
       - run: cargo install clippy-sarif sarif-fmt --locked
       - name: cargo clippy
@@ -39,7 +39,7 @@ jobs:
         run: cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings
       - name: upload clippy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: clippy-results.sarif
 
@@ -65,7 +65,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.1"
           components: rustfmt
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
@@ -96,9 +96,9 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.1"
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@b6b84cf49ebfe0176417bdce007c624f0db37f20 # v2.86.2
+      - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
           tool: cargo-llvm-cov
       - name: cargo llvm-cov (workspace)
