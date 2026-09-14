@@ -5,14 +5,15 @@ name: Tag and trigger release
 # Every other push to main is a no-op here.
 #
 # One vX.Y.Z tag now feeds all four registries (crates.io, PyPI, Maven
-# Central, GitHub Releases) as reusable-workflow jobs of this same run,
-# sharing the one `approve` gate below instead of each re-approving
-# separately. vcpkg/Conan (CONTRIBUTING.md step 5) stays manual -- needs the
+# Central, GitHub Releases) as reusable-workflow jobs of this same run.
+# No approval gate -- merging the version-bump PR is the real decision
+# point; a gate after the tag is already pushed can't cleanly undo
+# anything. vcpkg/Conan (CONTRIBUTING.md step 5) stays manual -- needs the
 # release archives first.
 #
 # Tag push itself isn't gated by dry_run -- release.yml/python-publish.yml/
 # java-publish.yml/publish.yml all need a real tag ref to build against.
-# Only `approve` and the publish steps inside those jobs honor dry_run.
+# Only the publish steps inside those jobs honor dry_run.
 on:
   push:
     branches:
@@ -93,25 +94,9 @@ jobs:
             exit 1
           fi
 
-  approve:
-    name: Approve release
-    needs: tag-and-release
-    if: inputs.dry_run != true
-    runs-on: ubuntu-latest
-    environment: release
-    permissions: {}
-    steps:
-      - env:
-          VERSION: ${{ needs.tag-and-release.outputs.version }}
-        run: echo "Approved v${VERSION} for release"
-
-  # always() is paired with an explicit success-or-skipped check on each of the jobs below,
-  # not a bare "run regardless" -- needed because `approve` is legitimately skipped, not
-  # failed, on a dry run.
   release:
     name: GitHub Release (cargo-dist)
-    needs: [tag-and-release, approve]
-    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    needs: tag-and-release
     permissions:
       contents: write
     uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
@@ -121,8 +106,7 @@ jobs:
 
   crates:
     name: crates.io
-    needs: [tag-and-release, approve]
-    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    needs: tag-and-release
     permissions:
       contents: read
       id-token: write
@@ -132,8 +116,7 @@ jobs:
 
   java:
     name: Maven Central (Java bindings)
-    needs: [tag-and-release, approve]
-    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    needs: tag-and-release
     permissions:
       contents: read
     uses: ./.github/workflows/java-publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
@@ -149,8 +132,7 @@ jobs:
 
   python:
     name: PyPI
-    needs: [tag-and-release, approve]
-    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    needs: tag-and-release
     permissions:
       contents: read
       id-token: write
