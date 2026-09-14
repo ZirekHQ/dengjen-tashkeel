@@ -1,9 +1,8 @@
 name: Publish to crates.io
 
-# Invoked as a job of tag-and-release.yml right after tagging vX.Y.Z (sharing
-# its `approve` gate); also dispatchable by hand as the retry path since
-# every step is idempotent. Not tag-triggered itself -- a mistaken v*-shaped
-# tag push would publish for real.
+# Invoked as a job of tag-and-release.yml right after tagging vX.Y.Z; also
+# dispatchable by hand as the retry path since every step is idempotent. Not
+# tag-triggered itself -- a mistaken v*-shaped tag push would publish for real.
 on:
   workflow_dispatch:
     inputs:
@@ -25,9 +24,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # No environment gate here -- tag-and-release.yml's shared `approve` job (environment:
-    # release) covers it when called from there. A manual workflow_dispatch of this file
-    # directly bypasses that gate.
+    # No environment gate here -- merging the version-bump PR is the real decision point
+    # (see #92), so there's nothing left to approve by the time this runs.
     permissions:
       contents: read
       id-token: write
