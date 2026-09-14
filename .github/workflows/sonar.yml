@@ -33,7 +33,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.1"
 
       - name: Build the capi cdylib
         # ffi_usage_example.py (one of the 3 files sonar-project.properties
@@ -46,7 +46,7 @@ jobs:
           # Only the interpreter that runs pytest -- unrelated to sonar.python.version
           # below (the syntax version Sonar's analyzer parses against). 3.9
           # doesn't satisfy pytest==9.1.1's own Requires-Python (>=3.10).
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Run ffi_usage_example.py's tests with coverage
         # Runs from crates/capi/ itself: --cov needs an importable module
