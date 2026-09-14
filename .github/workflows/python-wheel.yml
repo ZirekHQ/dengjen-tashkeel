@@ -82,6 +82,9 @@ jobs:
         # >=1.28,<2 range. --no-deps on the wheel so pip doesn't re-resolve it.
         run: |
           pip install --only-binary :all: onnxruntime==1.30.0
+          # S8544 false positive: --no-deps disables resolution entirely, and
+          # the target is a local file glob (one match, just built above) --
+          # no registry lookup, so there's no floating version to lock.
           pip install --no-deps --only-binary :all: crates/python/dist/*.whl
           python3 -c "
           from dengjen_tashkeel_py import tashkeel
