@@ -1,5 +1,6 @@
 name: Release
 # Hand-patched for Sonar S8233 (write permission moved from workflow to job level) -- re-apply if regenerating via 'cargo dist generate'.
+# Hand-patched: added `timeout-minutes` to every job -- re-apply if regenerating via 'cargo dist generate'.
 permissions: {}
 
 # Hand-patched: added `workflow_call`, dropped `push: tags` -- re-apply if regenerating via
@@ -28,6 +29,7 @@ jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     runs-on: "ubuntu-24.04"
+    timeout-minutes: 15
     permissions:
       contents: read
     outputs:
@@ -98,6 +100,7 @@ jobs:
       # - N "local" tasks that build each platform's binaries and platform-specific installers
       matrix: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     container: ${{ matrix.container && matrix.container.image || null }}
     permissions:
       contents: read
@@ -175,6 +178,7 @@ jobs:
       - plan
       - build-local-artifacts
     runs-on: "ubuntu-24.04"
+    timeout-minutes: 20
     permissions:
       contents: read
     env:
@@ -239,6 +243,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: "ubuntu-24.04"
+    timeout-minutes: 20
     permissions:
       contents: write
     outputs:
@@ -318,6 +323,7 @@ jobs:
     # "host" however must run to completion, no skipping allowed!
     if: ${{ always() && needs.host.result == 'success' }}
     runs-on: "ubuntu-24.04"
+    timeout-minutes: 10
     permissions:
       contents: read
     env:

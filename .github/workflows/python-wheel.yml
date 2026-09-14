@@ -12,9 +12,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: python-wheel-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-wheel:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     container: ubuntu:${{ matrix.ubuntu }}
     strategy:
       fail-fast: false

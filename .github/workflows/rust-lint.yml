@@ -10,9 +10,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: rust-lint-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   clippy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       security-events: write
@@ -24,6 +29,7 @@ jobs:
         with:
           toolchain: "1.98.1"
           components: clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo install clippy-sarif sarif-fmt --locked
       - name: cargo clippy
         # SonarCloud has no Rust analyzer (sonar-project.properties), so the
@@ -50,6 +56,7 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       issues: write
@@ -64,6 +71,7 @@ jobs:
 
   fmt:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -72,15 +80,18 @@ jobs:
         with:
           toolchain: "1.98.1"
           components: rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
   deny:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           # Licenses/bans/sources are cheap and don't need a full build. Advisories are also
@@ -92,6 +103,7 @@ jobs:
   # own coverage feature since SonarCloud never scanned this workspace (sonar-project.properties).
   coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
       code-quality: write
@@ -103,6 +115,7 @@ jobs:
         with:
           toolchain: "1.98.1"
           components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
           tool: cargo-llvm-cov
@@ -113,3 +126,20 @@ jobs:
         with:
           file: cobertura.xml
           language: Rust
+
+  # Compiles against the pinned floor in [workspace.package].rust-version (Cargo.toml),
+  # separate from the "1.98.1" toolchain the jobs above use -- catches a dependency bump
+  # or language feature that would silently raise the workspace's real MSRV.
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: "1.88.0" # must match [workspace.package].rust-version in Cargo.toml
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo check (MSRV)
+        run: cargo check --workspace --locked

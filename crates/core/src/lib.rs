@@ -384,6 +384,31 @@ pub fn _do_tashkeel_impl(
     )
 }
 
+// Doc-hidden re-export of private hot-path internals: benches/ is a separate compilation
+// unit from #[cfg(test)], so it can't see them otherwise; NullEngine stands in for a real
+// model so do_tashkeel can be benchmarked without one.
+#[cfg(feature = "internal-benchmarks")]
+#[doc(hidden)]
+pub mod bench_internal {
+    /// Returns the `seq_length` of tokenizing `text` via the crate's private `tokenize`.
+    pub fn tokenize(text: &str) -> super::DengjenTashkeelResult<usize> {
+        super::tokenize(text).map(|t| t.seq_length)
+    }
+
+    pub struct NullEngine;
+
+    impl super::InferenceEngine for NullEngine {
+        fn infer(
+            &self,
+            _input_ids: Vec<i64>,
+            _diac_ids: Vec<i64>,
+            seq_length: usize,
+        ) -> super::DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
+            Ok((vec![5; seq_length], vec![0.0; seq_length]))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -636,5 +661,41 @@ mod tests {
                 .load(std::sync::atomic::Ordering::SeqCst),
             1
         );
+    }
+
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn to_valid_chars_never_panics_and_only_keeps_known_chars(input in ".*") {
+                let (valid, _invalid) = to_valid_chars(input.chars());
+                for c in valid.chars() {
+                    prop_assert!(
+                        c == NUMERAL_SYMBOL || INPUT_ID_MAP.contains_key(&c) || ARABIC_DIACRITICS.contains(&c)
+                    );
+                }
+                prop_assert!(valid.chars().count() <= input.chars().count());
+            }
+
+            // tokenize's input_ids/diac_ids pairing depends on this alignment holding
+            // for any input, not just well-formed Arabic text.
+            #[test]
+            fn extract_chars_and_diacritics_never_panics_and_aligns_lengths(
+                input in ".*",
+                normalize in any::<bool>(),
+            ) {
+                let (chars, diacritics) = extract_chars_and_diacritics(&input, normalize);
+                prop_assert_eq!(chars.chars().count(), diacritics.len());
+            }
+
+            #[test]
+            fn tokenize_never_panics(input in ".*") {
+                if let Ok(tok) = tokenize(&input) {
+                    prop_assert_eq!(tok.seq_length, tok.input_ids.len());
+                }
+            }
+        }
     }
 }
