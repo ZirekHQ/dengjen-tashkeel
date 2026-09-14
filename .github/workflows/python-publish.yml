@@ -39,6 +39,7 @@ jobs:
   check-version:
     name: Verify tag matches crate version
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -90,6 +91,7 @@ jobs:
     name: build (${{ matrix.target }})
     needs: check-version
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
@@ -143,6 +145,7 @@ jobs:
     name: build (sdist)
     needs: check-version
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -168,6 +171,7 @@ jobs:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: pypi
     permissions:
       # gh-action-pypi-publish trades this OIDC token for a short-lived PyPI

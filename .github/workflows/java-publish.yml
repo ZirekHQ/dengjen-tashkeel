@@ -39,6 +39,7 @@ jobs:
   check-version:
     name: Verify tag matches Gradle module version
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -132,6 +133,7 @@ jobs:
     needs: check-version
     if: needs.check-version.outputs.skip != 'true'
     runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
@@ -179,6 +181,7 @@ jobs:
     needs: [check-version, build-natives]
     if: needs.check-version.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     # No environment gate here -- merging the version-bump PR is the real decision point
     # (see #92), so there's nothing left to approve by the time this runs.
     permissions:

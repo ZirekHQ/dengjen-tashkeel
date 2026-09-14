@@ -19,9 +19,14 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: java-test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:

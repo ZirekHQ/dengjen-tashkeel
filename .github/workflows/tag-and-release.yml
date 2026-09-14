@@ -36,6 +36,7 @@ permissions:
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # head_commit is absent on workflow_dispatch, hence the event_name check
     # first. It's also the single new commit a squash/rebase merge produces --
     # multiple commits in one push would only check the last of them.
