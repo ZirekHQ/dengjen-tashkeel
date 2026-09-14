@@ -1,16 +1,14 @@
 name: Publish Python wheels
 
-# Builds real dengjen-tashkeel-py wheels and publishes to PyPI on a
-# version-tag push. Separate from python-wheel.yml, which builds an
-# ubuntu-latest smoke-test wheel on every push/PR, not a release artifact.
+# Builds real dengjen-tashkeel-py wheels and publishes to PyPI, invoked as a
+# job of tag-and-release.yml right after the release tag is pushed. Separate
+# from python-wheel.yml, which builds an ubuntu-latest smoke-test wheel on
+# every push/PR, not a release artifact.
 #
 # Platform matrix mirrors [workspace.metadata.dist]'s Cargo.toml targets
 # (Intel macOS dropped there, dropped here too). PyO3 is abi3-py39, so one
 # wheel per platform covers every CPython >=3.9 -- no version axis needed.
 on:
-  push:
-    tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*'
   # Manual retrigger for a tag whose run failed for an unrelated reason.
   # Takes an explicit `tag` input rather than "Use workflow from" (which
   # defaults to main); every checkout in this file uses this input.
@@ -22,6 +20,15 @@ on:
         type: string
       dry_run:
         description: "Dry Run: build wheels but publish nothing"
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      dry_run:
         required: false
         type: boolean
         default: false
@@ -100,6 +107,9 @@ jobs:
           - target: x86_64-pc-windows-msvc
             runner: windows-latest
             manylinux: auto
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            manylinux: "2_28"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -107,10 +117,10 @@ jobs:
           persist-credentials: false
 
       - name: Install Python
-        # Only needed for the native macOS/Windows builds; the Linux leg
-        # builds inside maturin-action's own manylinux container image,
+        # Only needed for the native macOS/Windows builds; both Linux legs
+        # build inside maturin-action's own manylinux container image,
         # which already bundles the Python interpreters it needs.
-        if: matrix.target != 'x86_64-unknown-linux-gnu'
+        if: matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'aarch64-unknown-linux-gnu'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
@@ -129,20 +139,34 @@ jobs:
           path: crates/python/dist/*.whl
           if-no-files-found: error
 
-  # A job can only declare one environment, and `publish` below already needs `pypi` for its own
-  # OIDC trust boundary -- this separate job carries the `release` approval gate instead, so a
-  # direct dispatch of this workflow can't bypass it the way it could before.
-  approve:
-    name: Approve release
+  build-sdist:
+    name: build (sdist)
+    needs: check-version
     runs-on: ubuntu-latest
-    environment: release
-    permissions: {}
+    permissions:
+      contents: read
     steps:
-      - run: echo "Approved for release"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          working-directory: crates/python
+          command: sdist
+          args: --out dist
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-sdist
+          path: crates/python/dist/*.tar.gz
+          if-no-files-found: error
 
   publish:
     name: Publish to PyPI
-    needs: [build-wheels, approve]
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

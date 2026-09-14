@@ -4,13 +4,15 @@ name: Tag and trigger release
 # (matched by its exact commit subject, the only commit on that branch).
 # Every other push to main is a no-op here.
 #
-# One vX.Y.Z tag now triggers all four registries (crates.io, PyPI, Maven
-# Central, GitHub Releases) via the dispatches below. vcpkg/Conan
-# (CONTRIBUTING.md step 5) stays manual -- needs the release archives first.
+# One vX.Y.Z tag now feeds all four registries (crates.io, PyPI, Maven
+# Central, GitHub Releases) as reusable-workflow jobs of this same run,
+# sharing the one `approve` gate below instead of each re-approving
+# separately. vcpkg/Conan (CONTRIBUTING.md step 5) stays manual -- needs the
+# release archives first.
 #
-# Tag push itself isn't gated by dry_run -- python-publish/java-publish/
-# release.yml (cargo-dist) all need a real tag ref to dispatch against.
-# Only the four environment:release-gated publish jobs honor dry_run.
+# Tag push itself isn't gated by dry_run -- release.yml/python-publish.yml/
+# java-publish.yml/publish.yml all need a real tag ref to build against.
+# Only `approve` and the publish steps inside those jobs honor dry_run.
 on:
   push:
     branches:
@@ -39,10 +41,6 @@ jobs:
     if: "github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
     permissions:
       contents: write
-      # GITHUB_TOKEN can trigger workflow_dispatch (but not re-trigger via push,
-      # to block recursive runs) -- so no PAT is needed, and it's also why the
-      # tag pushed below doesn't double-fire the other workflows' own tag triggers.
-      actions: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -107,45 +105,56 @@ jobs:
           VERSION: ${{ needs.tag-and-release.outputs.version }}
         run: echo "Approved v${VERSION} for release"
 
-  dispatch:
-    name: Trigger downstream releases
+  # always() is paired with an explicit success-or-skipped check on each of the jobs below,
+  # not a bare "run regardless" -- needed because `approve` is legitimately skipped, not
+  # failed, on a dry run.
+  release:
+    name: GitHub Release (cargo-dist)
     needs: [tag-and-release, approve]
-    # always() is paired with an explicit success-or-skipped check, not a bare "run regardless" --
-    # needed because `approve` is legitimately skipped, not failed, on a dry run.
     if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
-    runs-on: ubuntu-latest
     permissions:
-      actions: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      VERSION: ${{ needs.tag-and-release.outputs.version }}
-      DRY_RUN: ${{ inputs.dry_run == true }}
-    # No -e: the tag is already pushed and can't be re-pushed on retry, so a
-    # transient failure on one `gh workflow run` call must not abort the
-    # rest -- every dispatch is attempted regardless, failing only at the end.
-    steps:
-      - name: Trigger downstream releases
-        run: |
-          set -uo pipefail
-          failed=0
-          dry_run_flag=()
-          [ "$DRY_RUN" = "true" ] && dry_run_flag=(-f dry_run=true)
-          # release.yml reads the version from github.ref_name itself, so it's
-          # dispatched against the tag directly -- workflow_dispatch runs the
-          # workflow file's content as it exists at --ref, like a real tag push.
-          # No checkout in this job, so gh can't infer the target repo from
-          # a local .git -- every call needs --repo explicitly.
-          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "v${VERSION}" "${dry_run_flag[@]}" || failed=1
-          # python-publish.yml / java-publish.yml take an explicit `tag` input
-          # and are dispatched against main, since their own checkouts resolve
-          # the ref to build from `inputs.tag`, not the dispatch ref.
-          gh workflow run python-publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=v${VERSION}" "${dry_run_flag[@]}" || failed=1
-          gh workflow run java-publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=v${VERSION}" "${dry_run_flag[@]}" || failed=1
-          # publish.yml takes no tag input, so it's dispatched against the tag
-          # ref directly, not main -- otherwise an unrelated merge landing on
-          # main between the tag push and this dispatch would publish the wrong commit.
-          gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref "v${VERSION}" "${dry_run_flag[@]}" || failed=1
-          if [ "$failed" -eq 1 ]; then
-            echo "::error::One or more downstream workflow dispatches failed -- check the Actions tab and manually dispatch any that didn't fire (safe to re-dispatch one that already ran; each is independently idempotent or version-checked)."
-            exit 1
-          fi
+      contents: write
+    uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    with:
+      tag: v${{ needs.tag-and-release.outputs.version }}
+      dry_run: ${{ inputs.dry_run == true }}
+
+  crates:
+    name: crates.io
+    needs: [tag-and-release, approve]
+    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    with:
+      dry_run: ${{ inputs.dry_run == true }}
+
+  java:
+    name: Maven Central (Java bindings)
+    needs: [tag-and-release, approve]
+    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/java-publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    with:
+      tag: v${{ needs.tag-and-release.outputs.version }}
+      dry_run: ${{ inputs.dry_run == true }}
+    secrets:
+      JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+      JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+      JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+      JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+      JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+
+  python:
+    name: PyPI
+    needs: [tag-and-release, approve]
+    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/python-publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    with:
+      tag: v${{ needs.tag-and-release.outputs.version }}
+      dry_run: ${{ inputs.dry_run == true }}

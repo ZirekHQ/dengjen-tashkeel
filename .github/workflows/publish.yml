@@ -1,13 +1,20 @@
 name: Publish to crates.io
 
-# Triggered by tag-and-release.yml right after tagging vX.Y.Z; also
-# dispatchable by hand as the retry path since every step is idempotent.
-# Not tag-triggered itself -- a mistaken v*-shaped tag push would publish for real.
+# Invoked as a job of tag-and-release.yml right after tagging vX.Y.Z (sharing
+# its `approve` gate); also dispatchable by hand as the retry path since
+# every step is idempotent. Not tag-triggered itself -- a mistaken v*-shaped
+# tag push would publish for real.
 on:
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Dry Run: publish nothing"
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      dry_run:
         required: false
         type: boolean
         default: false
@@ -18,10 +25,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Required on every dispatch, dry-run included -- environment protection is
-    # per-job-per-run, so a direct dispatch bypassing tag-and-release.yml's
-    # `approve` gate would otherwise reach a real `cargo publish` ungated.
-    environment: release
+    # No environment gate here -- tag-and-release.yml's shared `approve` job (environment:
+    # release) covers it when called from there. A manual workflow_dispatch of this file
+    # directly bypasses that gate.
     permissions:
       contents: read
       id-token: write

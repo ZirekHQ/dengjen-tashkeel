@@ -1,15 +1,6 @@
 name: Publish Java bindings
 
-# Publishes the bindings/java Gradle module to Maven Central on the same
-# version-tag push that triggers release.yml (Rust) and python-publish.yml
-# (Python), so a Maven Central release always lines up with the others.
 on:
-  push:
-    tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*'
-  # Manual retrigger for a tag whose run failed for an unrelated reason --
-  # mirrors python-publish.yml's `tag` input, since "Use workflow from"
-  # defaults to main, which would fail confusingly in check-version below.
   workflow_dispatch:
     inputs:
       tag:
@@ -21,6 +12,26 @@ on:
         required: false
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      JRELEASER_MAVENCENTRAL_USERNAME:
+        required: true
+      JRELEASER_MAVENCENTRAL_PASSWORD:
+        required: true
+      JRELEASER_GPG_PASSPHRASE:
+        required: true
+      JRELEASER_GPG_SECRET_KEY:
+        required: true
+      JRELEASER_GPG_PUBLIC_KEY:
+        required: true
 
 permissions: {}
 
@@ -30,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      skip: ${{ steps.check-published.outputs.skip }}
     steps:
       # inputs.tag (workflow_dispatch) is free text from whoever has dispatch
       # access -- unvalidated it'd publish whatever ref it names, real GPG/
@@ -68,11 +81,34 @@ jobs:
             exit 1
           fi
 
+      - name: Check whether this version is already on Maven Central
+        id: check-published
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(echo "${RELEASE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
+          url="https://repo1.maven.org/maven2/io/github/zirekhq/dengjen-tashkeel/${version}/dengjen-tashkeel-${version}.pom"
+          status="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
+          case "$status" in
+            200)
+              echo "::notice::dengjen-tashkeel ${version} is already on Maven Central -- skipping"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::unexpected HTTP ${status} checking Maven Central for dengjen-tashkeel ${version}" >&2
+              exit 1
+              ;;
+          esac
+
       # Fails here, before the multi-platform native builds run, rather than deep into the
       # publish job after paying for build-natives -- a missing secret is a maintainer setup gap,
       # not something worth burning CI minutes on before discovering it.
       - name: Verify Maven Central / GPG secrets are set
-        if: inputs.dry_run != true
+        if: inputs.dry_run != true && steps.check-published.outputs.skip != 'true'
         env:
           JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
           JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
@@ -94,6 +130,7 @@ jobs:
   build-natives:
     name: Build native library (${{ matrix.platform.classifier }})
     needs: check-version
+    if: needs.check-version.outputs.skip != 'true'
     runs-on: ${{ matrix.platform.runner }}
     permissions:
       contents: read
@@ -102,6 +139,8 @@ jobs:
         platform:
           - classifier: linux-x86_64
             runner: ubuntu-22.04
+          - classifier: linux-aarch64
+            runner: ubuntu-22.04-arm
           - classifier: windows-x64
             runner: windows-2022
           - classifier: macos-aarch64
@@ -137,12 +176,12 @@ jobs:
 
   publish:
     name: Publish to Maven Central
-    needs: build-natives
+    needs: [check-version, build-natives]
+    if: needs.check-version.outputs.skip != 'true'
     runs-on: ubuntu-latest
-    # Required even on a dry run (the Publish step below still skips) -- environment protection
-    # is per-job-per-run, so a direct dispatch of this workflow would otherwise bypass
-    # tag-and-release.yml's `approve` gate entirely.
-    environment: release
+    # No environment gate here -- tag-and-release.yml's shared `approve` job (environment:
+    # release) covers it when called from there. A manual workflow_dispatch of this file
+    # directly bypasses that gate.
     permissions:
       contents: read
     steps:
@@ -185,3 +224,12 @@ jobs:
         # jreleaserDeploy only uploads to Maven Central -- it does not touch GitHub releases,
         # which release.yml (cargo-dist) already publishes for this same tag.
         run: ./gradlew publish jreleaserDeploy --no-daemon --stacktrace
+
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: jreleaser-release
+          path: |
+            bindings/java/build/jreleaser/trace.log
+            bindings/java/build/jreleaser/output.properties
+          if-no-files-found: ignore
