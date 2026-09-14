@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TashkeelTest {
 
@@ -60,8 +61,8 @@ class TashkeelTest {
     }
 
     @Test
-    void loadWithMalformedModelFileThrowsInferenceError() throws IOException {
-        Path malformed = Files.createTempFile("dengjen-tashkeel-test", ".onnx");
+    void loadWithMalformedModelFileThrowsInferenceError(@TempDir Path tempDir) throws IOException {
+        Path malformed = tempDir.resolve("dengjen-tashkeel-test.onnx");
         Files.writeString(malformed, "this is not a valid onnx model");
 
         TashkeelException exception = assertThrows(TashkeelException.class,

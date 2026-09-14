@@ -62,6 +62,9 @@ public final class Tashkeel implements AutoCloseable {
 
     @Override
     public void close() {
+        // No-op: init sets a process-global native singleton with no teardown
+        // of its own (dengjen_tashkeel.h) -- nothing to release per instance.
+        // Kept AutoCloseable so a future native deinit slots in without breaking callers.
     }
 
     private static void invokeInit(MemorySegment modelPathPtr, MemorySegment outError) {

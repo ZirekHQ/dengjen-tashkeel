@@ -1,14 +1,12 @@
 name: Sonar fork fallback
 
-# "SonarCloud Code Analysis" is a required check on main, but the Sonar job in
-# sonar.yml is deliberately skipped for fork PRs because forks are never given
-# SONAR_TOKEN. A required check that never reports leaves the PR stuck on
-# "Expected — waiting for status", so this posts the context itself.
+# "SonarCloud Code Analysis" is a required check, but sonar.yml skips fork
+# PRs (no SONAR_TOKEN) -- leaving it stuck "Expected" forever, so this
+# workflow posts that status context itself.
 #
-# pull_request_target is used because GITHUB_TOKEN is read-only on
-# pull_request for forks, and writing a commit status needs write access.
-# That trigger runs in the base repo's context with its secrets, so this
-# workflow deliberately does NOT check out or execute anything from the PR.
+# pull_request_target: GITHUB_TOKEN is read-only on pull_request for forks,
+# and writing a commit status needs write access. This workflow deliberately
+# never checks out or executes anything from the PR itself.
 
 on:  # zizmor: ignore[dangerous-triggers]
   pull_request_target:

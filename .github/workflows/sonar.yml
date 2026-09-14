@@ -43,17 +43,15 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          # Only the interpreter that runs pytest -- unrelated to
-          # sonar.python.version below (that's the syntax version Sonar's
-          # own analyzer parses source against, not what tests run under).
-          # 3.9 doesn't satisfy pytest==9.1.1's own Requires-Python (>=3.10).
+          # Only the interpreter that runs pytest -- unrelated to sonar.python.version
+          # below (the syntax version Sonar's analyzer parses against). 3.9
+          # doesn't satisfy pytest==9.1.1's own Requires-Python (>=3.10).
           python-version: "3.11"
 
       - name: Run ffi_usage_example.py's tests with coverage
         # Runs from crates/capi/ itself: --cov needs an importable module
-        # name (resolved via the interpreter's cwd/sys.path), not a
-        # slash-separated path from the repo root -- the latter silently
-        # collects zero coverage data instead of failing loudly.
+        # name (via cwd/sys.path), not a repo-root slash-path -- the latter
+        # silently collects zero coverage instead of failing loudly.
         #
         # Versions pinned and --only-binary :all: set so pip resolves only
         # prebuilt wheels at exact, known versions -- no arbitrary sdist

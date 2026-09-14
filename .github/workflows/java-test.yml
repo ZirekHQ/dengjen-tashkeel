@@ -1,10 +1,8 @@
 name: Java Bindings Test
 
 # Builds the dengjen-tashkeel-capi cdylib and runs the bindings/java Gradle
-# test suite against it, so the FFM marshalling in bindings/java is
-# exercised on every push/PR instead of only at release time. This is the
-# CI counterpart to java-publish.yml (tag-triggered, publish-only): that
-# workflow ships the module to Maven Central but never runs its tests.
+# test suite against it on every push/PR -- the CI counterpart to
+# java-publish.yml (tag-triggered, publish-only, never runs tests).
 on:
   push:
     branches: [ main ]

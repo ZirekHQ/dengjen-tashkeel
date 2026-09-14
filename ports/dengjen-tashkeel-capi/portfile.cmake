@@ -1,11 +1,9 @@
-# dengjen-tashkeel-capi ships as a prebuilt cdylib + C header in each GitHub
-# Release (see https://github.com/ZirekHQ/dengjen-tashkeel/issues/23) -- there
-# is no Rust toolchain available in vcpkg's build environment, so this port
-# downloads the release archive for the current triplet instead of building
-# from source. It ships release binaries only, so skip the debug-variant checks
-# -- VCPKG_BUILD_TYPE alone doesn't suppress the post-build binary-count lint
-# for a port that never calls vcpkg_cmake_configure/build, hence the policy too.
+# No Rust toolchain in vcpkg's build environment, so this port downloads the
+# prebuilt release archive for the current triplet instead of building from
+# source (see https://github.com/ZirekHQ/dengjen-tashkeel/issues/23).
 set(VCPKG_BUILD_TYPE release)
+# VCPKG_BUILD_TYPE alone doesn't suppress the post-build binary-count lint
+# for a port that never calls vcpkg_cmake_configure/build.
 set(VCPKG_POLICY_MISMATCHED_NUMBER_OF_BINARIES enabled)
 
 set(CAPI_VERSION "1.5.3")

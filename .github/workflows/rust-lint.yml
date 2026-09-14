@@ -26,11 +26,9 @@ jobs:
           components: clippy
       - run: cargo install clippy-sarif sarif-fmt --locked
       - name: cargo clippy
-        # SonarCloud has no Rust analyzer (see sonar-project.properties), so the
-        # code_scanning ruleset rule has nothing to source Rust findings from
-        # unless something uploads SARIF for these crates. Piping clippy's own
-        # JSON output through clippy-sarif does that instead of standing up
-        # CodeQL, whose Rust support is still much thinner than clippy's.
+        # SonarCloud has no Rust analyzer (sonar-project.properties), so the
+        # code_scanning ruleset needs SARIF from elsewhere -- piped from
+        # clippy's own JSON via clippy-sarif, since CodeQL's Rust support is much thinner.
         run: |
           set -o pipefail
           cargo clippy --workspace --lib --bins --message-format=json -- -D warnings \
@@ -84,12 +82,9 @@ jobs:
           # covered by the separate `rustsec/audit-check` job above (kept as belt-and-braces).
           command: check licenses bans sources
 
-  # Mirrors CI.yml's `test` job's invocation exactly, but under cargo-llvm-cov
-  # instrumentation, so the Cobertura report reflects the same crates/features
-  # that job actually exercises. This reports straight to GitHub's own code
-  # coverage feature since SonarCloud never scanned this workspace (see
-  # sonar-project.properties) and so has no coverage data to feed the
-  # ruleset's code_coverage rule.
+  # Mirrors CI.yml's `test` job under cargo-llvm-cov instrumentation, so the
+  # Cobertura report matches what that job exercises. Reports to GitHub's
+  # own coverage feature since SonarCloud never scanned this workspace (sonar-project.properties).
   coverage:
     runs-on: ubuntu-latest
     permissions:

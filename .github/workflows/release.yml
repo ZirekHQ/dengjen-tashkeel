@@ -39,13 +39,9 @@ permissions: {}
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
 #
-# Hand-patched: added `workflow_dispatch` so tag-and-release.yml can
-# dispatch this directly against a tag ref (`--ref vX.Y.Z`) -- re-apply if
-# regenerating via 'cargo dist generate'. Harmless alongside the generated
-# triggers: the `plan` job's tag/tag-flag/publishing outputs only branch on
-# `!github.event.pull_request`, and github.ref_name resolves to the tag
-# name either way, whether the run came from a real tag push or a
-# workflow_dispatch against one.
+# Hand-patched: added `workflow_dispatch` (dispatched via --ref vX.Y.Z) --
+# re-apply if regenerating via 'cargo dist generate'. Harmless alongside the
+# generated triggers since github.ref_name resolves the tag either way.
 #
 # Hand-patched: added the `dry_run` input, threaded into the `host` job's
 # `if:` below -- re-apply if regenerating via 'cargo dist generate'.
@@ -328,17 +324,21 @@ jobs:
       - name: Create GitHub Release
         # Hand-patched for zizmor template-injection (tag -> env var) -- re-apply if
         # regenerating via 'cargo dist generate'.
+        #
+        # Hand-patched: dropped `--target "$RELEASE_COMMIT"` -- re-apply if
+        # regenerating via 'cargo dist generate'. It's a no-op (tag already
+        # exists by now) that costs an extra `workflows: write` grant on
+        # GITHUB_TOKEN, since the target commit's tree includes workflow files.
         env:
           PRERELEASE_FLAG: "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease' || '' }}"
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
           ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
-          RELEASE_COMMIT: "${{ github.sha }}"
           RELEASE_TAG: "${{ needs.plan.outputs.tag }}"
         run: |
           # Write and read notes from a file to avoid quoting breaking things
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
 
-          gh release create "$RELEASE_TAG" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          gh release create "$RELEASE_TAG" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
 
   announce:
     needs:
