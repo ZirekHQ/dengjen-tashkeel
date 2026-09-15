@@ -1,6 +1,6 @@
 name: Publish to crates.io
 
-# Invoked as a job of tag-and-release.yml right after tagging vX.Y.Z; also
+# Invoked as a job of release.yml right after tagging vX.Y.Z; also
 # dispatchable by hand as the retry path since every step is idempotent. Not
 # tag-triggered itself -- a mistaken v*-shaped tag push would publish for real.
 on:
