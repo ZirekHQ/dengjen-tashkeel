@@ -167,9 +167,21 @@ jobs:
           path: crates/python/dist/*.tar.gz
           if-no-files-found: error
 
+  # Only gates workflow_dispatch, unlike workflow_call (release.yml's merge-the-PR decision
+  # point already covers that path). Separate from publish's own `environment: pypi` below,
+  # which scopes the OIDC trusted-publisher match, not human approval.
+  gate:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - run: echo "approved"
+
   publish:
     name: Publish to PyPI
-    needs: [build-wheels, build-sdist]
+    needs: [build-wheels, build-sdist, gate]
+    if: always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: pypi
