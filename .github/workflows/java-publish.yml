@@ -176,14 +176,24 @@ jobs:
           name: native-${{ matrix.platform.classifier }}
           path: native-artifacts/${{ matrix.platform.classifier }}
 
+  # Only gates workflow_dispatch: release.yml's real decision point is merging the version-bump
+  # PR (#92) -- but a manual dispatch bypasses that entirely, unlike workflow_call.
+  gate:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - run: echo "approved"
+
   publish:
     name: Publish to Maven Central
-    needs: [check-version, build-natives]
-    if: needs.check-version.outputs.skip != 'true'
+    needs: [check-version, build-natives, gate]
+    if: >-
+      always() && needs.check-version.outputs.skip != 'true' &&
+      (needs.gate.result == 'success' || needs.gate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # No environment gate here -- merging the version-bump PR is the real decision point
-    # (see #92), so there's nothing left to approve by the time this runs.
     permissions:
       contents: read
     steps:
