@@ -101,7 +101,9 @@ jobs:
       matrix: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
-    container: ${{ matrix.container && matrix.container.image || null }}
+    # image, when present, is chosen by `dist plan` from dist-workspace.toml, not attacker
+    # input; no target in this workspace currently sets one.
+    container: ${{ matrix.container && matrix.container.image || null }} # zizmor: ignore[unpinned-images]
     permissions:
       contents: read
     env:
@@ -128,7 +130,12 @@ jobs:
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
       - name: Install dist
-        run: ${{ matrix.install_dist.run }}
+        # Hand-patched for zizmor template-injection (install_dist.run -> env var) --
+        # re-apply if regenerating via 'cargo dist generate'.
+        shell: bash
+        env:
+          INSTALL_DIST_RUN: ${{ matrix.install_dist.run }}
+        run: $INSTALL_DIST_RUN
       # Get the dist-manifest
       - name: Fetch local artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -137,8 +144,13 @@ jobs:
           path: target/distrib/
           merge-multiple: true
       - name: Install dependencies
+        # Hand-patched for zizmor template-injection (packages_install -> env var) --
+        # re-apply if regenerating via 'cargo dist generate'.
+        shell: bash
+        env:
+          PACKAGES_INSTALL: ${{ matrix.packages_install }}
         run: |
-          ${{ matrix.packages_install }}
+          $PACKAGES_INSTALL
       - name: Build artifacts
         # Hand-patched for zizmor template-injection (tag-flag/dist_args -> env vars) --
         # re-apply if regenerating via 'cargo dist generate'. Forced to bash, same as the
