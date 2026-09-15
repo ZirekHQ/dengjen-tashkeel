@@ -1,7 +1,7 @@
 name: Publish Python wheels
 
 # Builds real dengjen-tashkeel-py wheels and publishes to PyPI, invoked as a
-# job of tag-and-release.yml right after the release tag is pushed. Separate
+# job of release.yml right after the release tag is pushed. Separate
 # from python-wheel.yml, which builds an ubuntu-latest smoke-test wheel on
 # every push/PR, not a release artifact.
 #
@@ -70,7 +70,7 @@ jobs:
 
       - name: Compare tag to workspace version
         # Tags are cargo-dist style ("v1.5.1", "1.5.1", ...) -- strip any
-        # leading non-digit prefix to match release.yml's own tag parsing,
+        # leading non-digit prefix to match github-release.yml's own tag parsing,
         # then fail rather than ship a wheel whose version doesn't match the tag.
         #
         # crates/python/Cargo.toml has `version.workspace = true` -- no literal

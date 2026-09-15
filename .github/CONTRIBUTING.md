@@ -37,8 +37,8 @@ packages to diverge, so don't let them.
    `scripts/bump-version.sh`).
 2. Review and merge that PR. **This is the release gate** -- merging it
    releases the version in the diff, with nothing further to confirm:
-   [`tag-and-release.yml`](workflows/tag-and-release.yml) tags that merge
-   commit `vX.Y.Z` and triggers `release.yml` (GitHub Release),
+   [`release.yml`](workflows/release.yml) tags that merge
+   commit `vX.Y.Z` and triggers `github-release.yml` (GitHub Release),
    `python-publish.yml` (PyPI), `java-publish.yml` (Maven Central), and
    `publish.yml` (crates.io) automatically. If any of them fails partway
    through, re-run that specific workflow (Actions tab, or `gh workflow
