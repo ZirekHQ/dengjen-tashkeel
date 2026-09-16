@@ -127,11 +127,10 @@ jobs:
           fi
       - name: Install dist
         # Hand-patched for zizmor template-injection (install_dist.run -> env var) --
-        # re-apply if regenerating via 'cargo dist generate'. cargo-dist emits pwsh
-        # syntax for Windows and sh syntax elsewhere; each needs its own shell and its
-        # own way to re-parse the expanded env var as a command rather than just
-        # printing or word-splitting it.
-        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+        # re-apply if regenerating via 'cargo dist generate'. No `shell:` override --
+        # that field's expressions can't see the `runner` context (GitHub Actions
+        # rejects the workflow outright), so this relies on the per-OS default shell
+        # (pwsh on Windows, bash elsewhere) to pick the matching re-parse below.
         env:
           INSTALL_DIST_RUN: ${{ matrix.install_dist.run }}
         run: ${{ runner.os == 'Windows' && 'Invoke-Expression $env:INSTALL_DIST_RUN' || 'bash -c "$INSTALL_DIST_RUN"' }}
