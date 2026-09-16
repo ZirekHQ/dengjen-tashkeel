@@ -1,0 +1,42 @@
+= Model accuracy and limitations
+
+dengjen-tashkeel restores diacritics with an ONNX neural model (from
+https://github.com/mush42/hareef[Hareef], trained mainly on Modern Standard Arabic data) -- it
+does not run independent grammatical analysis. Where the correct diacritic depends on context the
+model wasn't trained to resolve, it can guess wrong. That's a model-accuracy limitation, not a bug
+in this library's code (see xref:architecture.adoc[Architecture] for what this library is and
+isn't responsible for).
+
+== Known case: proper nouns without resolvable context
+
+Given the input:
+
+[source]
+----
+عن أمير المؤمنين أبي حفص عمر بن الخطاب
+----
+
+the model diacritizes the name `حفص` as `حِفَصِ` ("hifsi") instead of the grammatically correct
+`حَفْصٍ` ("hafsin"). Per the project's own README, the correct case ending for a proper noun like
+this depends on context the model wasn't trained to resolve. See
+https://github.com/ZirekHQ/dengjen-tashkeel/issues/28[issue #28] for the full discrepancy and any
+follow-up.
+
+== Mitigating uncertain case endings: taskeen
+
+Every binding exposes a taskeen option (`taskeen_threshold` in Rust and Python, the second
+`Optional<Float>` argument in Java, `--taskeen`/`--prob` in the CLI -- see
+xref:bindings.adoc[Per-binding usage]). When enabled, the model substitutes a sukoon for a
+case-ending diacritic it isn't confident about, instead of guessing -- trading a possibly-wrong
+diacritic for an explicit "unresolved" marker.
+
+Taskeen only affects the final case-ending diacritic. It would not fully correct the `حفص` example
+above: the discrepancy there isn't limited to the case ending (`ِ` vs. `ٍ`) -- the internal vowel
+also differs (`فَ` vs. `فْ`), so taskeen doesn't fully hide an error like this one.
+
+== Scope
+
+Per the project's non-scope note: diacritization only, not a general-purpose Arabic NLP toolkit.
+For proper nouns, genitive chains, or any other case-ending decision that depends on context
+spanning multiple words, verify output against domain-relevant text before relying on it in a
+downstream product.
