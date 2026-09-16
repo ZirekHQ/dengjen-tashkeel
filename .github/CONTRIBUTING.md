@@ -39,12 +39,21 @@ packages to diverge, so don't let them.
    releases the version in the diff, with nothing further to confirm:
    [`release.yml`](workflows/release.yml) tags that merge
    commit `vX.Y.Z` and triggers `github-release.yml` (GitHub Release),
-   `python-publish.yml` (PyPI), `java-publish.yml` (Maven Central), and
-   `publish.yml` (crates.io) automatically. If any of them fails partway
-   through, re-run that specific workflow (Actions tab, or `gh workflow
-   run`) rather than pushing a new tag -- `publish.yml`'s steps are
-   idempotent, and the others already support re-running against an
-   existing tag via their own `workflow_dispatch` input.
+   `publish-python.yml` (PyPI), `publish-java.yml` (Maven Central), and
+   `publish-crates.yml` (crates.io) automatically. If any of them fails
+   partway through, retry via `release.yml` -- no new tag needed either way,
+   since every publish step is idempotent (skips a crate/package/artifact
+   already published):
+   - Same version, still current on `main`: use GitHub's "Re-run failed
+     jobs" on the original `release.yml` run (Actions tab). It re-runs just
+     the failed job(s) against that run's own commit, no new dispatch
+     needed.
+   - Stale version (a newer version has since bumped past it on `main`):
+     dispatch `gh workflow run release.yml --ref v<old-version>` against
+     the old tag directly. It resolves the version from that tag's own
+     `Cargo.toml`, and the tag-push step's existing-tag branch reuses it
+     rather than erroring, so it doesn't need `main` to still be at that
+     version.
 3. Once the release archives exist, refresh the vcpkg port and Conan
    recipe's checksums against them and open a PR -- see
    [packaging/README.md](../packaging/README.md). These necessarily lag one

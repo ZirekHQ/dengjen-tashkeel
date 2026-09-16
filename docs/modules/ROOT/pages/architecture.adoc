@@ -95,7 +95,7 @@ via `version.workspace = true` in the root `Cargo.toml`. The alternative --
 independent per-crate semver -- was considered and rejected for now:
 
 * The release pipeline (`scripts/next-version.sh`, `scripts/bump-version.sh`,
-  `tag-and-release.yml`, and every `*-publish.yml`) derives one version from
+  `release.yml`, and every `publish-*.yml`) derives one version from
   conventional-commit subjects and publishes crates.io, PyPI, Maven Central,
   and a GitHub Release from that single tag. Independent versioning means
   rewriting that whole chain for per-crate commit ranges and per-crate tags.

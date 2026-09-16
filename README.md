@@ -39,7 +39,7 @@ ONNX Runtime, so this works with no extra setup.
 pip install dengjen-tashkeel-py
 ```
 
-Published to PyPI as `dengjen-tashkeel-py` by the `python-publish.yml` CI
+Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yml` CI
 workflow whenever a version tag is pushed — availability at any given
 moment depends on whether a tag has been pushed since this was set up, so
 if the install fails, build the wheel yourself instead (see **Building**
@@ -100,7 +100,7 @@ implementation("io.github.zirekhq:dengjen-tashkeel:1.6.2")
 runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.6.2:linux-x86_64")
 ```
 
-Published to Maven Central by the `java-publish.yml` CI workflow whenever a
+Published to Maven Central by the `publish-java.yml` CI workflow whenever a
 version tag is pushed. The binding uses the JDK Foreign Function & Memory
 API (`java.lang.foreign`), not JNA, to load the native
 `dengjen_tashkeel_capi` shared library. The native library ships as

@@ -2,7 +2,7 @@ name: Java Bindings Test
 
 # Builds the dengjen-tashkeel-capi cdylib and runs the bindings/java Gradle
 # test suite against it on every push/PR -- the CI counterpart to
-# java-publish.yml (tag-triggered, publish-only, never runs tests).
+# publish-java.yml (tag-triggered, publish-only, never runs tests).
 on:
   push:
     branches: [ main ]
