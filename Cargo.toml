@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.6.2"
+version = "1.6.3"
 # Floor set by the highest dependency-declared rust_version in the tree (ort/ort-sys
 # at 1.88, per `cargo metadata`), then confirmed to actually compile at that version.
 rust-version = "1.88.0"
