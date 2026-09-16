@@ -33,3 +33,14 @@ def test_full_lifecycle_and_error_paths():
 def test_extern_error_take_message_returns_none_when_no_message():
     err = m.ExternError()
     assert err.take_message() is None
+
+
+def test_default_lib_name_selects_extension_per_platform(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert m._default_lib_name() == "dengjen_tashkeel_capi.dll"
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert m._default_lib_name() == "libdengjen_tashkeel_capi.dylib"
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert m._default_lib_name() == "libdengjen_tashkeel_capi.so"
