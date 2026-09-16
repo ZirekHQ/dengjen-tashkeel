@@ -34,7 +34,7 @@ version = "4.3.2"
 features = ["derive",]
 
 [dependencies.dengjen-tashkeel]
-version = "1.5.3"
+version = "1.6.6"
 path = "../core"
 default-features = false
 
