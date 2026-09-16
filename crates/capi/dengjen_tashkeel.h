@@ -226,6 +226,9 @@ void dengjen_tashkeel_free_string(char *s);
  * `out_error` must be either null (in which case this call reports no
  * error and returns a null pointer) or point to a single, properly
  * aligned, writable `ExternError` valid for the duration of this call.
+ * # Returns
+ * A non-null return is a Rust-allocated, NUL-terminated string owned by
+ * the caller, who must release it with `dengjen_tashkeel_free_string`.
  */
 char *dengjenTashkeelTashkeel(FfiStr text_ptr,
                               const float *taskeen_threshold,

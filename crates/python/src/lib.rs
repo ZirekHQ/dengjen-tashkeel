@@ -155,16 +155,34 @@ mod tests {
     }
 
     #[cfg(feature = "ort-dylib")]
+    fn onnxruntime_lib_fixture_names() -> (&'static str, &'static str) {
+        if cfg!(target_os = "windows") {
+            ("onnxruntime.dll", "onnxruntime_providers_shared.dll")
+        } else if cfg!(target_os = "macos") {
+            (
+                "libonnxruntime.1.28.0.dylib",
+                "libonnxruntime_providers_shared.dylib",
+            )
+        } else {
+            (
+                "libonnxruntime.so.1.28.0",
+                "libonnxruntime_providers_shared.so",
+            )
+        }
+    }
+
+    #[cfg(feature = "ort-dylib")]
     #[test]
-    fn find_onnxruntime_lib_picks_the_versioned_so_over_the_providers_lib() {
+    fn find_onnxruntime_lib_picks_the_versioned_lib_over_the_providers_lib() {
         let dir = tempfile::tempdir().unwrap();
         let capi = dir.path();
-        std::fs::write(capi.join("libonnxruntime_providers_shared.so"), b"").unwrap();
-        std::fs::write(capi.join("libonnxruntime.so.1.28.0"), b"").unwrap();
+        let (versioned, providers) = onnxruntime_lib_fixture_names();
+        std::fs::write(capi.join(providers), b"").unwrap();
+        std::fs::write(capi.join(versioned), b"").unwrap();
 
         let found = find_onnxruntime_lib(capi).unwrap();
 
-        assert_eq!(found.file_name().unwrap(), "libonnxruntime.so.1.28.0");
+        assert_eq!(found.file_name().unwrap(), versioned);
     }
 
     #[cfg(feature = "ort-dylib")]
@@ -185,7 +203,8 @@ mod tests {
         let capi_dir = pkg_dir.join("capi");
         std::fs::create_dir_all(&capi_dir).unwrap();
         std::fs::write(pkg_dir.join("__init__.py"), b"").unwrap();
-        std::fs::write(capi_dir.join("libonnxruntime.so.1.28.0"), b"").unwrap();
+        let (versioned, _providers) = onnxruntime_lib_fixture_names();
+        std::fs::write(capi_dir.join(versioned), b"").unwrap();
 
         Python::attach(|py| {
             let sys_path = py.import("sys").unwrap().getattr("path").unwrap();
@@ -195,7 +214,7 @@ mod tests {
 
             let found = resolve_dylib_path(py, "fake_onnxruntime").unwrap();
 
-            assert_eq!(found.file_name().unwrap(), "libonnxruntime.so.1.28.0");
+            assert_eq!(found.file_name().unwrap(), versioned);
         });
     }
 

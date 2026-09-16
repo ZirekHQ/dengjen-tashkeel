@@ -148,12 +148,25 @@ fn to_valid_chars(input: impl Iterator<Item = char>) -> (String, HashSet<char>) 
     (valid, invalid)
 }
 
-fn input_to_ids(input: impl Iterator<Item = char>) -> Vec<i64> {
-    Vec::from_iter(input.map(|c| INPUT_ID_MAP[&c]))
+fn input_to_ids(input: impl Iterator<Item = char>) -> DengjenTashkeelResult<Vec<i64>> {
+    input
+        .map(|c| {
+            INPUT_ID_MAP.get(&c).copied().ok_or_else(|| {
+                DengjenTashkeelError::InferenceError(format!("unknown input character `{c}`"))
+            })
+        })
+        .collect()
 }
 
-fn hint_to_ids(hints: Vec<String>) -> Vec<i64> {
-    Vec::from_iter(hints.into_iter().map(|s| HINT_ID_MAP[&s]))
+fn hint_to_ids(hints: Vec<String>) -> DengjenTashkeelResult<Vec<i64>> {
+    hints
+        .into_iter()
+        .map(|s| {
+            HINT_ID_MAP.get(&s).copied().ok_or_else(|| {
+                DengjenTashkeelError::InferenceError(format!("unknown diacritic hint `{s}`"))
+            })
+        })
+        .collect()
 }
 
 fn target_to_diacritics(
@@ -249,8 +262,8 @@ fn tokenize(text: &str) -> DengjenTashkeelResult<Tokenized> {
     let (input_text, removed_chars) = to_valid_chars(text.chars());
     let (input_text, diacritics) = extract_chars_and_diacritics(&input_text, true);
 
-    let input_ids = input_to_ids(input_text.chars());
-    let diac_ids = hint_to_ids(diacritics);
+    let input_ids = input_to_ids(input_text.chars())?;
+    let diac_ids = hint_to_ids(diacritics)?;
     let seq_length = input_ids.len();
 
     Ok(Tokenized {
@@ -314,9 +327,17 @@ fn map_sentences(
         }
     }
 
+    let expected_results = batch_positions.len();
     let timer = std::time::Instant::now();
     let batch_results = engine.infer_batch(batch)?;
     log::debug!("Inference time: {} ms", timer.elapsed().as_millis() as f32);
+
+    if batch_results.len() != expected_results {
+        return Err(DengjenTashkeelError::InferenceError(format!(
+            "infer_batch returned {} result(s) for {expected_results} batch item(s)",
+            batch_results.len()
+        )));
+    }
 
     let mut results: Vec<Option<(Vec<u8>, Vec<f32>)>> = vec![None; tokenized.len()];
     for (position, result) in batch_positions.into_iter().zip(batch_results) {

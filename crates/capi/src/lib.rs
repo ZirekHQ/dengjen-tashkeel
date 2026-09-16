@@ -62,6 +62,9 @@ pub unsafe extern "C" fn dengjen_tashkeel_free_string(s: *mut c_char) {
 /// `out_error` must be either null (in which case this call reports no
 /// error and returns a null pointer) or point to a single, properly
 /// aligned, writable `ExternError` valid for the duration of this call.
+/// # Returns
+/// A non-null return is a Rust-allocated, NUL-terminated string owned by
+/// the caller, who must release it with `dengjen_tashkeel_free_string`.
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn dengjenTashkeelTashkeel(
