@@ -6,13 +6,15 @@ name: Release
 #
 # One vX.Y.Z tag now feeds all four registries (crates.io, PyPI, Maven
 # Central, GitHub Releases) as reusable-workflow jobs of this same run.
-# No approval gate -- merging the version-bump PR is the real decision
-# point; a gate after the tag is already pushed can't cleanly undo
-# anything. vcpkg/Conan (CONTRIBUTING.md step 5) stays manual -- needs the
+# Single-trigger, single-gate: this is the only file with a workflow_dispatch
+# trigger in the whole pipeline; the gate job below is the only approval
+# check, covering the tag push itself, not just publishing (a push-triggered
+# run skips it -- merging the version-bump PR was already the decision
+# point). vcpkg/Conan (CONTRIBUTING.md step 5) stays manual -- needs the
 # release archives first.
 #
-# Tag push itself isn't gated by dry_run -- github-release.yml/python-publish.yml/
-# java-publish.yml/publish.yml all need a real tag ref to build against.
+# Tag push itself isn't gated by dry_run -- github-release.yml/publish-python.yml/
+# publish-java.yml/publish-crates.yml all need a real tag ref to build against.
 # Only the publish steps inside those jobs honor dry_run.
 on:
   push:
@@ -34,13 +36,28 @@ permissions:
   contents: read
 
 jobs:
+  # Single gate for the whole pipeline: the push path needs none, its approval was the
+  # PR merge. Gating tag-and-release rather than the publish files widens coverage to the
+  # tag push -- the old per-file gates covered publishing only.
+  gate:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - run: echo "approved"
+
   tag-and-release:
+    needs: gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # head_commit is absent on workflow_dispatch, hence the event_name check
-    # first. It's also the single new commit a squash/rebase merge produces --
-    # multiple commits in one push would only check the last of them.
-    if: "github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
+    # head_commit is absent on workflow_dispatch, hence the event_name check first. Combined
+    # with needs.gate: a push-triggered run skips gate (event_name != workflow_dispatch) and
+    # proceeds if the commit message matches; a dispatched run must clear gate first.
+    if: >-
+      always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') &&
+      (github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'chore: bump workspace version -> '))
     permissions:
       contents: write
     outputs:
@@ -111,7 +128,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-crates.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       dry_run: ${{ inputs.dry_run == true }}
 
@@ -120,7 +137,7 @@ jobs:
     needs: tag-and-release
     permissions:
       contents: read
-    uses: ./.github/workflows/java-publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-java.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
       dry_run: ${{ inputs.dry_run == true }}
@@ -137,7 +154,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/python-publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
       dry_run: ${{ inputs.dry_run == true }}
