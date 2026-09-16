@@ -6,14 +6,12 @@ download the prebuilt cdylib + header from a GitHub Release instead of
 building from source — neither vcpkg nor Conan has a Rust toolchain available
 in its build environment. See [issue #24](https://github.com/ZirekHQ/dengjen-tashkeel/issues/24).
 
-Both were scaffolded before the capi artifacts they reference existed in any
-release, so every checksum in them is a **placeholder** (`0` repeated to the
-right length), and `versions/baseline.json` deliberately does *not* list
-`dengjen-tashkeel-capi` yet — that keeps the port unresolvable by default
-(a clear "not found" from vcpkg) instead of resolvable-but-broken (a 404 or
-checksum failure mid-download). Once a release tagged `v<version>` actually
-ships the `dengjen-tashkeel-capi-<target>` archives, a maintainer must fill
-these in:
+`versions/baseline.json` registers `dengjen-tashkeel-capi` at `1.5.3`, and
+both the vcpkg port and Conan recipe carry the real checksums for that
+release's `dengjen-tashkeel-capi-<target>` archives. They lag the workspace
+version (currently ahead, at `1.6.6`) by design — see
+[CONTRIBUTING.md](../.github/CONTRIBUTING.md) step 3 — until a maintainer
+ships a follow-up PR pointing them at a newer release:
 
 1. Download each release asset and compute its checksum:
    ```bash
@@ -46,9 +44,8 @@ these in:
    git add ports/dengjen-tashkeel-capi
    git write-tree --prefix=ports/dengjen-tashkeel-capi/
    ```
-   Then add the port back into `versions/baseline.json`'s `"default"` map
-   (`{"dengjen-tashkeel-capi": {"baseline": "<version>", "port-version": 0}}`)
-   now that it actually resolves.
+   Then update `versions/baseline.json`'s `"default"` map entry to
+   `{"dengjen-tashkeel-capi": {"baseline": "<version>", "port-version": 0}}`.
 5. Verify end-to-end before merging:
    ```bash
    # vcpkg, from a vcpkg checkout with this repo added as a registry

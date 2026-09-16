@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Scope is intentionally workspace-only. vcpkg/Conan bump separately once
+# release archives exist (checksums can't be computed before then) --
+# see CONTRIBUTING.md step 3.
 new_version="${1:?usage: scripts/bump-version.sh <new-version>}"
 if ! echo "$new_version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
   echo "::error::'${new_version}' doesn't look like a semver version (X.Y.Z)" >&2

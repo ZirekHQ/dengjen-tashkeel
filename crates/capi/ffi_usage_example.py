@@ -2,11 +2,20 @@
 
 import ctypes
 import os
+import sys
 
 
-DENGJEN_TASHKEEL_PATH = os.path.abspath(
+def _default_lib_name():
+    if sys.platform == "win32":
+        return "dengjen_tashkeel_capi.dll"
+    if sys.platform == "darwin":
+        return "libdengjen_tashkeel_capi.dylib"
+    return "libdengjen_tashkeel_capi.so"
+
+
+DENGJEN_TASHKEEL_PATH = os.environ.get("DENGJEN_TASHKEEL_PATH") or os.path.abspath(
     os.path.join(
-        os.path.dirname(__file__), "..", "..", "target", "debug", "libdengjen_tashkeel_capi.so"
+        os.path.dirname(__file__), "..", "..", "target", "debug", _default_lib_name()
     )
 )
 

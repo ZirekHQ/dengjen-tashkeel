@@ -126,6 +126,7 @@ jobs:
         with:
           file: cobertura.xml
           language: Rust
+          label: code-coverage/rust
 
   # Compiles against the pinned floor in [workspace.package].rust-version (Cargo.toml),
   # separate from the "1.98.1" toolchain the jobs above use -- catches a dependency bump

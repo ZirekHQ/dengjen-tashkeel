@@ -37,17 +37,17 @@ fn write_to_stdout(text: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn get_input_text(args: &Cli) -> anyhow::Result<String> {
+fn get_input_text(args: &Cli) -> anyhow::Result<(usize, String)> {
     let mut input_buffer = String::new();
-    if let Some(ref input_filename) = args.input_file {
+    let bytes_read = if let Some(ref input_filename) = args.input_file {
         let mut file = File::open(input_filename)?;
-        file.read_to_string(&mut input_buffer)?;
+        file.read_to_string(&mut input_buffer)?
     } else {
         let stdin = io::stdin();
-        stdin.read_line(&mut input_buffer)?;
-    }
+        stdin.read_line(&mut input_buffer)?
+    };
 
-    Ok(input_buffer)
+    Ok((bytes_read, input_buffer))
 }
 
 fn diacritize_capped(
@@ -124,13 +124,13 @@ fn main() -> anyhow::Result<()> {
 
     let model = create_inference_engine(args.onnx.take())?;
 
-    let mut input_text = get_input_text(&args)?;
+    let (mut bytes_read, mut input_text) = get_input_text(&args)?;
     if args.interactive {
-        loop {
+        while bytes_read > 0 {
             if !input_text.trim().is_empty() {
                 tashkeel_main(&model, &args, std::mem::take(&mut input_text))?;
             }
-            input_text = get_input_text(&args)?;
+            (bytes_read, input_text) = get_input_text(&args)?;
         }
     } else {
         tashkeel_main(&model, &args, input_text)?;
@@ -210,8 +210,9 @@ mod tests {
         writeln!(file, "بسم الله").unwrap();
         let args = parse(&["--input-file", file.path().to_str().unwrap()]);
 
-        let text = get_input_text(&args).unwrap();
+        let (bytes_read, text) = get_input_text(&args).unwrap();
 
+        assert!(bytes_read > 0);
         assert_eq!(text.trim(), "بسم الله");
     }
 
@@ -229,8 +230,9 @@ mod tests {
         let file = tempfile::NamedTempFile::new().unwrap();
         let args = parse(&["--input-file", file.path().to_str().unwrap()]);
 
-        let text = get_input_text(&args).unwrap();
+        let (bytes_read, text) = get_input_text(&args).unwrap();
 
+        assert_eq!(bytes_read, 0);
         assert_eq!(text, "");
     }
 
