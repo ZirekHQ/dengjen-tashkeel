@@ -1,0 +1,158 @@
+= Per-binding usage
+
+xref:usage.adoc[Usage] covers the Rust and Python quick starts shared by every binding. This page
+goes one level deeper per target -- lifecycle, error handling, and a minimal working example drawn
+from each binding's own source and tests.
+
+== Rust
+
+[source,rust]
+----
+use dengjen_tashkeel::{create_inference_engine, do_tashkeel, DengjenTashkeelError};
+
+let engine = create_inference_engine(None)?;
+match do_tashkeel(&engine, "بسم الله الرحمن الرحيم", None, false) {
+    Ok(diacritized) => println!("{diacritized}"),
+    Err(DengjenTashkeelError::InputTooLong(max_len)) => {
+        eprintln!("input exceeds {max_len} characters")
+    }
+    Err(other) => eprintln!("diacritization failed: {other}"),
+}
+----
+
+`DengjenTashkeelError` (`crates/core/src/lib.rs`) is a 3-variant enum: `InputTooLong(usize)`,
+`InferenceError(String)`, and `ModelLoadError(std::io::Error)`. `create_inference_engine` takes an
+`Option<PathBuf>` -- `None` loads the model bundled at build time, `Some(path)` loads an external
+ONNX model from that path.
+
+== C ABI
+
+The C ABI (`crates/capi`, header `crates/capi/dengjen_tashkeel.h`) exposes 3 functions:
+`dengjen_tashkeel_init`, `dengjenTashkeelTashkeel`, and `dengjen_tashkeel_free_string`. Calling
+`dengjenTashkeelTashkeel` without ever calling `dengjen_tashkeel_init` first also works -- it
+lazily initializes the engine on first use with the bundled default model.
+
+Errors are reported through an `ExternError` out-parameter (`{ code: i32, message: *mut c_char }`)
+rather than a return value; `code == 0` means success. The codes, from the header:
+
+[cols="1,1"]
+|===
+|Code |Meaning
+
+|`1` (`INPUT_TOO_LONG`)
+|Input exceeds `CHAR_LIMIT`
+
+|`2` (`INFERENCE_ERROR`)
+|Model inference failed
+
+|`3` (`MODEL_LOAD_ERROR`)
+|Failed to load the ONNX model
+
+|`99` (`UNKNOWN_ERROR`)
+|Internal error unrelated to the above
+
+|`-1` (`ErrorCode_PANIC`)
+|The Rust side panicked instead of returning an error
+|===
+
+Both the returned diacritized string and a non-null `ExternError.message` are heap-allocated on
+the Rust side and must be released with `dengjen_tashkeel_free_string` -- freeing them any other
+way, or freeing twice, is undefined behavior.
+
+The repository's own example, `crates/capi/ffi_usage_example.py`, drives the compiled shared
+library from Python via `ctypes`:
+
+[source,python]
+----
+def tashkeel(text, taskeen_threshold=None, preprocessed=False):
+    err = ExternError()
+    threshold_ptr = (
+        ctypes.pointer(ctypes.c_float(taskeen_threshold))
+        if taskeen_threshold is not None
+        else None
+    )
+    ptr = lib.dengjenTashkeelTashkeel(
+        text.encode("utf-8"),
+        threshold_ptr,
+        preprocessed,
+        ctypes.byref(err),
+    )
+    if err.code != 0:
+        raise RuntimeError(err.take_message())
+    try:
+        return ctypes.cast(ptr, ctypes.c_char_p).value.decode("utf-8")
+    finally:
+        lib.dengjen_tashkeel_free_string(ptr)
+----
+
+See that file in full for the `ExternError` ctypes structure and the `ctypes.cdll.LoadLibrary`
+setup it depends on.
+
+== Python
+
+The `dengjen_tashkeel_py` PyO3 extension exposes one function:
+`tashkeel(text, taskeen_threshold=None, preprocessed=None) -> str`. It maps
+`DengjenTashkeelError::InputTooLong` to a `ValueError` and every other error variant to a
+`RuntimeError` (`crates/python/src/lib.rs`, `to_py_err`):
+
+[source,python]
+----
+from dengjen_tashkeel_py import tashkeel
+
+try:
+    diacritized = tashkeel("بسم الله الرحمن الرحيم", taskeen_threshold=0.8)
+except ValueError:
+    ...  # input longer than CHAR_LIMIT (12,000 characters)
+except RuntimeError:
+    ...  # inference or model-load failure
+----
+
+== Java
+
+`Tashkeel.loadDefault()` or `Tashkeel.load(Path)` initialize the native engine once (both throw
+`TashkeelException` on failure); `diacritize(text, Optional<Float> taskeenThreshold, boolean
+preprocessed)` then diacritizes a string. `TashkeelException.reason()` is a sealed interface --
+`InputTooLong`, `InferenceError`, `ModelLoadError`, and `Unknown`, each a record carrying the
+underlying message -- so callers can exhaustively `switch` over the failure without a default
+branch:
+
+[source,java]
+----
+import io.github.zirekhq.dengjen.tashkeel.Tashkeel;
+import io.github.zirekhq.dengjen.tashkeel.TashkeelException;
+import java.util.Optional;
+
+try (Tashkeel tashkeel = Tashkeel.loadDefault()) {
+    String diacritized = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), false);
+} catch (TashkeelException e) {
+    String detail = switch (e.reason()) {
+        case TashkeelException.InputTooLong r -> "input too long: " + r.message();
+        case TashkeelException.InferenceError r -> "inference failed: " + r.message();
+        case TashkeelException.ModelLoadError r -> "model load failed: " + r.message();
+        case TashkeelException.Unknown r -> "unknown error " + r.code() + ": " + r.message();
+    };
+}
+----
+
+`Tashkeel` is `AutoCloseable` for forward compatibility, but `close()` is currently a no-op: the
+native library has no per-instance teardown, only a process-global singleton set up by `load`.
+Remember `--enable-native-access=ALL-UNNAMED` on the JVM invocation (see
+xref:installation.adoc[Installation]) or the Foreign Function & Memory API calls emit a
+native-access warning.
+
+== CLI
+
+Beyond the flags reference in xref:usage.adoc[Usage], `--input-file`/`-f` changes how input is
+batched: with `-f`, the CLI diacritizes each *line* of the file independently and writes one
+output line per input line; without it (stdin or `--interactive`), the whole buffer is diacritized
+as one unit (`crates/cli/src/main.rs`, `tashkeel_main`). Both paths are capped per-call at
+`CHAR_LIMIT` (12,000 characters).
+
+[source,bash]
+----
+printf 'بسم الله الرحمن الرحيم\nالحمد لله رب العالمين\n' > input.txt
+dengjen-tashkeel --input-file input.txt --output-file output.txt --taskeen --prob 0.9
+----
+
+This diacritizes each of the 2 lines in `input.txt` on its own, using taskeen at a 0.9 confidence
+threshold, and writes the 2 results to `output.txt`.

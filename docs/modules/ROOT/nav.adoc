@@ -1,5 +1,7 @@
 * xref:index.adoc[Overview]
 * xref:installation.adoc[Installation]
 * xref:usage.adoc[Usage]
+* xref:bindings.adoc[Per-binding usage]
+* xref:limitations.adoc[Model accuracy and limitations]
 * xref:architecture.adoc[Architecture]
 * xref:building.adoc[Building]
