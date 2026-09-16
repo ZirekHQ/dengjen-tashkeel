@@ -115,6 +115,9 @@ jobs:
   release:
     name: GitHub Release (cargo-dist)
     needs: tag-and-release
+    # Default `if: success()` checks the whole needs chain, not just this job's own direct
+    # need -- gate's skip (expected on a push trigger) otherwise propagates down and skips this too.
+    if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: write
     uses: ./.github/workflows/github-release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
@@ -125,6 +128,7 @@ jobs:
   crates:
     name: crates.io
     needs: tag-and-release
+    if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: read
       id-token: write
@@ -135,6 +139,7 @@ jobs:
   java:
     name: Maven Central (Java bindings)
     needs: tag-and-release
+    if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: read
     uses: ./.github/workflows/publish-java.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
@@ -151,6 +156,7 @@ jobs:
   python:
     name: PyPI
     needs: tag-and-release
+    if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: read
       id-token: write
