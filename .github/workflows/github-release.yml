@@ -6,6 +6,9 @@ permissions: {}
 # Hand-patched: added `workflow_call`, dropped `push: tags` -- re-apply if regenerating via
 # 'cargo dist generate'. A workflow_call's ref context is the caller's, not the tag, so the
 # `tag` input below replaces `github.ref_name` wherever that distinction matters.
+# Hand-patched: dropped `workflow_dispatch` (single-trigger, single-gate) -- re-apply if
+# regenerating. release.yml is now the only dispatch surface; this file is workflow_call-only
+# plus pull_request, which stays for its own reason (validating the cargo-dist build on PRs).
 on:
   workflow_call:
     inputs:
@@ -13,13 +16,6 @@ on:
         required: true
         type: string
       dry_run:
-        required: false
-        type: boolean
-        default: false
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry Run: build artifacts but don't upload or release"
         required: false
         type: boolean
         default: false

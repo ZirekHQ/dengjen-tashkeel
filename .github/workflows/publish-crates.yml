@@ -1,0 +1,90 @@
+name: Publish to crates.io
+
+# Invoked as a job of release.yml's flow; release.yml's own gate job (single-trigger,
+# single-gate) covers this file too, so it has none of its own. Not tag-triggered
+# itself, so a stray tag push can't fire a real publish.
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DRY_RUN: ${{ inputs.dry_run == true }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: "1.98.1"
+      - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        with:
+          tool: cargo-semver-checks
+      # dengjen-tashkeel-cli has no `lib` target (bin-only), so it has no public
+      # API surface for cargo-semver-checks to compare -- only the core crate is checked.
+      - name: cargo semver-checks (dengjen-tashkeel)
+        run: cargo semver-checks check-release -p dengjen-tashkeel
+
+      # github.workflow_ref stays bound to the top-level caller even inside a called reusable
+      # workflow, so it mirrors the OIDC workflow_ref claim crates.io checks (see piper-rs #107).
+      # Catches a future release.yml rename here instead of via crates-io-auth-action's opaque 400.
+      - name: verify OIDC workflow_ref matches crates.io Trusted Publishing target
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+          expected="ZirekHQ/dengjen-tashkeel/.github/workflows/release.yml"
+          actual="${WORKFLOW_REF%@*}"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::OIDC workflow_ref is '${actual}', expected '${expected}'. crates.io Trusted Publishing for both crates targets '${expected##*/}' -- if this workflow was renamed, update crates.io's config and this expected value together." >&2
+            exit 1
+          fi
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+
+      - name: Resolve workspace version
+        # Read from [workspace.package] rather than hardcoding the version here,
+        # so this file doesn't silently go stale (and publish the wrong version)
+        # the next time the workspace version bumps.
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: publish dengjen-tashkeel
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-tashkeel "$VERSION"
+      # --dry-run doesn't actually publish, so there's nothing on crates.io for this step to wait on.
+      - name: wait for crate to index
+        if: env.DRY_RUN != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel "$VERSION"
+
+      - name: publish dengjen-tashkeel-cli
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-tashkeel-cli "$VERSION"
+      - name: wait for crate to index
+        if: env.DRY_RUN != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/wait-for-crate.sh dengjen-tashkeel-cli "$VERSION"
