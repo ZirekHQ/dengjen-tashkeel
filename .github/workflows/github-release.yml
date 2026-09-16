@@ -127,13 +127,14 @@ jobs:
           fi
       - name: Install dist
         # Hand-patched for zizmor template-injection (install_dist.run -> env var) --
-        # re-apply if regenerating via 'cargo dist generate'. `bash -c` re-parses the
-        # expanded value as shell syntax; a bare `run: $VAR` only word-splits it, passing
-        # embedded quotes (e.g. `--proto '=https'`) to curl as literal characters.
-        shell: bash
+        # re-apply if regenerating via 'cargo dist generate'. cargo-dist emits pwsh
+        # syntax for Windows and sh syntax elsewhere; each needs its own shell and its
+        # own way to re-parse the expanded env var as a command rather than just
+        # printing or word-splitting it.
+        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
         env:
           INSTALL_DIST_RUN: ${{ matrix.install_dist.run }}
-        run: bash -c "$INSTALL_DIST_RUN"
+        run: ${{ runner.os == 'Windows' && 'Invoke-Expression $env:INSTALL_DIST_RUN' || 'bash -c "$INSTALL_DIST_RUN"' }}
       # Get the dist-manifest
       - name: Fetch local artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
