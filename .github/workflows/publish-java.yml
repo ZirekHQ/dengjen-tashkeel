@@ -1,17 +1,6 @@
 name: Publish Java bindings
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing vX.Y.Z tag to (re)publish Java bindings for"
-        required: true
-        type: string
-      dry_run:
-        description: "Dry Run: build natives but publish nothing"
-        required: false
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       tag:
@@ -45,26 +34,6 @@ jobs:
     outputs:
       skip: ${{ steps.check-published.outputs.skip }}
     steps:
-      # inputs.tag (workflow_dispatch) is free text from whoever has dispatch
-      # access -- unvalidated it'd publish whatever ref it names, real GPG/
-      # OSSRH secrets included. Requires the exact vX.Y.Z tag shape, not just matching digits.
-      - name: Validate release tag input
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          if ! echo "${RELEASE_TAG}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+.*$'; then
-            echo "::error::'${RELEASE_TAG}' doesn't look like a vX.Y.Z tag"
-            exit 1
-          fi
-          if ! gh api "repos/${REPO}/git/refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "::error::'${RELEASE_TAG}' is not an existing tag on this repository -- refusing to build from an arbitrary ref"
-            exit 1
-          fi
-
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.tag || github.ref_name }}
@@ -176,22 +145,10 @@ jobs:
           name: native-${{ matrix.platform.classifier }}
           path: native-artifacts/${{ matrix.platform.classifier }}
 
-  # Only gates workflow_dispatch: release.yml's real decision point is merging the version-bump
-  # PR (#92) -- but a manual dispatch bypasses that entirely, unlike workflow_call.
-  gate:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: release
-    steps:
-      - run: echo "approved"
-
   publish:
     name: Publish to Maven Central
-    needs: [check-version, build-natives, gate]
-    if: >-
-      always() && needs.check-version.outputs.skip != 'true' &&
-      (needs.gate.result == 'success' || needs.gate.result == 'skipped')
+    needs: [check-version, build-natives]
+    if: needs.check-version.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
