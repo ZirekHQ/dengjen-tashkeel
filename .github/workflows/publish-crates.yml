@@ -1,8 +1,8 @@
 name: Publish to crates.io
 
-# Invoked as a job of release.yml's flow; release.yml's own gate job (single-trigger,
-# single-gate) covers this file too, so it has none of its own. Not tag-triggered
-# itself, so a stray tag push can't fire a real publish.
+# Invoked as a job of release.yml's flow. Covered by prepare-release.yml's gate job on the
+# direct-release override path, or by the PR merge on the normal push path -- has none of its
+# own. Not tag-triggered itself, so a stray tag push can't fire a real publish.
 on:
   workflow_call:
     inputs:
@@ -38,18 +38,24 @@ jobs:
       - name: cargo semver-checks (dengjen-tashkeel)
         run: cargo semver-checks check-release -p dengjen-tashkeel
 
-      # github.workflow_ref stays bound to the top-level caller even inside a called reusable
-      # workflow, so it mirrors the OIDC workflow_ref claim crates.io checks (see piper-rs #107).
-      # Catches a future release.yml rename here instead of via crates-io-auth-action's opaque 400.
+      # github.workflow_ref stays bound to the whole run's top-level caller even through nested
+      # workflow_call hops, so it mirrors the OIDC workflow_ref claim crates.io checks (see
+      # piper-rs #107). Two valid top-level callers now: release.yml itself on the normal push
+      # path, and prepare-release.yml on the direct-release override path (which calls
+      # release.yml via workflow_call, one hop further out). crates.io's Trusted Publishing must
+      # have BOTH registered as publishers for this to actually authenticate on the override
+      # path -- this check alone doesn't grant that, it only catches a mismatch early instead of
+      # crates-io-auth-action's opaque 400.
       - name: verify OIDC workflow_ref matches crates.io Trusted Publishing target
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
           set -euo pipefail
-          expected="ZirekHQ/dengjen-tashkeel/.github/workflows/release.yml"
+          expected_release="ZirekHQ/dengjen-tashkeel/.github/workflows/release.yml"
+          expected_prepare="ZirekHQ/dengjen-tashkeel/.github/workflows/prepare-release.yml"
           actual="${WORKFLOW_REF%@*}"
-          if [ "$actual" != "$expected" ]; then
-            echo "::error::OIDC workflow_ref is '${actual}', expected '${expected}'. crates.io Trusted Publishing for both crates targets '${expected##*/}' -- if this workflow was renamed, update crates.io's config and this expected value together." >&2
+          if [ "$actual" != "$expected_release" ] && [ "$actual" != "$expected_prepare" ]; then
+            echo "::error::OIDC workflow_ref is '${actual}', expected '${expected_release}' or '${expected_prepare}'. crates.io Trusted Publishing must target both -- if either workflow was renamed, update crates.io's config and this check together." >&2
             exit 1
           fi
       - name: Authenticate with crates.io
