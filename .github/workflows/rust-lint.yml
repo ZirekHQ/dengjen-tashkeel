@@ -24,11 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # upload-sarif reconciles a claimed sha against what's actually
-          # checked out here, so check out the PR head commit directly --
-          # otherwise it silently re-tags results under the ephemeral merge
-          # commit and the code_scanning ruleset rule never finds them.
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
@@ -53,11 +48,6 @@ jobs:
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: clippy-results.sarif
-          # Must match the checkout step's ref/sha above -- the
-          # "Require code scanning results" ruleset rule looks up analyses
-          # by PR head commit.
-          ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.number) || github.ref }}
-          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
   audit:
     runs-on: ubuntu-latest
