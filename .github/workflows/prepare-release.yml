@@ -79,7 +79,7 @@ jobs:
           git commit -m "chore: bump workspace version -> ${VERSION}"
           git push -u origin "$branch"
           gh pr create --title "chore: bump workspace version -> ${VERSION}" \
-            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`github-release.yml\` (GitHub Release), \`publish-python.yml\` (PyPI), \`publish-java.yml\` (Maven Central), and \`publish-crates.yml\` (crates.io) automatically, no further approval needed. Review the version and the diff carefully before merging -- this is the real decision point (the vcpkg/Conan follow-up in CONTRIBUTING.md's step 5 still needs its own PR once the release archives exist)." \
+            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`github-release.yml\` (GitHub Release), \`publish-python.yml\` (PyPI), \`publish-java.yml\` (Maven Central), and \`publish-crates.yml\` (crates.io) automatically, no further approval needed. Review the version and the diff carefully before merging -- this is the real decision point (the vcpkg/Conan follow-up in CONTRIBUTING.md's step 4 still needs its own PR once the release archives exist)." \
             --base main --head "$branch"
 
   # Override path: skip prepare/PR entirely and hand off straight to release.yml. This is

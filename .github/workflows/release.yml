@@ -11,7 +11,7 @@ name: Release
 # its `gate` + `release-now` jobs for the direct-release override path);
 # this file only reacts to that PR's merge commit landing on main (push) or
 # being invoked directly by prepare-release.yml's override path
-# (workflow_call). vcpkg/Conan (CONTRIBUTING.md step 5) stays manual --
+# (workflow_call). vcpkg/Conan (CONTRIBUTING.md step 4) stays manual --
 # needs the release archives first.
 #
 # Tag push itself isn't gated by dry_run -- github-release.yml/publish-python.yml/
