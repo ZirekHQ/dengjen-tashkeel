@@ -55,14 +55,23 @@ packages to diverge, so don't let them.
      is the direct-release override path below -- it resolves the version
      from that tag's own `Cargo.toml` rather than computing a new one, and
      the tag-push step's existing-tag branch reuses the tag rather than
-     erroring, so it doesn't need `main` to still be at that version.
+     erroring, so it doesn't need `main` to still be at that version. Only
+     works for tags cut *after* this override path shipped -- dispatching
+     against an older tag runs *that tag's* copy of these workflow files,
+     which won't have the `new_tag` input or the `workflow_call` trigger
+     this retry path depends on.
 3. **Direct-release override**: setting `new_tag` (and optionally
    `dry_run`) on **Prepare release** skips `next-version.sh`,
    `bump-version.sh`, and the PR entirely, and hands off straight to
    `release.yml` for the tag/publish given in `new_tag`. Because this
    bypasses the PR review that's normally the release gate, it requires
-   approval from a second Maintainer (`environment: release`) before it
-   runs -- the one path in this pipeline that still needs a human gate.
+   approval on the `release` environment (Maintainers team) before it
+   runs. **Self-approval is currently still possible** -- the environment's
+   `prevent_self_review` setting hasn't been flipped to `true` yet (repo
+   Settings, tracked separately, not part of any workflow file); until it
+   is, "requires approval" means a click, not necessarily a second person.
+   `publish-python.yml`'s own `environment: pypi` is a second gate further
+   down this same path, for PyPI specifically.
 4. Once the release archives exist, refresh the vcpkg port and Conan
    recipe's checksums against them and open a PR -- see
    [packaging/README.md](../packaging/README.md). These necessarily lag one
