@@ -38,14 +38,9 @@ jobs:
       - name: cargo semver-checks (dengjen-tashkeel)
         run: cargo semver-checks check-release -p dengjen-tashkeel
 
-      # github.workflow_ref stays bound to the whole run's top-level caller even through nested
-      # workflow_call hops, so it mirrors the OIDC workflow_ref claim crates.io checks (see
-      # piper-rs #107). Two valid top-level callers now: release.yml itself on the normal push
-      # path, and prepare-release.yml on the direct-release override path (which calls
-      # release.yml via workflow_call, one hop further out). crates.io's Trusted Publishing must
-      # have BOTH registered as publishers for this to actually authenticate on the override
-      # path -- this check alone doesn't grant that, it only catches a mismatch early instead of
-      # crates-io-auth-action's opaque 400.
+      # github.workflow_ref binds to the run's top-level caller through nested workflow_call
+      # hops too (see piper-rs #107) -- release.yml on the push path, prepare-release.yml on
+      # the override path. crates.io's Trusted Publishing must register BOTH, or the override path 400s.
       - name: verify OIDC workflow_ref matches crates.io Trusted Publishing target
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}

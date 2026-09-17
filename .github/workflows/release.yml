@@ -38,10 +38,9 @@ jobs:
   tag-and-release:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # github.event_name inherits the top-level caller's original event (workflow_dispatch) rather
-    # than literally being 'workflow_call', so it can't detect the override path -- confirmed by a
-    # live dispatch that showed this job skipped under that condition. inputs.new_tag != '' detects
-    # it directly instead; head_commit is absent under workflow_call, hence checking new_tag first.
+    # github.event_name inherits the top-level caller's event (workflow_dispatch here), not
+    # literally 'workflow_call' -- a live dispatch confirmed the old check silently skipped this
+    # job. inputs.new_tag != '' detects the override path directly; head_commit is absent here too.
     if: >-
       inputs.new_tag != '' ||
       startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')
