@@ -38,12 +38,16 @@ jobs:
   tag-and-release:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # head_commit is absent on workflow_call, hence the event_name check first. The gate now
-    # lives one level up, in prepare-release.yml's own gate job -- by the time this workflow
-    # runs via workflow_call, that approval has already happened; a push-triggered run's
-    # approval was the PR merge.
+    # head_commit is absent when triggered via workflow_call, hence the inputs.new_tag check
+    # first. inputs.new_tag != '' detects the override path directly (self-contained, doesn't
+    # depend on the caller's own trigger type) rather than relying on github.event_name, which
+    # inherits the top-level caller's original event (workflow_dispatch here) rather than
+    # literally being 'workflow_call' -- confirmed by a live dispatch that showed this job
+    # skipped under the old condition. The gate now lives one level up, in prepare-release.yml's
+    # own gate job -- by the time this workflow runs via workflow_call, that approval has
+    # already happened; a push-triggered run's approval was the PR merge.
     if: >-
-      github.event_name == 'workflow_call' ||
+      inputs.new_tag != '' ||
       startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')
     permissions:
       contents: write
