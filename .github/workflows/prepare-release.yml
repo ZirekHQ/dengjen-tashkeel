@@ -3,12 +3,26 @@ name: Prepare release
 # Proposes a release; merging the opened PR is what actually cuts one -- release.yml tags that
 # merge commit and triggers every downstream release workflow automatically.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      new_tag:
+        description: "Skip the PR: release this exact vX.Y.Z tag directly (requires approval)"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry Run: publish nothing (only used together with new_tag)"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
 jobs:
+  # Normal path: compute the next version and open the PR. Merging it is the release gate
+  # (see .github/CONTRIBUTING.md) -- nothing here needs approval of its own. Skipped when
+  # new_tag selects the direct-release override path below instead.
   prepare:
+    if: inputs.new_tag == ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -67,3 +81,24 @@ jobs:
           gh pr create --title "chore: bump workspace version -> ${VERSION}" \
             --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`github-release.yml\` (GitHub Release), \`publish-python.yml\` (PyPI), \`publish-java.yml\` (Maven Central), and \`publish-crates.yml\` (crates.io) automatically, no further approval needed. Review the version and the diff carefully before merging -- this is the real decision point (the vcpkg/Conan follow-up in CONTRIBUTING.md's step 5 still needs its own PR once the release archives exist)." \
             --base main --head "$branch"
+
+  # Override path: skip prepare/PR entirely and hand off straight to release.yml. This is
+  # the one path in the whole pipeline with no PR review to fall back on, so it's the only
+  # thing that still needs a human gate.
+  gate:
+    if: inputs.new_tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - run: echo "approved"
+
+  release-now:
+    needs: gate
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/release.yml
+    with:
+      new_tag: ${{ inputs.new_tag }}
+      dry_run: ${{ inputs.dry_run == true }}
