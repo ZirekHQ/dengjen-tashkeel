@@ -99,7 +99,12 @@ jobs:
       contents: write
       id-token: write
     uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
-    secrets: inherit
+    secrets:
+      JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+      JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+      JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+      JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+      JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
     with:
       new_tag: ${{ inputs.new_tag }}
       dry_run: ${{ inputs.dry_run == true }}
