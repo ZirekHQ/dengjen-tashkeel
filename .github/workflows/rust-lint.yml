@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   clippy:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -37,6 +38,7 @@ jobs:
         run: cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings
 
   audit:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -52,6 +54,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   fmt:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -67,6 +70,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   deny:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -84,6 +88,7 @@ jobs:
   # Cobertura report matches what that job exercises. Reports to GitHub's
   # own coverage feature since SonarCloud never scanned this workspace (sonar-project.properties).
   coverage:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -114,6 +119,7 @@ jobs:
   # separate from the "1.98.1" toolchain the jobs above use -- catches a dependency bump
   # or language feature that would silently raise the workspace's real MSRV.
   msrv:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

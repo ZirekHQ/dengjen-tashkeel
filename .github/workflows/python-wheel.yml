@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   build-wheel:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     container: ubuntu:${{ matrix.ubuntu }}

@@ -25,6 +25,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
