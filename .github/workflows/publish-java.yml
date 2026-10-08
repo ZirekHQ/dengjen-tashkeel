@@ -124,7 +124,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: "1.98.1"
+          toolchain: "1.99.0"
 
       - name: Build dengjen_tashkeel_capi
         run: cargo build --release -p dengjen-tashkeel-capi --locked
