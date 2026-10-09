@@ -3,7 +3,7 @@
 This page shows dengjen-tashkeel's own structure as a
 https://c4model.com/[C4] Container, Component, and Code diagram. For how it
 fits into the wider ZirekHQ speech stack, see the
-https://zirekhq.github.io/en/home/architecture.html[org-wide System Context
+https://zirekhq.github.io/home/architecture.html[org-wide System Context
 diagram]. No source code in this repository references dengjen-nvda,
 dengjen-tts, or dengjen-piper-rs -- as far as this codebase shows, it's a
 standalone tool. (dengjen-tts optionally depends on it, feature-gated, from
