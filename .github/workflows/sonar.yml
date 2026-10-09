@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0  # Sonar needs full history for new-code detection and blame
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: "1.99.0"
 
