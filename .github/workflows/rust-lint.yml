@@ -126,7 +126,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: "1.88.0" # must match [workspace.package].rust-version in Cargo.toml
+          toolchain: "1.99.0" # must match [workspace.package].rust-version in Cargo.toml
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo check (MSRV)
         # Explicit +toolchain: rust-toolchain.toml would otherwise win.
