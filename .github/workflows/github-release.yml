@@ -45,9 +45,10 @@ jobs:
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
         shell: bash
-        # Hand-patched for Sonar S8482 (no checksum published for this script) -- re-apply if regenerating via 'cargo dist generate'.
+        # Hand-patched for Sonar S8482 (script pinned by sha256) -- re-apply if regenerating via 'cargo dist generate'.
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh -o cargo-dist-installer.sh
+          echo "b657cf8c04a8b7bc28f39d220f7e6dd11bbd2bdb072c552262bd9ccf597261b5  cargo-dist-installer.sh" | sha256sum -c -
           sh cargo-dist-installer.sh
       - name: Cache dist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -118,11 +119,9 @@ jobs:
         if: ${{ matrix.container }}
         run: |
           if ! command -v cargo > /dev/null 2>&1; then
-            # Hand-patched for Sonar S8482 (rustup.rs is a live, server-side-mutable
-            # redirect with no static checksum by design) -- re-apply if regenerating
-            # via 'cargo dist generate'.
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup-init.sh
-            sh rustup-init.sh -y
+            # Hand-patched for Sonar S8482 (checksum-pinned rustup-init, not the
+            # mutable sh.rustup.rs redirect) -- re-apply if regenerating via 'cargo dist generate'.
+            bash .github/scripts/install-rustup.sh
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
       - name: Install dist

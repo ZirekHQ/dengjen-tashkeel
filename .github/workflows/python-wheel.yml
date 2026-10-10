@@ -49,9 +49,7 @@ jobs:
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup-init.sh
-          sh rustup-init.sh -y --default-toolchain none
-          rm rustup-init.sh
+          bash .github/scripts/install-rustup.sh --default-toolchain none
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Install pinned toolchain
@@ -64,7 +62,9 @@ jobs:
         # (3.10) can't install it. deadsnakes dropped 20.04/focal entirely
         # (why it's not in this matrix) -- fetch a self-contained Python 3.11 via uv instead.
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o uv-install.sh
+          # Pinned release asset plus a checksum, instead of astral.sh's mutable latest redirect.
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/astral-sh/uv/releases/download/0.12.17/uv-installer.sh -o uv-install.sh
+          echo "37b82230b28617c6c24fa52364fa28aa37f2aa40c114809a623f6b064a9730e5  uv-install.sh" | sha256sum -c -
           sh uv-install.sh
           rm uv-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
