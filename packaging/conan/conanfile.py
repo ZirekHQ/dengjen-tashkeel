@@ -24,15 +24,27 @@ _RELEASE_ASSETS = {
 }
 
 
+_PACKAGE_LAYOUT = (
+    ("*dengjen_tashkeel.h", "include"),
+    ("*.so", "lib"),
+    ("*.dylib", "lib"),
+    ("*.dll", "bin"),
+    ("*.dll.lib", "lib"),
+    ("*LICENSE-MIT", "licenses"),
+    ("*LICENSE-APACHE", "licenses"),
+)
+
+
 class DengjenTashkeelCapiConan(ConanFile):
     name = "dengjen-tashkeel-capi"
     version = "1.5.3"
     description = "Arabic-text diacritic restoration using neural networks (C API)"
     homepage = "https://github.com/ZirekHQ/dengjen-tashkeel"
     license = "MIT OR Apache-2.0"
+    package_type = "shared-library"
     settings = "os", "arch", "compiler"
 
-    def validate(self):
+    def validate(self) -> None:
         if (str(self.settings.os), str(self.settings.arch)) not in _RELEASE_ASSETS:
             raise ConanInvalidConfiguration(
                 f"dengjen-tashkeel-capi has no prebuilt binary for "
@@ -44,36 +56,35 @@ class DengjenTashkeelCapiConan(ConanFile):
                 f"compiler={self.settings.compiler} is not supported."
             )
 
-    def package_id(self):
+    def package_id(self) -> None:
         del self.info.settings.compiler
 
-    def build(self):
+    def build(self) -> None:
         target_triple, ext, sha256 = _RELEASE_ASSETS[
             (str(self.settings.os), str(self.settings.arch))
         ]
         archive = f"dengjen-tashkeel-capi-{target_triple}.{ext}"
+        base_url = "https://github.com/ZirekHQ/dengjen-tashkeel/releases/download"
         get(
             self,
-            f"https://github.com/ZirekHQ/dengjen-tashkeel/releases/download/v{self.version}/{archive}",
+            f"{base_url}/v{self.version}/{archive}",
             sha256=sha256,
             destination=self.build_folder,
         )
 
-    def package(self):
-        copy(self, "*dengjen_tashkeel.h", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "include"), keep_path=False)
-        copy(self, "*.so", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "lib"), keep_path=False)
-        copy(self, "*.dylib", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "lib"), keep_path=False)
-        copy(self, "*.dll", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "bin"), keep_path=False)
-        copy(self, "*.dll.lib", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "lib"), keep_path=False)
-        copy(self, "*LICENSE-MIT", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "licenses"), keep_path=False)
-        copy(self, "*LICENSE-APACHE", src=self.build_folder,
-             dst=os.path.join(self.package_folder, "licenses"), keep_path=False)
+    def package(self) -> None:
+        for pattern, subdir in _PACKAGE_LAYOUT:
+            copy(self, pattern, src=self.build_folder,
+                 dst=os.path.join(self.package_folder, subdir), keep_path=False)
 
-    def package_info(self):
-        self.cpp_info.libs = ["dengjen_tashkeel_capi"]
+    def package_info(self) -> None:
+        # Rust's MSVC cdylib import library is named <crate>.dll.lib.
+        is_windows = self.settings.os == "Windows"
+        self.cpp_info.libs = [
+            "dengjen_tashkeel_capi.dll" if is_windows else "dengjen_tashkeel_capi"
+        ]
+        self.cpp_info.set_property("cmake_file_name", "dengjen-tashkeel-capi")
+        self.cpp_info.set_property(
+            "cmake_target_name", "dengjen-tashkeel-capi::dengjen-tashkeel-capi"
+        )
+        self.cpp_info.set_property("pkg_config_name", "dengjen-tashkeel-capi")
