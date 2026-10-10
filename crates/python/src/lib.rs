@@ -40,24 +40,40 @@ fn tashkeel(
         .map_err(to_py_err)
 }
 
+#[cfg(any(feature = "ort-dylib", test))]
+fn is_onnxruntime_lib_name(name: &str) -> bool {
+    if cfg!(target_os = "windows") {
+        name == "onnxruntime.dll"
+    } else if cfg!(target_os = "macos") {
+        name.starts_with("libonnxruntime.") && name.ends_with(".dylib")
+    } else {
+        name.starts_with("libonnxruntime.so")
+    }
+}
+
+#[cfg(any(feature = "ort-dylib", test))]
+fn version_key(name: &str) -> Vec<u64> {
+    name.split(|c: char| !c.is_ascii_digit())
+        .filter_map(|part| part.parse().ok())
+        .collect()
+}
+
+#[cfg(any(feature = "ort-dylib", test))]
+fn pick_onnxruntime_lib<'a>(names: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    names
+        .filter(|name| is_onnxruntime_lib_name(name))
+        .max_by(|a, b| version_key(a).cmp(&version_key(b)).then_with(|| a.cmp(b)))
+}
+
 #[cfg(feature = "ort-dylib")]
 fn find_onnxruntime_lib(capi_dir: &std::path::Path) -> Option<std::path::PathBuf> {
-    std::fs::read_dir(capi_dir)
+    let names: Vec<String> = std::fs::read_dir(capi_dir)
         .ok()?
         .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .find(|path| {
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-                return false;
-            };
-            if cfg!(target_os = "windows") {
-                name == "onnxruntime.dll"
-            } else if cfg!(target_os = "macos") {
-                name.starts_with("libonnxruntime.") && name.ends_with(".dylib")
-            } else {
-                name.starts_with("libonnxruntime.so")
-            }
-        })
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    let picked = pick_onnxruntime_lib(names.iter().map(String::as_str))?;
+    Some(capi_dir.join(picked))
 }
 
 #[cfg(feature = "ort-dylib")]
@@ -123,6 +139,33 @@ mod tests {
             INFERENCE_ENGINE.get_or_init(py, || create_inference_engine(None).unwrap());
             tashkeel(py, text.to_string(), taskeen_threshold, None)
         })
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn pick_onnxruntime_lib_prefers_the_highest_numeric_version() {
+        let names = [
+            "libonnxruntime.so",
+            "libonnxruntime.so.1.9.0",
+            "libonnxruntime.so.1.20.1",
+            "unrelated.so",
+        ];
+
+        let picked = pick_onnxruntime_lib(names.into_iter());
+
+        assert_eq!(picked, Some("libonnxruntime.so.1.20.1"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn pick_onnxruntime_lib_is_independent_of_listing_order() {
+        let forward = ["libonnxruntime.so.1.2.0", "libonnxruntime.so"];
+        let reversed = ["libonnxruntime.so", "libonnxruntime.so.1.2.0"];
+
+        assert_eq!(
+            pick_onnxruntime_lib(forward.into_iter()),
+            pick_onnxruntime_lib(reversed.into_iter())
+        );
     }
 
     #[test]
