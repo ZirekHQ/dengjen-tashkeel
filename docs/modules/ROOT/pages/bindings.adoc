@@ -143,10 +143,15 @@ native-access warning.
 == CLI
 
 Beyond the flags reference in xref:usage.adoc[Usage], `--input-file`/`-f` changes how input is
-batched: with `-f`, the CLI diacritizes each *line* of the file independently and writes one
-output line per input line; without it (stdin or `--interactive`), the whole buffer is diacritized
-as one unit (`crates/cli/src/main.rs`, `tashkeel_main`). Both paths are capped per-call at
-`CHAR_LIMIT` (12,000 characters).
+batched: with `-f`, the CLI reads the whole file and diacritizes each *line* independently,
+writing one output line per input line. Without it, the CLI reads stdin one line at a time and
+diacritizes each line as its own call; in interactive mode (the default when neither `-f` nor `-o`
+is given) it keeps reading until EOF, but with only `-o` it processes just the first stdin line
+(`crates/cli/src/main.rs`, `get_input_text`, `tashkeel_main`).
+
+Each call is silently truncated to its first `CHAR_LIMIT` (12,000) characters rather than
+returning `InputTooLong`; split longer lines before passing them in. Log verbosity is set with
+the `TASHKEEL_LOG` environment variable (an `env_logger` filter, default `info`).
 
 [source,bash]
 ----

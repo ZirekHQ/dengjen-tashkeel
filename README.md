@@ -132,7 +132,8 @@ let diacritized = do_tashkeel(&engine, "بسم الله الرحمن الرحي�
 below) and the fourth is `preprocessed` — pass `true` only if `text` is
 already sentence-segmented, otherwise the library segments it for you.
 Input is capped at `CHAR_LIMIT` (12,000 characters); longer input returns
-`Err(DengjenTashkeelError::InputTooLong(_))`.
+`Err(DengjenTashkeelError::InputTooLong(_))`. The CLI differs: it truncates each input line to
+`CHAR_LIMIT` characters instead of failing.
 
 **Python:**
 
@@ -191,7 +192,8 @@ Options:
 ```
 
 With neither `--input-file` nor `--output-file`, the CLI runs in
-interactive mode by default.
+interactive mode by default. Set `TASHKEEL_LOG` (an `env_logger` filter such
+as `debug`; default `info`) to change log verbosity.
 
 ## The taskeen option
 
