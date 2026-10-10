@@ -1,5 +1,5 @@
 use clap::Parser;
-use dengjen_tashkeel::{create_inference_engine, do_tashkeel, DynamicInferenceEngine, CHAR_LIMIT};
+use dengjen_tashkeel::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::path::PathBuf;
@@ -50,13 +50,12 @@ fn get_input_text(args: &Cli) -> anyhow::Result<(usize, String)> {
     Ok((bytes_read, input_buffer))
 }
 
-fn diacritize_capped(
+fn diacritize(
     model: &DynamicInferenceEngine,
     text: &str,
     taskeen_threshold: Option<f32>,
 ) -> anyhow::Result<String> {
-    let input = String::from_iter(text.chars().take(CHAR_LIMIT));
-    Ok(do_tashkeel(model, &input, taskeen_threshold, false)?)
+    Ok(do_tashkeel(model, text, taskeen_threshold, false)?)
 }
 
 fn write_output_file(path: &std::path::Path, text: &str) -> anyhow::Result<()> {
@@ -75,23 +74,23 @@ fn tashkeel_main(
 
     match (&args.input_file, &args.output_file) {
         (None, None) => {
-            let diacritized = diacritize_capped(model, &input_text, taskeen_threshold)?;
+            let diacritized = diacritize(model, &input_text, taskeen_threshold)?;
             write_to_stdout(&diacritized)?;
         }
         (None, Some(output_filename)) => {
-            let diacritized = diacritize_capped(model, &input_text, taskeen_threshold)?;
+            let diacritized = diacritize(model, &input_text, taskeen_threshold)?;
             write_output_file(output_filename, &diacritized)?;
         }
         (Some(_), None) => {
             for input_line in input_text.lines() {
-                let diacritized_line = diacritize_capped(model, input_line, taskeen_threshold)?;
+                let diacritized_line = diacritize(model, input_line, taskeen_threshold)?;
                 write_to_stdout(&diacritized_line)?;
             }
         }
         (Some(_), Some(output_filename)) => {
             let mut diacritized_lines = String::new();
             for input_line in input_text.lines() {
-                let diacritized_line = diacritize_capped(model, input_line, taskeen_threshold)?;
+                let diacritized_line = diacritize(model, input_line, taskeen_threshold)?;
                 diacritized_lines.push_str(&diacritized_line);
                 diacritized_lines.push('\n');
             }
@@ -147,11 +146,29 @@ fn setup_logging() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dengjen_tashkeel::{DengjenTashkeelResult, InferenceEngine, CHAR_LIMIT};
     use std::io::Write;
     use std::sync::LazyLock;
 
     static ENGINE: LazyLock<DynamicInferenceEngine> =
         LazyLock::new(|| create_inference_engine(None).unwrap());
+
+    struct EchoEngine;
+
+    impl InferenceEngine for EchoEngine {
+        fn infer(
+            &self,
+            _input_ids: Vec<i64>,
+            _diac_ids: Vec<i64>,
+            seq_length: usize,
+        ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
+            Ok((vec![5; seq_length], vec![0.0; seq_length]))
+        }
+    }
+
+    fn echo_engine() -> DynamicInferenceEngine {
+        DynamicInferenceEngine::new(Box::new(EchoEngine))
+    }
 
     fn parse(args: &[&str]) -> Cli {
         let mut full_args = vec!["dengjen-tashkeel"];
@@ -291,5 +308,26 @@ mod tests {
         let input_text = std::fs::read_to_string(input_file.path()).unwrap();
 
         tashkeel_main(&ENGINE, &args, input_text).unwrap();
+    }
+
+    #[test]
+    fn diacritize_keeps_every_sentence_of_a_line_longer_than_char_limit() {
+        let sentence = "بسم الله الرحمن الرحيم. ";
+        let line = sentence.repeat(CHAR_LIMIT / sentence.chars().count() + 2);
+        assert!(line.chars().count() > CHAR_LIMIT);
+
+        let output = diacritize(&echo_engine(), &line, None).unwrap();
+
+        let sentences_in = line.matches('.').count();
+        assert_eq!(output.matches('.').count(), sentences_in);
+    }
+
+    #[test]
+    fn diacritize_reports_a_single_sentence_over_char_limit_as_an_error() {
+        let line = "ا".repeat(CHAR_LIMIT + 1);
+
+        let result = diacritize(&echo_engine(), &line, None);
+
+        assert!(result.is_err());
     }
 }
