@@ -1,6 +1,7 @@
 # No Rust toolchain in vcpkg's build environment, so this port downloads the
 # prebuilt release archive for the current triplet instead of building from
 # source (see https://github.com/ZirekHQ/dengjen-tashkeel/issues/23).
+vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
 set(VCPKG_BUILD_TYPE release)
 # VCPKG_BUILD_TYPE alone doesn't suppress the post-build binary-count lint
 # for a port that never calls vcpkg_cmake_configure/build.
