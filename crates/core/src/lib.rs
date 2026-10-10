@@ -381,7 +381,7 @@ pub fn do_tashkeel(
     map_sentences(&sentences, engine, taskeen_threshold).map(|v| v.join(" "))
 }
 
-fn _do_tashkeel_impl(
+pub fn _do_tashkeel_impl(
     engine: &(impl InferenceEngine + Send + Sync),
     text: &str,
     taskeen_threshold: Option<f32>,
