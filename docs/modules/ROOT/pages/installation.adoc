@@ -8,7 +8,21 @@ cargo add dengjen-tashkeel
 ----
 
 The default features (`ort-static`, `rayon`) statically link a bundled ONNX Runtime, so this
-works with no extra setup.
+works with no extra setup. The build downloads prebuilt ONNX Runtime binaries, so it needs network
+access and a supported target.
+
+To load a system ONNX Runtime instead, for example on an unsupported target or to use a GPU
+build, disable the defaults and enable `ort-dylib`:
+
+[source,toml]
+----
+dengjen-tashkeel = { version = "*", default-features = false, features = ["ort-dylib"] }
+----
+
+Then either set `ORT_DYLIB_PATH` to the shared library, or call
+`dengjen_tashkeel::init_ort_dylib(path)` before `create_inference_engine`. The CLI exposes the
+same feature: `cargo install dengjen-tashkeel-cli --no-default-features --features ort-dylib`.
+See xref:troubleshooting.adoc[Troubleshooting] for common failures.
 
 == Python
 
@@ -70,10 +84,15 @@ then add `dengjen-tashkeel-capi/1.5.3` to your `conanfile.txt`/`conanfile.py` `r
 
 == Java
 
+Requires JDK 25 or later (the jar is compiled with a JDK 25 toolchain and uses the Foreign
+Function & Memory API). Native jars exist only for `linux-x86_64`, `windows-x64`, and
+`macos-aarch64`; on other platforms, such as Linux aarch64 or macOS x86_64, build the C ABI
+library yourself and point `-Ddengjen.tashkeel.native.library.path` at it.
+
 [source,kotlin]
 ----
-implementation("io.github.zirekhq:dengjen-tashkeel:1.5.3")
-runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.5.3:linux-x86_64")
+implementation("io.github.zirekhq:dengjen-tashkeel:1.6.6")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.6.6:linux-x86_64")
 ----
 
 Published to Maven Central by the `publish-java.yml` CI workflow whenever a version tag is

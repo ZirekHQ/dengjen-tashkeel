@@ -1,0 +1,32 @@
+= Troubleshooting
+
+== Python: `RuntimeError` mentioning `onnxruntime` on import
+
+The wheel loads the shared library of the pip `onnxruntime` package when it is imported. Install
+a compatible version:
+
+[source,bash]
+----
+pip install "onnxruntime>=1.28,<2"
+----
+
+If `onnxruntime-gpu` is installed, uninstall it first: it provides the same `onnxruntime` import
+name and clashes with the CPU package.
+
+== Rust: build fails while fetching ONNX Runtime
+
+The default `ort-static` feature downloads prebuilt ONNX Runtime binaries at build time. On an
+offline machine or an unsupported target, build with the `ort-dylib` feature and supply a system
+library instead; see xref:installation.adoc#_rust[Rust installation].
+
+== Java: native library not found
+
+Native jars exist only for `linux-x86_64`, `windows-x64`, and `macos-aarch64`. On other
+platforms, build the C ABI library and set `-Ddengjen.tashkeel.native.library.path` to the file;
+see xref:installation.adoc#_java[Java installation].
+
+== C: `dengjen_tashkeel_init` returns `UNKNOWN_ERROR`
+
+The engine is already initialized, either by an earlier `dengjen_tashkeel_init` call or lazily by
+the first `dengjenTashkeelTashkeel` call. Call `dengjen_tashkeel_init` once, before any
+diacritization.

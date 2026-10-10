@@ -31,7 +31,10 @@ cargo add dengjen-tashkeel
 ```
 
 The default features (`ort-static`, `rayon`) statically link a bundled
-ONNX Runtime, so this works with no extra setup.
+ONNX Runtime, so this works with no extra setup. To load a system ONNX Runtime
+instead, use `default-features = false, features = ["ort-dylib"]` and set
+`ORT_DYLIB_PATH` or call `init_ort_dylib(path)` before
+`create_inference_engine` (see the docs' Installation page).
 
 **Python:**
 
@@ -93,7 +96,9 @@ then add `dengjen-tashkeel-capi/1.5.3` to your `conanfile.txt`/`conanfile.py`
 `requires`. See [packaging/README.md](./packaging/README.md) for how both
 are maintained.
 
-**Java:**
+**Java:** requires JDK 25 or later. Native jars exist only for `linux-x86_64`,
+`windows-x64`, and `macos-aarch64`; on other platforms, build the C ABI library
+yourself and set `-Ddengjen.tashkeel.native.library.path` (below).
 
 ```kotlin
 implementation("io.github.zirekhq:dengjen-tashkeel:1.6.6")
@@ -132,7 +137,8 @@ let diacritized = do_tashkeel(&engine, "بسم الله الرحمن الرحي�
 below) and the fourth is `preprocessed` — pass `true` only if `text` is
 already sentence-segmented, otherwise the library segments it for you.
 Input is capped at `CHAR_LIMIT` (12,000 characters); longer input returns
-`Err(DengjenTashkeelError::InputTooLong(_))`.
+`Err(DengjenTashkeelError::InputTooLong(_))`. The CLI differs: it truncates each input line to
+`CHAR_LIMIT` characters instead of failing.
 
 **Python:**
 
@@ -147,10 +153,44 @@ want its diagnostics (e.g. a redundant-init warning) surfaced through
 Python's own `logging` module, install [`pyo3-log`](https://github.com/vorner/pyo3-log)
 in your embedding process.
 
-**C:** the API is a single entry point for diacritizing a UTF-8 encoded
-string — see
-[`ffi_usage_example.py`](./crates/capi/ffi_usage_example.py) for sample
-usage against the compiled library via `ctypes`.
+**C:**
+
+The header exports three functions, spelled exactly as shown: `dengjen_tashkeel_init`,
+`dengjenTashkeelTashkeel`, and `dengjen_tashkeel_free_string`. Errors come back through the
+`ExternError` out-parameter (`code == 0` is success). Release every returned string and every
+non-null `err.message` with `dengjen_tashkeel_free_string`. Without a prior
+`dengjen_tashkeel_init`, the first `dengjenTashkeelTashkeel` call initializes the bundled model
+lazily, after which `dengjen_tashkeel_init` returns `UNKNOWN_ERROR`.
+
+```c
+#include <stdio.h>
+#include "dengjen_tashkeel.h"
+
+int main(void) {
+    ExternError err = {0};
+
+    /* Optional: NULL loads the bundled model. Must precede the first tashkeel call. */
+    dengjen_tashkeel_init(NULL, &err);
+    if (err.code != 0) {
+        fprintf(stderr, "%s\n", err.message);
+        dengjen_tashkeel_free_string(err.message);
+        return 1;
+    }
+
+    /* NULL threshold disables taskeen; false = let the library segment sentences. */
+    char *out = dengjenTashkeelTashkeel("بسم الله الرحمن الرحيم", NULL, false, &err);
+    if (err.code != 0) {
+        fprintf(stderr, "%s\n", err.message);
+        dengjen_tashkeel_free_string(err.message);
+        return 1;
+    }
+    puts(out);
+    dengjen_tashkeel_free_string(out);
+    return 0;
+}
+```
+
+See [`ffi_usage_example.py`](./crates/capi/ffi_usage_example.py) for the same flow via `ctypes`.
 
 **Java:**
 
@@ -191,7 +231,8 @@ Options:
 ```
 
 With neither `--input-file` nor `--output-file`, the CLI runs in
-interactive mode by default.
+interactive mode by default. Set `TASHKEEL_LOG` (an `env_logger` filter such
+as `debug`; default `info`) to change log verbosity.
 
 ## The taskeen option
 

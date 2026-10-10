@@ -10,7 +10,7 @@ in its build environment. See [issue #24](https://github.com/ZirekHQ/dengjen-tas
 both the vcpkg port and Conan recipe carry the real checksums for that
 release's `dengjen-tashkeel-capi-<target>` archives. They lag the workspace
 version (currently ahead, at `1.6.6`) by design — see
-[CONTRIBUTING.md](../.github/CONTRIBUTING.md) step 3 — until a maintainer
+[CONTRIBUTING.md](../.github/CONTRIBUTING.md) step 4 — until a maintainer
 ships a follow-up PR pointing them at a newer release:
 
 1. Download each release asset and compute its checksum:
@@ -18,12 +18,12 @@ ships a follow-up PR pointing them at a newer release:
    version=<new-version>
    for target in aarch64-apple-darwin x86_64-unknown-linux-gnu; do
      asset="dengjen-tashkeel-capi-${target}.tar.xz"
-     curl -sLO "https://github.com/ZirekHQ/dengjen-tashkeel/releases/download/v${version}/${asset}"
+     curl -fsSLO "https://github.com/ZirekHQ/dengjen-tashkeel/releases/download/v${version}/${asset}"
      echo "$asset sha512: $(sha512sum "$asset" | cut -d' ' -f1)"
      echo "$asset sha256: $(sha256sum "$asset" | cut -d' ' -f1)"
    done
    asset="dengjen-tashkeel-capi-x86_64-pc-windows-msvc.zip"
-   curl -sLO "https://github.com/ZirekHQ/dengjen-tashkeel/releases/download/v${version}/${asset}"
+   curl -fsSLO "https://github.com/ZirekHQ/dengjen-tashkeel/releases/download/v${version}/${asset}"
    echo "$asset sha512: $(sha512sum "$asset" | cut -d' ' -f1)"
    echo "$asset sha256: $(sha256sum "$asset" | cut -d' ' -f1)"
    ```
