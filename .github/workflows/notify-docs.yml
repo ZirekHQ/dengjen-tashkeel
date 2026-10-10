@@ -7,6 +7,16 @@ on:
       - 'docs/**'
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+    secrets:
+      DOCS_APP_CLIENT_ID:
+        required: true
+      DOCS_APP_PRIVATE_KEY:
+        required: true
   workflow_dispatch:
     inputs:
       ref:
