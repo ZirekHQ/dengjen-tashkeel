@@ -12,6 +12,10 @@ mod error_codes {
     pub const INPUT_TOO_LONG: i32 = 1;
     pub const INFERENCE_ERROR: i32 = 2;
     pub const MODEL_LOAD_ERROR: i32 = 3;
+    pub const ALREADY_INITIALIZED: i32 = 4;
+    pub const INVALID_ARGUMENT: i32 = 5;
+    // Kept for C header ABI stability.
+    #[allow(dead_code)]
     pub const UNKNOWN_ERROR: i32 = 99;
 }
 
@@ -44,15 +48,18 @@ impl From<DengjenTashkeelFFIError> for ExternError {
 type DengjenTashkeelFFIResult<T> = Result<T, DengjenTashkeelFFIError>;
 
 /// # Safety
-/// `s` must be either null or one such pointer, not yet freed. Passing any
-/// other pointer, freeing it twice, or using `s` after this call is
-/// undefined behavior.
+/// `s` must be either null or a string pointer returned by
+/// `dengjenTashkeelTashkeel` or stored in `ExternError.message`, and not yet
+/// freed. Passing any other pointer, freeing it twice, or using `s` after this
+/// call is undefined behavior.
 #[no_mangle]
 pub unsafe extern "C" fn dengjen_tashkeel_free_string(s: *mut c_char) {
     unsafe { ffi_support::destroy_c_string(s) }
 }
 
 /// # Safety
+/// `text_ptr` must be a valid NUL-terminated string. A null `text_ptr` is
+/// reported as `INVALID_ARGUMENT`; invalid UTF-8 is converted lossily.
 /// `taskeen_threshold` must be either null or point to a single, properly
 /// aligned `c_float` that remains valid for the duration of this call.
 /// Ownership of the pointee is NOT transferred: this function only reads
@@ -78,7 +85,12 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
     };
     let taskeen_threshold = unsafe { taskeen_threshold.as_ref().copied() };
     call_with_result(out_error, move || {
-        let text = text_ptr.into_string();
+        let text = text_ptr.into_opt_string().ok_or_else(|| {
+            DengjenTashkeelFFIError(
+                error_codes::INVALID_ARGUMENT,
+                "text must not be null".to_string(),
+            )
+        })?;
         let engine = INFERENCE_ENGINE.get_or_try_init(|| create_inference_engine(None))?;
         let diacritized_text = ffi_do_tashkeel(engine, &text, taskeen_threshold, preprocessed)?;
         let retval = rust_string_to_c(diacritized_text);
@@ -87,6 +99,8 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
 }
 
 /// # Safety
+/// A repeated call, or a call after a successful `dengjenTashkeelTashkeel`,
+/// reports `ALREADY_INITIALIZED` and keeps the existing engine.
 /// `out_error` must be either null (in which case this call is a silent
 /// no-op) or point to a single, properly aligned, writable `ExternError`
 /// valid for the duration of this call.
@@ -112,16 +126,21 @@ fn ffi_do_tashkeel(
     Ok(do_tashkeel(model, text, taskeen_threshold, preprocessed)?)
 }
 
+fn already_initialized() -> DengjenTashkeelFFIError {
+    DengjenTashkeelFFIError(
+        error_codes::ALREADY_INITIALIZED,
+        "Inference engine is already initialized.".to_string(),
+    )
+}
+
 fn do_init_library(model_path: Option<PathBuf>) -> DengjenTashkeelFFIResult<()> {
-    let engine = create_inference_engine(model_path)?;
-    if INFERENCE_ENGINE.set(engine).is_err() {
-        Err(DengjenTashkeelFFIError(
-            error_codes::UNKNOWN_ERROR,
-            "Unexpected error. Failed to init global inference_engine instance.".to_string(),
-        ))
-    } else {
-        Ok(())
+    if INFERENCE_ENGINE.get().is_some() {
+        return Err(already_initialized());
     }
+    let engine = create_inference_engine(model_path)?;
+    INFERENCE_ENGINE
+        .set(engine)
+        .map_err(|_| already_initialized())
 }
 
 #[cfg(test)]
@@ -160,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn null_text_ptr_is_caught_as_panic_not_ub() {
+    fn null_text_ptr_is_reported_as_invalid_argument() {
         let mut out_error = new_out_error();
         let taskeen_threshold: *const libc::c_float = std::ptr::null();
         let null_text_ptr = unsafe { FfiStr::from_raw(std::ptr::null()) };
@@ -169,7 +188,7 @@ mod tests {
             dengjenTashkeelTashkeel(null_text_ptr, taskeen_threshold, true, &mut out_error)
         };
 
-        assert_eq!(out_error.get_code(), ErrorCode::PANIC);
+        assert_eq!(out_error.get_code().code(), error_codes::INVALID_ARGUMENT);
         assert!(result_ptr.is_null());
     }
 
@@ -220,17 +239,22 @@ mod tests {
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
         unsafe { dengjen_tashkeel_init(null_path, &mut out_error) };
 
-        assert_eq!(out_error.get_code().code(), error_codes::UNKNOWN_ERROR);
+        assert_eq!(
+            out_error.get_code().code(),
+            error_codes::ALREADY_INITIALIZED
+        );
     }
 
     #[test]
-    fn dengjen_tashkeel_init_with_bad_model_path_reports_inference_error() {
-        let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
-        let mut out_error = new_out_error();
+    fn dengjen_tashkeel_init_with_bad_model_path_reports_model_load_error() {
+        let error = create_inference_engine(Some(PathBuf::from("/nonexistent/path/to/model.onnx")))
+            .err()
+            .expect("a missing model file must not load");
 
-        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error) };
-
-        assert_eq!(out_error.get_code().code(), error_codes::INFERENCE_ERROR);
+        assert_eq!(
+            DengjenTashkeelFFIError::from(error).0,
+            error_codes::MODEL_LOAD_ERROR
+        );
     }
 
     #[test]
@@ -239,12 +263,14 @@ mod tests {
         malformed
             .write_all(b"this is not a valid onnx model")
             .unwrap();
-        let path = CString::new(malformed.path().to_str().unwrap()).unwrap();
-        let mut out_error = new_out_error();
+        let error = create_inference_engine(Some(malformed.path().to_path_buf()))
+            .err()
+            .expect("a malformed model file must not load");
 
-        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&path), &mut out_error) };
-
-        assert_eq!(out_error.get_code().code(), error_codes::INFERENCE_ERROR);
+        assert_eq!(
+            DengjenTashkeelFFIError::from(error).0,
+            error_codes::INFERENCE_ERROR
+        );
     }
 
     #[test]
@@ -265,6 +291,24 @@ mod tests {
 
         assert_eq!(out_error.get_code().code(), error_codes::INPUT_TOO_LONG);
         assert!(result_ptr.is_null());
+    }
+
+    #[test]
+    fn free_string_accepts_null_and_releases_a_returned_string() {
+        unsafe { dengjen_tashkeel_free_string(std::ptr::null_mut()) };
+
+        let owned = rust_string_to_c("owned".to_string());
+        unsafe { dengjen_tashkeel_free_string(owned) };
+    }
+
+    #[test]
+    fn model_load_error_maps_to_its_own_code() {
+        let io_error = std::io::Error::from(std::io::ErrorKind::NotFound);
+
+        let ffi_error =
+            DengjenTashkeelFFIError::from(DengjenTashkeelError::ModelLoadError(io_error));
+
+        assert_eq!(ffi_error.0, error_codes::MODEL_LOAD_ERROR);
     }
 
     #[test]

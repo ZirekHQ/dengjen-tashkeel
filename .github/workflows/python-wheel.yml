@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: python-wheel-${{ github.ref }}
-  cancel-in-progress: true
+  group: python-wheel-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-wheel:
@@ -49,9 +49,7 @@ jobs:
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup-init.sh
-          sh rustup-init.sh -y --default-toolchain none
-          rm rustup-init.sh
+          bash .github/scripts/install-rustup.sh --default-toolchain none
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Install pinned toolchain
@@ -64,7 +62,9 @@ jobs:
         # (3.10) can't install it. deadsnakes dropped 20.04/focal entirely
         # (why it's not in this matrix) -- fetch a self-contained Python 3.11 via uv instead.
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o uv-install.sh
+          # Pinned release asset plus a checksum, instead of astral.sh's mutable latest redirect.
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/astral-sh/uv/releases/download/0.12.17/uv-installer.sh -o uv-install.sh
+          echo "37b82230b28617c6c24fa52364fa28aa37f2aa40c114809a623f6b064a9730e5  uv-install.sh" | sha256sum -c -
           sh uv-install.sh
           rm uv-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -87,13 +87,8 @@ jobs:
         # >=1.28,<2 range. --no-deps on the wheel so pip doesn't re-resolve it.
         run: |
           pip install --only-binary :all: onnxruntime==1.30.0
-          # S8544 false positive: --no-deps disables resolution entirely, and
-          # the target is a local file glob (one match, just built above) --
-          # no registry lookup, so there's no floating version to lock.
-          pip install --no-deps --only-binary :all: crates/python/dist/*.whl
-          python3 -c "
-          from dengjen_tashkeel_py import tashkeel
-          result = tashkeel('بسم الله الرحمن الرحيم')
-          assert result and result != 'بسم الله الرحمن الرحيم', result
-          print(result)
-          "
+          whl="$(ls crates/python/dist/*.whl)"
+          req="$(mktemp)"
+          printf 'file://%s --hash=sha256:%s\n' "$PWD/$whl" "$(sha256sum "$whl" | cut -d' ' -f1)" > "$req"
+          pip install --require-hashes --no-index --no-deps --only-binary :all: -r "$req"
+          python3 .github/scripts/wheel_smoke_test.py

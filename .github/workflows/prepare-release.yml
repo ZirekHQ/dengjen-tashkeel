@@ -17,6 +17,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
 jobs:
   # Normal path: compute the next version and open the PR. Merging it is the release gate
   # (see .github/CONTRIBUTING.md) -- nothing here needs approval of its own. Skipped when
@@ -98,6 +102,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      checks: read
     uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     secrets:
       JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
@@ -109,6 +114,8 @@ jobs:
       MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
       BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
       BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+      DOCS_APP_CLIENT_ID: ${{ secrets.DOCS_APP_CLIENT_ID }}
+      DOCS_APP_PRIVATE_KEY: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
     with:
       new_tag: ${{ inputs.new_tag }}
       dry_run: ${{ inputs.dry_run == true }}

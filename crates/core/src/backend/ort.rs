@@ -181,13 +181,20 @@ fn ort_session_run_batch(
 
 const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
 
+const MAX_DEFAULT_POOL_SIZE: NonZeroUsize = NonZeroUsize::new(4).unwrap();
+
 /// Number of pooled sessions to build when the caller doesn't request a specific size.
 ///
 /// One session per available thread of parallelism lets `rayon`'s sentence fan-out (or
 /// any other concurrent caller) run inference without queuing on a single session, while
 /// each session itself uses a single intra-op thread to avoid oversubscribing the machine.
 fn default_pool_size() -> NonZeroUsize {
-    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(1).unwrap())
+    let available = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
+    capped_pool_size(available)
+}
+
+fn capped_pool_size(available: NonZeroUsize) -> NonZeroUsize {
+    available.min(MAX_DEFAULT_POOL_SIZE)
 }
 
 fn build_session(model_bytes: &[u8]) -> DengjenTashkeelResult<Session> {
@@ -217,10 +224,8 @@ impl OrtEngine {
     ) -> DengjenTashkeelResult<Self> {
         let model_path = model_path.as_ref();
         let model_bytes = std::fs::read(model_path).map_err(|e| {
-            DengjenTashkeelError::InferenceError(format!(
-                "Failed to read model file `{}`. Caused by: {e}",
-                model_path.display()
-            ))
+            let detail = format!("model file `{}`: {e}", model_path.display());
+            DengjenTashkeelError::ModelLoadError(std::io::Error::new(e.kind(), detail))
         })?;
         Self::from_bytes(&model_bytes, pool_size)
     }
@@ -290,6 +295,18 @@ mod tests {
             result,
             Err(DengjenTashkeelError::InferenceError(_))
         ));
+    }
+
+    #[test]
+    fn default_pool_size_is_capped_on_many_core_hosts() {
+        let many_cores = NonZeroUsize::new(64).unwrap();
+
+        assert_eq!(capped_pool_size(many_cores), MAX_DEFAULT_POOL_SIZE);
+        assert_eq!(
+            capped_pool_size(NonZeroUsize::MIN),
+            NonZeroUsize::MIN,
+            "a single-core host keeps a single session"
+        );
     }
 
     #[test]

@@ -29,7 +29,7 @@ C4Container
         Container(core, "Core", "Rust library (crates/core)", "ONNX-based inference -- see Component diagram")
     }
 
-    Container_Ext(java, "Java bindings", "bindings/java (separate Gradle project)", "Loads the C ABI's native library directly (JNI/JNA-style)")
+    Container_Ext(java, "Java bindings", "bindings/java (separate Gradle project)", "Loads the C ABI's native library directly (JDK Foreign Function & Memory API)")
     System_Ext(dengjentts, "dengjen-tts", "Optionally links this crate for Arabic phonemization (feature-gated)")
 
     Rel(caller, cli, "Invokes")
@@ -53,10 +53,12 @@ C4Component
         Component(libpub, "lib.rs", "Rust module", "Public API: do_tashkeel(); segments text via libtqsm, then runs per-sentence inference")
         Component(backendmod, "backend/mod.rs", "Rust module", "create_inference_engine() factory; DynamicInferenceEngine wrapper")
         Component(ort, "backend/ort.rs", "Rust module", "OrtEngine -- the concrete ONNX Runtime backend")
+        Component(pool, "backend/ort/session_pool.rs", "Rust module", "SessionPool -- bounded pool of ONNX Runtime sessions")
     }
 
     Rel(libpub, backendmod, "Obtains an engine from")
     Rel(backendmod, ort, "Constructs")
+    Rel(ort, pool, "Checks sessions out of")
 ----
 
 == Code
@@ -64,8 +66,8 @@ C4Component
 `DynamicInferenceEngine` is a thin decorator around a boxed trait object --
 it exists purely so callers depend on one concrete type instead of a raw
 `Box<dyn InferenceEngine>` everywhere. `OrtEngine` is the only real
-implementor today, and wraps its ONNX Runtime session in a `Mutex` for
-thread-safe shared access.
+implementor today, and wraps a `SessionPool` of ONNX Runtime sessions: each call checks a
+session out of the bounded pool, so concurrent callers run on separate sessions.
 
 [source,mermaid]
 ----
@@ -73,12 +75,13 @@ classDiagram
     class InferenceEngine {
         <<trait>>
         +infer(input_ids, diac_ids, seq_length) InferResult
+        +infer_batch(batch) Vec~InferResult~
     }
     class DynamicInferenceEngine {
         -0: Box~InferenceEngine~
     }
     class OrtEngine {
-        -0: Mutex~Session~
+        -0: SessionPool~Session~
     }
 
     InferenceEngine <|.. DynamicInferenceEngine

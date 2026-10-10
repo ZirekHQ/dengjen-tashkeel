@@ -1,11 +1,12 @@
 # coding: utf-8
+from __future__ import annotations
 
 import ctypes
 import os
 import sys
 
 
-def _default_lib_name():
+def _default_lib_name() -> str:
     if sys.platform == "win32":
         return "dengjen_tashkeel_capi.dll"
     if sys.platform == "darwin":
@@ -30,7 +31,7 @@ class ExternError(ctypes.Structure):
         ("message", ctypes.c_void_p),
     ]
 
-    def take_message(self):
+    def take_message(self) -> str | None:
         """Read and free the error message. Call at most once per error."""
         if not self.message:
             return None
@@ -52,7 +53,7 @@ lib.dengjen_tashkeel_init.argtypes = (ctypes.c_char_p, ctypes.POINTER(ExternErro
 lib.dengjen_tashkeel_free_string.argtypes = (ctypes.c_void_p,)
 
 
-def init(model_path=None):
+def init(model_path: str | None = None) -> None:
     """Explicitly initialize dengjen_tashkeel with an optional custom ONNX
     model path (None uses the bundled default model). Calling tashkeel()
     without ever calling init() first also works -- it lazily initializes on
@@ -64,7 +65,11 @@ def init(model_path=None):
         raise RuntimeError(err.take_message())
 
 
-def tashkeel(text, taskeen_threshold=None, preprocessed=False):
+def tashkeel(
+    text: str,
+    taskeen_threshold: float | None = None,
+    preprocessed: bool = False,
+) -> str:
     err = ExternError()
     threshold_ptr = (
         ctypes.pointer(ctypes.c_float(taskeen_threshold))

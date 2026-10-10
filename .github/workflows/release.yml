@@ -49,14 +49,26 @@ on:
         required: false
       BLUESKY_APP_PASSWORD:
         required: false
+      DOCS_APP_CLIENT_ID:
+        required: false
+      DOCS_APP_PRIVATE_KEY:
+        required: false
 
 permissions:
   contents: read
 
+# Serializes duplicate dispatches of the same tag. Keyed on the commit otherwise so pushes
+# to main never queue behind (and never replace) each other -- a replaced pending run would
+# silently drop a release.
+concurrency:
+  group: release-${{ inputs.new_tag || github.sha }}
+  cancel-in-progress: false
+
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Includes the wait for this commit's CI checks (wait-for-checks.sh).
+    timeout-minutes: 40
     # github.event_name inherits the top-level caller's event (workflow_dispatch here), not
     # literally 'workflow_call' -- a live dispatch confirmed the old check silently skipped this
     # job. inputs.new_tag != '' detects the override path directly; head_commit is absent here too.
@@ -65,6 +77,7 @@ jobs:
       startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')
     permissions:
       contents: write
+      checks: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -96,6 +109,13 @@ jobs:
             version="$cargo_version"
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for CI checks on this commit
+        # The tag fans out to irreversible PyPI/Maven Central/crates.io publishes, so a red
+        # or still-running test/lint/MSRV/semver result on this commit must stop it here.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-checks.sh "$GITHUB_SHA" test clippy fmt deny msrv semver-checks
 
       - name: Push release tag
         env:
@@ -178,6 +198,21 @@ jobs:
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
       dry_run: ${{ inputs.dry_run == true }}
+
+  docs:
+    name: Notify docs site
+    needs: [tag-and-release, release]
+    # The release:published event never fires for releases created with GITHUB_TOKEN
+    # (github-release.yml), so notify-docs.yml is called from here instead.
+    if: ${{ !cancelled() && inputs.dry_run != true && needs.release.result == 'success' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/notify-docs.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    with:
+      ref: v${{ needs.tag-and-release.outputs.version }}
+    secrets:
+      DOCS_APP_CLIENT_ID: ${{ secrets.DOCS_APP_CLIENT_ID }}
+      DOCS_APP_PRIVATE_KEY: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
 
   announce:
     name: Announce the release

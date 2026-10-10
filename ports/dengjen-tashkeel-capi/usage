@@ -1,7 +1,8 @@
 dengjen-tashkeel-capi provides a plain C shared library and header, not a CMake
 package -- link against it directly:
 
-    find_library(DENGJEN_TASHKEEL_CAPI_LIB dengjen_tashkeel_capi)
+    find_library(DENGJEN_TASHKEEL_CAPI_LIB
+        NAMES dengjen_tashkeel_capi dengjen_tashkeel_capi.dll)
     target_link_libraries(main PRIVATE ${DENGJEN_TASHKEEL_CAPI_LIB})
 
 The header is installed as <dengjen_tashkeel.h> on the standard include path.

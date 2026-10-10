@@ -19,14 +19,38 @@ if [ -z "$old_version" ]; then
   exit 1
 fi
 
-sed -i.bak "0,/^version = \"${old_version}\"\$/s//version = \"${new_version}\"/" Cargo.toml
-rm -f Cargo.toml.bak
+require_line() {
+  local file="$1" line="$2"
+  if ! grep -qxF -- "$line" "$file"; then
+    echo "::error::Expected '${line}' in ${file} after bump -- format drift?" >&2
+    exit 1
+  fi
+}
 
-sed -i.bak "s/version = \"${old_version}\"/version = \"${new_version}\"/" bindings/java/build.gradle.kts
+# awk instead of GNU-only `sed 0,/re/` so the script also runs on BSD/macOS.
+awk -v old="$old_version" -v new="$new_version" '
+  /^\[workspace\.package\]/ {f=1; print; next}
+  /^\[/ {f=0}
+  f && !done && $0 == "version = \"" old "\"" {print "version = \"" new "\""; done=1; next}
+  {print}
+' Cargo.toml > Cargo.toml.new
+mv Cargo.toml.new Cargo.toml
+require_line Cargo.toml "version = \"${new_version}\""
+
+sed -i.bak "s/^version = \"${old_version}\"\$/version = \"${new_version}\"/" bindings/java/build.gradle.kts
 rm -f bindings/java/build.gradle.kts.bak
+require_line bindings/java/build.gradle.kts "version = \"${new_version}\""
 
 sed -i.bak "s/dengjen-tashkeel:${old_version}/dengjen-tashkeel:${new_version}/g" README.md
 rm -f README.md.bak
+if grep -qE "dengjen-tashkeel:${old_version//./\\.}([^0-9A-Za-z.]|\$)" README.md; then
+  echo "::error::README.md still references dengjen-tashkeel:${old_version}" >&2
+  exit 1
+fi
+grep -qF "dengjen-tashkeel:${new_version}" README.md || {
+  echo "::error::README.md has no dengjen-tashkeel:${new_version} coordinate" >&2
+  exit 1
+}
 
 for sub_crate_toml in crates/capi/Cargo.toml crates/cli/Cargo.toml crates/python/Cargo.toml; do
   # Read each file's own current pin rather than reusing $old_version: the pin can already

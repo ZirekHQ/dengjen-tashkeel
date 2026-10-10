@@ -22,6 +22,10 @@ repositories {
     mavenCentral()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(22)
+}
+
 dependencyLocking {
     lockAllConfigurations()
 }

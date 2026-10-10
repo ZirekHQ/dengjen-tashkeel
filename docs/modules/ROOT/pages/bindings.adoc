@@ -40,16 +40,23 @@ rather than a return value; `code == 0` means success. The codes, from the heade
 |Code |Meaning
 
 |`1` (`INPUT_TOO_LONG`)
-|Input exceeds `CHAR_LIMIT`
+|A sentence exceeds `CHAR_LIMIT`
 
 |`2` (`INFERENCE_ERROR`)
 |Model inference failed
 
 |`3` (`MODEL_LOAD_ERROR`)
-|Failed to load the ONNX model
+|The ONNX model file is missing, unreadable, or fails to load (core `ModelLoadError`)
+
+|`4` (`ALREADY_INITIALIZED`)
+|`dengjen_tashkeel_init` was called after the engine was initialized, explicitly or lazily; the
+existing engine is kept
+
+|`5` (`INVALID_ARGUMENT`)
+|`dengjenTashkeelTashkeel` received a null `text`
 
 |`99` (`UNKNOWN_ERROR`)
-|Internal error unrelated to the above
+|Declared in the header; the current Rust code never returns it
 
 |`-1` (`ErrorCode_PANIC`)
 |The Rust side panicked instead of returning an error
@@ -102,9 +109,9 @@ from dengjen_tashkeel_py import tashkeel
 try:
     diacritized = tashkeel("بسم الله الرحمن الرحيم", taskeen_threshold=0.8)
 except ValueError:
-    ...  # input longer than CHAR_LIMIT (12,000 characters)
+    ...  # a sentence longer than CHAR_LIMIT (12,000 characters)
 except RuntimeError:
-    ...  # inference or model-load failure
+    ...  # inference failure (model load failures surface at import)
 ----
 
 == Java
@@ -113,7 +120,9 @@ except RuntimeError:
 `TashkeelException` on failure); `diacritize(text, Optional<Float> taskeenThreshold, boolean
 preprocessed)` then diacritizes a string. `TashkeelException.reason()` is a sealed interface --
 `InputTooLong`, `InferenceError`, `ModelLoadError`, and `Unknown`, each a record carrying the
-underlying message -- so callers can exhaustively `switch` over the failure without a default
+underlying message (`Unknown` also carries the raw `code`). Codes 1, 2, and 3 map to the first
+three; any other code, including `ALREADY_INITIALIZED` (4) and `INVALID_ARGUMENT` (5), maps to
+`Unknown(code, message)` (`Tashkeel.reasonFor`). So callers can exhaustively `switch` over the failure without a default
 branch:
 
 [source,java]
@@ -143,10 +152,16 @@ native-access warning.
 == CLI
 
 Beyond the flags reference in xref:usage.adoc[Usage], `--input-file`/`-f` changes how input is
-batched: with `-f`, the CLI diacritizes each *line* of the file independently and writes one
-output line per input line; without it (stdin or `--interactive`), the whole buffer is diacritized
-as one unit (`crates/cli/src/main.rs`, `tashkeel_main`). Both paths are capped per-call at
-`CHAR_LIMIT` (12,000 characters).
+batched: with `-f`, the CLI reads the whole file and diacritizes each *line* independently,
+writing one output line per input line. Without it, the CLI reads stdin one line at a time and
+diacritizes each line as its own call; in interactive mode (the default when neither `-f` nor `-o`
+is given) it keeps reading until EOF, but with only `-o` it processes just the first stdin line
+(`crates/cli/src/main.rs`, `get_input_text`, `tashkeel_main`).
+
+The CLI does not truncate input: a line containing a single sentence longer than `CHAR_LIMIT`
+(12,000 characters) fails with the core `InputTooLong` error; insert sentence breaks before passing
+such lines in. Log verbosity is set with
+the `TASHKEEL_LOG` environment variable (an `env_logger` filter, default `info`).
 
 [source,bash]
 ----

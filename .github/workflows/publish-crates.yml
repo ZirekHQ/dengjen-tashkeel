@@ -30,14 +30,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: "1.99.0"
-      - uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
-        with:
-          tool: cargo-semver-checks
-      # dengjen-tashkeel-cli has no `lib` target (bin-only), so it has no public
-      # API surface for cargo-semver-checks to compare -- only the core crate is checked.
-      - name: cargo semver-checks (dengjen-tashkeel)
-        run: cargo semver-checks check-release -p dengjen-tashkeel
-
       # github.workflow_ref binds to the run's top-level caller through nested workflow_call
       # hops too (see piper-rs #107) -- release.yml on the push path, prepare-release.yml on
       # the override path. crates.io's Trusted Publishing must register BOTH, or the override path 400s.

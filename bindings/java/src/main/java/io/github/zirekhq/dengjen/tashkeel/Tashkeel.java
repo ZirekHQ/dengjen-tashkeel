@@ -3,6 +3,7 @@ package io.github.zirekhq.dengjen.tashkeel;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -44,10 +45,11 @@ public final class Tashkeel implements AutoCloseable {
                     .map(value -> toNativeFloat(arena, value))
                     .orElse(MemorySegment.NULL);
 
+            MethodHandle tashkeel = TashkeelLib.handles().tashkeel();
             MemorySegment resultPtr;
             try {
                 resultPtr = (MemorySegment)
-                        TashkeelLib.TASHKEEL.invokeExact(textPtr, thresholdPtr, preprocessed, outError);
+                        tashkeel.invokeExact(textPtr, thresholdPtr, preprocessed, outError);
             } catch (Throwable t) {
                 throw new IllegalStateException("dengjenTashkeelTashkeel downcall failed", t);
             }
@@ -68,8 +70,9 @@ public final class Tashkeel implements AutoCloseable {
     }
 
     private static void invokeInit(MemorySegment modelPathPtr, MemorySegment outError) {
+        MethodHandle init = TashkeelLib.handles().init();
         try {
-            TashkeelLib.INIT.invokeExact(modelPathPtr, outError);
+            init.invokeExact(modelPathPtr, outError);
         } catch (Throwable t) {
             throw new IllegalStateException("dengjen_tashkeel_init downcall failed", t);
         }
@@ -87,12 +90,16 @@ public final class Tashkeel implements AutoCloseable {
         } finally {
             freeString(messagePtr);
         }
-        throw new TashkeelException(switch (code) {
+        throw new TashkeelException(reasonFor(code, message));
+    }
+
+    static TashkeelException.Reason reasonFor(int code, String message) {
+        return switch (code) {
             case INPUT_TOO_LONG -> new TashkeelException.InputTooLong(message);
             case INFERENCE_ERROR -> new TashkeelException.InferenceError(message);
             case MODEL_LOAD_ERROR -> new TashkeelException.ModelLoadError(message);
             default -> new TashkeelException.Unknown(code, message);
-        });
+        };
     }
 
     private static String readString(MemorySegment ptr) {
@@ -106,8 +113,9 @@ public final class Tashkeel implements AutoCloseable {
         if (ptr.equals(MemorySegment.NULL)) {
             return;
         }
+        MethodHandle freeString = TashkeelLib.handles().freeString();
         try {
-            TashkeelLib.FREE_STRING.invokeExact(ptr);
+            freeString.invokeExact(ptr);
         } catch (Throwable t) {
             throw new IllegalStateException("dengjen_tashkeel_free_string downcall failed", t);
         }
