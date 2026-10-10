@@ -19,6 +19,7 @@ pub type DengjenTashkeelResult<T> = Result<T, DengjenTashkeelError>;
 pub const CHAR_LIMIT: usize = 12000;
 const PAD: char = '_';
 const NUMERAL_SYMBOL: char = '#';
+const SUKOON: char = '\u{652}';
 const NUMERALS: &[char] = &[
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨',
     '٩',
@@ -41,11 +42,9 @@ static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
         .collect()
 });
 static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
-    HashSet::from_iter(
-        [1618, 1617, 1614, 1615, 1616, 1611, 1612, 1613]
-            .iter()
-            .map(|i| char::from_u32(*i).unwrap()),
-    )
+    HashSet::from([
+        SUKOON, '\u{651}', '\u{64E}', '\u{64F}', '\u{650}', '\u{64B}', '\u{64C}', '\u{64D}',
+    ])
 });
 static NORMALIZED_DIAC_MAP: Lazy<HashMap<&str, &str>> =
     Lazy::new(|| HashMap::from([("َّ", "َّ"), ("ًّ", "ًّ"), ("ُّ", "ُّ"), ("ٌّ", "ٌّ"), ("ِّ", "ِّ"), ("ٍّ", "ٍّ")]));
@@ -79,7 +78,7 @@ pub enum DengjenTashkeelError {
     InputTooLong(usize),
     #[error("Inference error. {0}")]
     InferenceError(String),
-    #[error("Resource not found. {0}")]
+    #[error("Failed to load model. {0}")]
     ModelLoadError(#[from] std::io::Error),
 }
 
@@ -214,10 +213,8 @@ fn annotate_text_with_diacritics_taskeen(
     diacritics: Vec<String>,
     removed_chars: HashSet<char>,
     logits: Vec<f32>,
-    taskeen_threshold: Option<f32>,
+    taskeen_threshold: f32,
 ) -> DengjenTashkeelResult<String> {
-    let taskeen_threshold = taskeen_threshold.unwrap();
-    let sukoon = char::from_u32(0x652).unwrap();
     let mut output = String::new();
     let mut diac_iter = diacritics.into_iter().zip(logits);
     for c in input.chars() {
@@ -233,7 +230,7 @@ fn annotate_text_with_diacritics_taskeen(
                 )
             })?;
             if logit > taskeen_threshold {
-                output.push(sukoon);
+                output.push(SUKOON);
             } else {
                 output.push_str(&diac);
             }
@@ -283,17 +280,20 @@ fn postprocess(
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<String> {
     let diacritics = target_to_diacritics(target_ids.into_iter())?;
-    if taskeen_threshold.is_none() {
-        annotate_text_with_diacritics(&text, diacritics, removed_chars)
-    } else {
-        annotate_text_with_diacritics_taskeen(
+    match taskeen_threshold {
+        None => annotate_text_with_diacritics(&text, diacritics, removed_chars),
+        Some(threshold) => annotate_text_with_diacritics_taskeen(
             &text,
             diacritics,
             removed_chars,
             logits,
-            taskeen_threshold,
-        )
+            threshold,
+        ),
     }
+}
+
+fn log_inference_time(elapsed: std::time::Duration) {
+    log::debug!("Inference time: {:.3} ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 fn map_sentences(
@@ -330,7 +330,7 @@ fn map_sentences(
     let expected_results = batch_positions.len();
     let timer = std::time::Instant::now();
     let batch_results = engine.infer_batch(batch)?;
-    log::debug!("Inference time: {} ms", timer.elapsed().as_millis() as f32);
+    log_inference_time(timer.elapsed());
 
     if batch_results.len() != expected_results {
         return Err(DengjenTashkeelError::InferenceError(format!(
@@ -369,7 +369,7 @@ pub fn do_tashkeel(
     preprocessed: bool,
 ) -> DengjenTashkeelResult<String> {
     if preprocessed {
-        return _do_tashkeel_impl(engine, text, taskeen_threshold);
+        return do_tashkeel_preprocessed(engine, text, taskeen_threshold);
     }
 
     let sentences = libtqsm::segment("ar", text).map_err(|e| {
@@ -381,7 +381,7 @@ pub fn do_tashkeel(
     map_sentences(&sentences, engine, taskeen_threshold).map(|v| v.join(" "))
 }
 
-pub fn _do_tashkeel_impl(
+fn do_tashkeel_preprocessed(
     engine: &(impl InferenceEngine + Send + Sync),
     text: &str,
     taskeen_threshold: Option<f32>,
@@ -389,13 +389,12 @@ pub fn _do_tashkeel_impl(
     let tok = tokenize(text)?;
 
     if tok.seq_length == 0 {
-        log::debug!("Inference time: {} ms", 0.0);
         return Ok(tok.text);
     }
 
     let timer = std::time::Instant::now();
     let (target_ids, logits) = engine.infer(tok.input_ids, tok.diac_ids, tok.seq_length)?;
-    log::debug!("Inference time: {} ms", timer.elapsed().as_millis() as f32);
+    log_inference_time(timer.elapsed());
     postprocess(
         tok.text,
         tok.removed_chars,
@@ -487,9 +486,8 @@ mod tests {
 
         assert_ne!(taskeen, no_taskeen);
 
-        let sukoon = char::from_u32(0x652).unwrap();
-        let no_taskeen_sukoon_count = no_taskeen.chars().filter(|c| c == &sukoon).count();
-        let taskeen_sukoon_count = taskeen.chars().filter(|c| c == &sukoon).count();
+        let no_taskeen_sukoon_count = no_taskeen.chars().filter(|c| c == &SUKOON).count();
+        let taskeen_sukoon_count = taskeen.chars().filter(|c| c == &SUKOON).count();
         assert!(taskeen_sukoon_count > no_taskeen_sukoon_count);
 
         Ok(())
@@ -583,7 +581,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(DengjenTashkeelError::InferenceError(_))
+            Err(DengjenTashkeelError::ModelLoadError(_))
         ));
     }
 
