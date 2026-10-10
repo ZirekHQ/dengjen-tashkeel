@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: python-wheel-${{ github.ref }}
-  cancel-in-progress: true
+  group: python-wheel-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-wheel:
@@ -91,9 +91,4 @@ jobs:
           # the target is a local file glob (one match, just built above) --
           # no registry lookup, so there's no floating version to lock.
           pip install --no-deps --only-binary :all: crates/python/dist/*.whl
-          python3 -c "
-          from dengjen_tashkeel_py import tashkeel
-          result = tashkeel('بسم الله الرحمن الرحيم')
-          assert result and result != 'بسم الله الرحمن الرحيم', result
-          print(result)
-          "
+          python3 .github/scripts/wheel_smoke_test.py

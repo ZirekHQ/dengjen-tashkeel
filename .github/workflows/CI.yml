@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -25,11 +25,25 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo test (workspace)
         run: cargo test --workspace --no-fail-fast
-      - name: cargo test (ort-dylib, python crate)
-        # crates/python's ort-dylib feature (used by the distributed wheel,
-        # see pyproject.toml) is a separate cfg-gated code path the default
-        # `cargo test --workspace` above never compiles or runs.
-        working-directory: crates/python
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Install onnxruntime and pytest
+        # Exact pins and --only-binary :all: -- same policy as sonar.yml and python-wheel.yml.
+        # onnxruntime matches python-wheel.yml's pin.
+        run: pip install --only-binary ':all:' onnxruntime==1.30.0 pytest==9.1.1
+      - name: cargo test (ort-dylib, core and python crate)
+        # The distributed wheel is built with ort-dylib (see pyproject.toml), a cfg-gated
+        # code path the default `cargo test --workspace` above never compiles or runs.
         run: |
-          cargo test --no-default-features --features ort-dylib find_onnxruntime_lib
-          cargo test --no-default-features --features ort-dylib resolve_dylib_path
+          ORT_DYLIB_PATH="$(python3 -c 'import glob, os, onnxruntime; print(glob.glob(os.path.join(os.path.dirname(onnxruntime.__file__), "capi", "libonnxruntime.so*"))[0])')"
+          export ORT_DYLIB_PATH
+          cargo test -p dengjen-tashkeel --no-default-features --features ort-dylib
+          cargo test -p dengjen-tashkeel-python --no-default-features --features ort-dylib
+      - name: Build the capi cdylib
+        # test_ffi_usage_example.py loads this library at import time.
+        run: cargo build -p dengjen-tashkeel-capi --locked
+      - name: pytest (C API FFI example)
+        # Runs here as well as in sonar.yml (which skips fork PRs and only reports coverage).
+        working-directory: crates/capi
+        run: pytest test_ffi_usage_example.py
