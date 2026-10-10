@@ -31,7 +31,10 @@ cargo add dengjen-tashkeel
 ```
 
 The default features (`ort-static`, `rayon`) statically link a bundled
-ONNX Runtime, so this works with no extra setup.
+ONNX Runtime, so this works with no extra setup. To load a system ONNX Runtime
+instead, use `default-features = false, features = ["ort-dylib"]` and set
+`ORT_DYLIB_PATH` or call `init_ort_dylib(path)` before
+`create_inference_engine` (see the docs' Installation page).
 
 **Python:**
 
@@ -93,7 +96,9 @@ then add `dengjen-tashkeel-capi/1.5.3` to your `conanfile.txt`/`conanfile.py`
 `requires`. See [packaging/README.md](./packaging/README.md) for how both
 are maintained.
 
-**Java:**
+**Java:** requires JDK 25 or later. Native jars exist only for `linux-x86_64`,
+`windows-x64`, and `macos-aarch64`; on other platforms, build the C ABI library
+yourself and set `-Ddengjen.tashkeel.native.library.path` (below).
 
 ```kotlin
 implementation("io.github.zirekhq:dengjen-tashkeel:1.6.6")

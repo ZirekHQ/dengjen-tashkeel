@@ -13,8 +13,11 @@ for GPG, SSH, or S/MIME setup — a few minutes, one time.
 ## Conventional Commit PR titles (recommended)
 
 We squash-merge, so the PR title becomes the commit that lands on `main`. Prefixing it with a
-type — `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:` — lets us auto-generate changelogs
-and keeps `git log` skimmable. Example: `fix: point repository/documentation metadata at ZirekHQ
+type — `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:` — lets the release tooling compute
+the next version from history (see **Releasing**) and keeps `git log` skimmable. The repository
+keeps no `CHANGELOG` file; releases are published on
+[GitHub Releases](https://github.com/ZirekHQ/dengjen-tashkeel/releases). Mark a breaking change
+with `feat!:` or a `BREAKING CHANGE:` footer so it triggers a major bump. Example: `fix: point repository/documentation metadata at ZirekHQ
 fork, not upstream`. See [conventionalcommits.org](https://www.conventionalcommits.org/) for the
 full spec.
 
