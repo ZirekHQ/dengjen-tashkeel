@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: rust-lint-${{ github.ref }}
-  cancel-in-progress: true
+  group: rust-lint-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   clippy:
@@ -30,11 +30,15 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo clippy
-        run: cargo clippy --workspace --lib --bins -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: cargo clippy (ort-dylib)
         # Same rationale as CI.yml's matching step -- the default clippy
         # pass above never compiles this cfg-gated path.
         run: cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings
+      - name: cargo clippy (ort-dylib, python crate)
+        # The wheel ships crates/python with ort-dylib; its find_onnxruntime_lib /
+        # resolve_dylib_path code only exists under that feature.
+        run: cargo clippy -p dengjen-tashkeel-python --no-default-features --features ort-dylib --all-targets -- -D warnings
 
   audit:
     runs-on: ubuntu-latest
@@ -111,7 +115,7 @@ jobs:
           label: code-coverage/rust
 
   # Compiles against the pinned floor in [workspace.package].rust-version (Cargo.toml),
-  # separate from the "1.98.1" toolchain the jobs above use -- catches a dependency bump
+  # separate from the toolchain the jobs above use -- catches a dependency bump
   # or language feature that would silently raise the workspace's real MSRV.
   msrv:
     runs-on: ubuntu-latest
@@ -122,7 +126,30 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: "1.99.0" # must match [workspace.package].rust-version in Cargo.toml
+          toolchain: "1.88.0" # must match [workspace.package].rust-version in Cargo.toml
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo check (MSRV)
-        run: cargo check --workspace --locked
+        # Explicit +toolchain: rust-toolchain.toml pins 1.99.0 and would otherwise win.
+        run: cargo +1.88.0 check --workspace --locked
+
+  # Runs against the release type scripts/next-version.sh would cut for the commits since
+  # the last tag, so a breaking change can't ship under a minor/patch bump. Moved here from
+  # publish-crates.yml, where it only failed after the tag and the other registries had published.
+  semver-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-semver-checks
+      # dengjen-tashkeel-cli has no `lib` target (bin-only), so only the core crate is checked.
+      - name: cargo semver-checks (dengjen-tashkeel)
+        run: bash .github/scripts/semver-check.sh dengjen-tashkeel

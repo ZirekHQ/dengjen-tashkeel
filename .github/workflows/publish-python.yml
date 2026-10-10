@@ -85,10 +85,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Python
-        # Only needed for the native macOS/Windows builds; both Linux legs
-        # build inside maturin-action's own manylinux container image,
-        # which already bundles the Python interpreters it needs.
-        if: matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'aarch64-unknown-linux-gnu'
+        # The macOS/Windows builds need it to build; every leg needs it to
+        # smoke-test the wheel below (Linux legs build inside maturin-action's
+        # manylinux container, which is not this interpreter).
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
@@ -100,6 +99,16 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
           args: --release --out dist
+
+      - name: Smoke-test the built wheel
+        # Same checks as python-wheel.yml, run against the exact artifact about to be
+        # uploaded -- PyPI publishes are irreversible. onnxruntime pin matches that workflow.
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --only-binary :all: onnxruntime==1.30.0
+          python -m pip install --no-deps --only-binary :all: crates/python/dist/*.whl
+          python .github/scripts/wheel_smoke_test.py
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

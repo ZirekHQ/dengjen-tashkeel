@@ -8,11 +8,17 @@ on:
     branches: [ main ]
     paths:
       - 'crates/capi/**'
+      - 'crates/core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'bindings/java/**'
       - '.github/workflows/java-test.yml'
   pull_request:
     paths:
       - 'crates/capi/**'
+      - 'crates/core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'bindings/java/**'
       - '.github/workflows/java-test.yml'
   workflow_dispatch:
@@ -33,6 +39,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: cargo build (capi cdylib)
         run: cargo build -p dengjen-tashkeel-capi --locked
