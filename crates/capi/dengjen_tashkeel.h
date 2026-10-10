@@ -11,6 +11,10 @@
 
 #define MODEL_LOAD_ERROR 3
 
+#define ALREADY_INITIALIZED 4
+
+#define INVALID_ARGUMENT 5
+
 #define UNKNOWN_ERROR 99
 
 /**
@@ -209,14 +213,17 @@ extern "C" {
 
 /**
  * # Safety
- * `s` must be either null or one such pointer, not yet freed. Passing any
- * other pointer, freeing it twice, or using `s` after this call is
- * undefined behavior.
+ * `s` must be either null or a string pointer returned by
+ * `dengjenTashkeelTashkeel` or stored in `ExternError.message`, and not yet
+ * freed. Passing any other pointer, freeing it twice, or using `s` after this
+ * call is undefined behavior.
  */
 void dengjen_tashkeel_free_string(char *s);
 
 /**
  * # Safety
+ * `text_ptr` must be a valid NUL-terminated string. A null `text_ptr` is
+ * reported as `INVALID_ARGUMENT`; invalid UTF-8 is converted lossily.
  * `taskeen_threshold` must be either null or point to a single, properly
  * aligned `c_float` that remains valid for the duration of this call.
  * Ownership of the pointee is NOT transferred: this function only reads
@@ -237,6 +244,8 @@ char *dengjenTashkeelTashkeel(FfiStr text_ptr,
 
 /**
  * # Safety
+ * A repeated call, or a call after a successful `dengjenTashkeelTashkeel`,
+ * reports `ALREADY_INITIALIZED` and keeps the existing engine.
  * `out_error` must be either null (in which case this call is a silent
  * no-op) or point to a single, properly aligned, writable `ExternError`
  * valid for the duration of this call.

@@ -2,6 +2,7 @@ use std::env;
 
 fn main() {
     println!("cargo:rerun-if-changed=./src/lib.rs");
+    println!("cargo:rerun-if-changed=./build.rs");
 
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
