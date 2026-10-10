@@ -9,17 +9,17 @@ _RELEASE_ASSETS = {
     ("Macos", "armv8"): (
         "aarch64-apple-darwin",
         "tar.xz",
-        "fddcb88329f5dd19b6038d637c077f7160e41f110316f80d7720ac48d17a2696",
+        "936a40bf4c81d3877bf7e390bd3eb64cd04a00777ec77007c40eb46f7f2ef284",
     ),
     ("Linux", "x86_64"): (
         "x86_64-unknown-linux-gnu",
         "tar.xz",
-        "28213d52d3d78ee58fff95f29d22c0e517b885e6318f0a571a7c263560545997",
+        "3c89228a67db4ad19d3fa91dbcdb08837073021cd06b9cbb409fde46fbe22014",
     ),
     ("Windows", "x86_64"): (
         "x86_64-pc-windows-msvc",
         "zip",
-        "cfdef273138332cf10e4f9a9799b5d2edf32221e266fcd64666d68864418552f",
+        "598a55e5a3905ea9e5ef195de73b4d3a0b5788d4361aa1ef8355e2d4c554021a",
     ),
 }
 
@@ -37,7 +37,7 @@ _PACKAGE_LAYOUT = (
 
 class DengjenTashkeelCapiConan(ConanFile):
     name = "dengjen-tashkeel-capi"
-    version = "1.5.3"
+    version = "1.6.6"
     description = "Arabic-text diacritic restoration using neural networks (C API)"
     homepage = "https://github.com/ZirekHQ/dengjen-tashkeel"
     license = "MIT OR Apache-2.0"

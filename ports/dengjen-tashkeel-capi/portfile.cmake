@@ -7,25 +7,25 @@ set(VCPKG_BUILD_TYPE release)
 # for a port that never calls vcpkg_cmake_configure/build.
 set(VCPKG_POLICY_MISMATCHED_NUMBER_OF_BINARIES enabled)
 
-set(CAPI_VERSION "1.5.3")
+set(CAPI_VERSION "1.6.6")
 
 # SHA512s below are the actual hashes of the v${CAPI_VERSION} release assets,
 # cross-checked against the .sha256 files published alongside them.
 if(VCPKG_TARGET_IS_OSX AND VCPKG_TARGET_ARCHITECTURE STREQUAL "arm64")
     set(CAPI_TARGET_TRIPLE "aarch64-apple-darwin")
     set(CAPI_ARCHIVE_EXT "tar.xz")
-    set(CAPI_SHA512 "12b58ba7ab4edc383016657e196d247ceaf816cc6d0fd080400c3562890b33c66cac8525f97c195e66a9390c55736df513ac1358910a74a1194d2eca359801da")
+    set(CAPI_SHA512 "82fc97349a7929f53d61ba28a1be7d2c98aa59c15ed14f7cfeeb7963aafc733ec4eea200a1d9e34242cbef96df1b895bfd7aa9746a1b4f5c480598b52b579928")
 elseif(VCPKG_TARGET_IS_LINUX AND VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
     set(CAPI_TARGET_TRIPLE "x86_64-unknown-linux-gnu")
     set(CAPI_ARCHIVE_EXT "tar.xz")
-    set(CAPI_SHA512 "a8d5093ca4151bb1c7a132bb744d33ace952070a2010b2c3b00c40876f3c2c7c66a00443213ce2d466eff608de56aae6ad51130c16c8af4f7e1a7036fe7e947e")
+    set(CAPI_SHA512 "944f63e34063a29744e6777955a44dbb396fba9c4ad553072f91787d9f32a550379d4a9148a790c4e350bc5faea056d3c2b2edb57c7789053b09790d20d89ba4")
 elseif(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW AND VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
     # The published archive is MSVC-built; vcpkg.json's 'supports' expression
     # already excludes MinGW triplets, but reject them here too in case
     # someone forces an unsupported triplet with --allow-unsupported-port.
     set(CAPI_TARGET_TRIPLE "x86_64-pc-windows-msvc")
     set(CAPI_ARCHIVE_EXT "zip")
-    set(CAPI_SHA512 "08714cb000aed92a24ae68932f269bec61098b423c0172ef709eec8bb589c2ab84ce1a6a6c5ad812154c5e1d146a375b1b39545476639dacf5aebe42ee22baf4")
+    set(CAPI_SHA512 "402e4e31bed932c7c6bba2cf47ac5431fba5fa30f26b699952ddcd9a5e6330f9ef4869974d78488ff94d8f7ac71ce5ffed4a2fc5fb75955807e77540f645957d")
 else()
     message(FATAL_ERROR "dengjen-tashkeel-capi has no prebuilt binary for ${TARGET_TRIPLET}. See vcpkg.json's 'supports' expression for the platforms it ships.")
 endif()
