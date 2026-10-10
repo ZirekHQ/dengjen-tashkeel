@@ -173,6 +173,30 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           cp dist-manifest.json "$BUILD_MANIFEST_NAME"
+      - name: Collect Windows import library
+        # dist packages the cdylib's .dll but not the .dll.lib rustc emits next to it, so
+        # Windows consumers cannot link. Ship it as a sibling asset; the host job's
+        # `gh release create artifacts/*` picks it up.
+        if: ${{ runner.os == 'Windows' }}
+        shell: bash
+        env:
+          TARGETS: ${{ join(matrix.targets, '_') }}
+        run: |
+          set -euo pipefail
+          src="$(find target -path '*/dist/dengjen_tashkeel_capi.dll.lib' | head -n1)"
+          test -n "$src" || { echo "::error::dengjen_tashkeel_capi.dll.lib not found under target/"; exit 1; }
+          out="target/implib/dengjen_tashkeel_capi-${TARGETS}.dll.lib"
+          mkdir -p target/implib
+          cp "$src" "$out"
+          (cd target/implib && sha256sum "$(basename "$out")" > "$(basename "$out").sha256")
+          powershell -File .github/scripts/implib-smoke.ps1 -ImportLib "$out" -DllDir "$(dirname "$src")"
+      - name: Upload Windows import library
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: artifacts-implib-${{ join(matrix.targets, '_') }}
+          path: target/implib/*
+          if-no-files-found: error
       - name: "Upload artifacts"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

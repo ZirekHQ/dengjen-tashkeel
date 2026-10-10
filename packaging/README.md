@@ -55,6 +55,20 @@ ships a follow-up PR pointing them at a newer release:
    conan create packaging/conan --version=<new-version>
    ```
 
+## Windows import library
+
+cargo-dist packages `dengjen_tashkeel_capi.dll` but not the `.dll.lib` rustc emits
+beside it, so the release archives alone do not link on Windows. Releases built after
+this was added also publish `dengjen_tashkeel_capi-x86_64-pc-windows-msvc.dll.lib`
+(plus a `.sha256`) as a separate asset. Releases up to and including 1.6.6 do not have
+it, so the port and recipe keep globbing `*.dll.lib` from the archive until the first
+release that carries the asset. When bumping to that release:
+
+1. Download the `.dll.lib` asset and compute its SHA512 and SHA256.
+2. Add a second `vcpkg_download_distfile` in `portfile.cmake` and a second `get` in
+   `conanfile.py` for the Windows branch only, writing the file next to the DLL.
+3. Re-run the verification in step 5 above on a Windows machine.
+
 ## Why not submit to the central registries?
 
 Both [the vcpkg curated registry](https://github.com/microsoft/vcpkg) and
