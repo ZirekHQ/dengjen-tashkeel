@@ -90,12 +90,16 @@ public final class Tashkeel implements AutoCloseable {
         } finally {
             freeString(messagePtr);
         }
-        throw new TashkeelException(switch (code) {
+        throw new TashkeelException(reasonFor(code, message));
+    }
+
+    static TashkeelException.Reason reasonFor(int code, String message) {
+        return switch (code) {
             case INPUT_TOO_LONG -> new TashkeelException.InputTooLong(message);
             case INFERENCE_ERROR -> new TashkeelException.InferenceError(message);
             case MODEL_LOAD_ERROR -> new TashkeelException.ModelLoadError(message);
             default -> new TashkeelException.Unknown(code, message);
-        });
+        };
     }
 
     private static String readString(MemorySegment ptr) {

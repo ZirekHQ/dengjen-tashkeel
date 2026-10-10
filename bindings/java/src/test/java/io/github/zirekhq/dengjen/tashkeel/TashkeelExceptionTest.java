@@ -30,4 +30,12 @@ class TashkeelExceptionTest {
             case TashkeelException.Unknown r -> "unknown(" + r.code() + "): " + r.message();
         };
     }
+
+    @Test
+    void nativeErrorCodesMapToTheirReasons() {
+        assertEquals(new TashkeelException.InputTooLong("m"), Tashkeel.reasonFor(1, "m"));
+        assertEquals(new TashkeelException.InferenceError("m"), Tashkeel.reasonFor(2, "m"));
+        assertEquals(new TashkeelException.ModelLoadError("m"), Tashkeel.reasonFor(3, "m"));
+        assertEquals(new TashkeelException.Unknown(99, "m"), Tashkeel.reasonFor(99, "m"));
+    }
 }
