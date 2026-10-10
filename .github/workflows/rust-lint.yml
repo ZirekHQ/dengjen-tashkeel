@@ -129,7 +129,7 @@ jobs:
           toolchain: "1.88.0" # must match [workspace.package].rust-version in Cargo.toml
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo check (MSRV)
-        # Explicit +toolchain: rust-toolchain.toml pins 1.99.0 and would otherwise win.
+        # Explicit +toolchain: rust-toolchain.toml would otherwise win.
         run: cargo +1.88.0 check --workspace --locked
 
   # Runs against the release type scripts/next-version.sh would cut for the commits since

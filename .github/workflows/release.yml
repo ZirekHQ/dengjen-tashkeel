@@ -67,7 +67,7 @@ concurrency:
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
-    # Includes the wait for this commit's CI checks (wait-for-checks.sh, up to 30 min).
+    # Includes the wait for this commit's CI checks (wait-for-checks.sh).
     timeout-minutes: 40
     # github.event_name inherits the top-level caller's event (workflow_dispatch here), not
     # literally 'workflow_call' -- a live dispatch confirmed the old check silently skipped this

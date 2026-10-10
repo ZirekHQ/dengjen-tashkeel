@@ -78,7 +78,7 @@ class DengjenTashkeelCapiConan(ConanFile):
                  dst=os.path.join(self.package_folder, subdir), keep_path=False)
 
     def package_info(self) -> None:
-        # Rust's MSVC cdylib import library is named <crate>.dll.lib.
+        # Conan appends .lib, so the import library <crate>.dll.lib is referenced as <crate>.dll.
         is_windows = self.settings.os == "Windows"
         self.cpp_info.libs = [
             "dengjen_tashkeel_capi.dll" if is_windows else "dengjen_tashkeel_capi"

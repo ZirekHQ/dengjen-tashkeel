@@ -14,7 +14,7 @@ mod error_codes {
     pub const MODEL_LOAD_ERROR: i32 = 3;
     pub const ALREADY_INITIALIZED: i32 = 4;
     pub const INVALID_ARGUMENT: i32 = 5;
-    // Part of the published C header; no Rust path produces it any more.
+    // Kept for C header ABI stability.
     #[allow(dead_code)]
     pub const UNKNOWN_ERROR: i32 = 99;
 }
