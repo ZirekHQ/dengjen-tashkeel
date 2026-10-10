@@ -14,27 +14,35 @@ import java.lang.invoke.MethodHandle;
 
 final class TashkeelLib {
 
-    private static final Linker LINKER = Linker.nativeLinker();
-    private static final SymbolLookup LOOKUP = NativeLibraryLoader.load();
-
     static final GroupLayout EXTERN_ERROR = MemoryLayout.structLayout(
                     JAVA_INT.withName("code"), MemoryLayout.paddingLayout(4), ADDRESS.withName("message"))
             .withName("ExternError");
     static final long EXTERN_ERROR_CODE_OFFSET = EXTERN_ERROR.byteOffset(PathElement.groupElement("code"));
     static final long EXTERN_ERROR_MESSAGE_OFFSET = EXTERN_ERROR.byteOffset(PathElement.groupElement("message"));
 
-    static final MethodHandle INIT =
-            handle("dengjen_tashkeel_init", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+    record Handles(MethodHandle init, MethodHandle tashkeel, MethodHandle freeString) {
+    }
 
-    static final MethodHandle TASHKEEL = handle(
-            "dengjenTashkeelTashkeel", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_BOOLEAN, ADDRESS));
+    private static Handles handles;
 
-    static final MethodHandle FREE_STRING =
-            handle("dengjen_tashkeel_free_string", FunctionDescriptor.ofVoid(ADDRESS));
+    static synchronized Handles handles() {
+        if (handles == null) {
+            handles = bind(NativeLibraryLoader.load());
+        }
+        return handles;
+    }
 
-    private static MethodHandle handle(String symbol, FunctionDescriptor descriptor) {
-        return LINKER.downcallHandle(
-                LOOKUP.find(symbol).orElseThrow(() -> new IllegalStateException("missing symbol: " + symbol)),
+    private static Handles bind(SymbolLookup lookup) {
+        return new Handles(
+                handle(lookup, "dengjen_tashkeel_init", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS)),
+                handle(lookup, "dengjenTashkeelTashkeel",
+                        FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_BOOLEAN, ADDRESS)),
+                handle(lookup, "dengjen_tashkeel_free_string", FunctionDescriptor.ofVoid(ADDRESS)));
+    }
+
+    private static MethodHandle handle(SymbolLookup lookup, String symbol, FunctionDescriptor descriptor) {
+        return Linker.nativeLinker().downcallHandle(
+                lookup.find(symbol).orElseThrow(() -> new IllegalStateException("missing symbol: " + symbol)),
                 descriptor);
     }
 
