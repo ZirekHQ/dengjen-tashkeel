@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --only-binary :all: onnxruntime==1.30.0
-          python -m pip install --no-deps --only-binary :all: crates/python/dist/*.whl
+          python -m pip install --no-index --no-deps crates/python/dist/*.whl
           python .github/scripts/wheel_smoke_test.py
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

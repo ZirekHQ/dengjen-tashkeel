@@ -139,8 +139,8 @@ already sentence-segmented, otherwise the library segments it for you.
 The library segments the text into sentences and caps each sentence at
 `CHAR_LIMIT` (12,000 characters); a single longer sentence returns
 `Err(DengjenTashkeelError::InputTooLong(_))`. With `preprocessed = true` the whole text is one
-sentence. The CLI does not truncate input: it passes each line to the library and exits with that
-error for an over-long sentence.
+sentence. The CLI does not truncate input: with an input file it passes each line to the library and
+exits with that error for an over-long sentence; from stdin it reads one line.
 
 **Python:**
 

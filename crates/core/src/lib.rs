@@ -369,7 +369,7 @@ pub fn do_tashkeel(
     preprocessed: bool,
 ) -> DengjenTashkeelResult<String> {
     if preprocessed {
-        return do_tashkeel_preprocessed(engine, text, taskeen_threshold);
+        return _do_tashkeel_impl(engine, text, taskeen_threshold);
     }
 
     let sentences = libtqsm::segment("ar", text).map_err(|e| {
@@ -381,7 +381,7 @@ pub fn do_tashkeel(
     map_sentences(&sentences, engine, taskeen_threshold).map(|v| v.join(" "))
 }
 
-fn do_tashkeel_preprocessed(
+fn _do_tashkeel_impl(
     engine: &(impl InferenceEngine + Send + Sync),
     text: &str,
     taskeen_threshold: Option<f32>,

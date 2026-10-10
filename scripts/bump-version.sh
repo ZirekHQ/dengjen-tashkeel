@@ -43,7 +43,7 @@ require_line bindings/java/build.gradle.kts "version = \"${new_version}\""
 
 sed -i.bak "s/dengjen-tashkeel:${old_version}/dengjen-tashkeel:${new_version}/g" README.md
 rm -f README.md.bak
-if grep -qF "dengjen-tashkeel:${old_version}" README.md; then
+if grep -qE "dengjen-tashkeel:${old_version//./\\.}([^0-9A-Za-z.]|\$)" README.md; then
   echo "::error::README.md still references dengjen-tashkeel:${old_version}" >&2
   exit 1
 fi

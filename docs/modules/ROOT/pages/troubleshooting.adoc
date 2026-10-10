@@ -29,5 +29,6 @@ see xref:installation.adoc#_java[Java installation].
 
 Code `4`: the engine is already initialized, either by an earlier `dengjen_tashkeel_init` call or
 lazily by the first `dengjenTashkeelTashkeel` call. The existing engine stays in place. Call
-`dengjen_tashkeel_init` once, before any diacritization, and treat this code as non-fatal if the
-bundled model is what you wanted.
+`dengjen_tashkeel_init` once, before any diacritization. The first engine wins: a later call with a
+different `model_path` does not replace it, so treat this code as non-fatal only when the existing
+engine uses the model you wanted.

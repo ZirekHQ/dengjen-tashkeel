@@ -20,7 +20,7 @@ for attempt in $(seq 1 "$max_attempts"); do
     matching="$(awk -F'\t' -v n="$name" '$1 == n' <<< "$runs")"
     if [ -z "$matching" ] || grep -qvP '\tcompleted\t' <<< "$matching"; then
       pending+=("$name")
-    elif awk -F'\t' '$3 != "success" && $3 != "skipped"' <<< "$matching" | grep -q .; then
+    elif awk -F'\t' '$3 != "success"' <<< "$matching" | grep -q .; then
       failed+=("$name")
     fi
   done

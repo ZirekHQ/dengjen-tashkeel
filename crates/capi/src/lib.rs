@@ -247,12 +247,14 @@ mod tests {
 
     #[test]
     fn dengjen_tashkeel_init_with_bad_model_path_reports_model_load_error() {
-        let bad_path = CString::new("/nonexistent/path/to/model.onnx").unwrap();
-        let mut out_error = new_out_error();
+        let error = create_inference_engine(Some(PathBuf::from("/nonexistent/path/to/model.onnx")))
+            .err()
+            .expect("a missing model file must not load");
 
-        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&bad_path), &mut out_error) };
-
-        assert_eq!(out_error.get_code().code(), error_codes::MODEL_LOAD_ERROR);
+        assert_eq!(
+            DengjenTashkeelFFIError::from(error).0,
+            error_codes::MODEL_LOAD_ERROR
+        );
     }
 
     #[test]
@@ -261,12 +263,14 @@ mod tests {
         malformed
             .write_all(b"this is not a valid onnx model")
             .unwrap();
-        let path = CString::new(malformed.path().to_str().unwrap()).unwrap();
-        let mut out_error = new_out_error();
+        let error = create_inference_engine(Some(malformed.path().to_path_buf()))
+            .err()
+            .expect("a malformed model file must not load");
 
-        unsafe { dengjen_tashkeel_init(FfiStr::from_cstr(&path), &mut out_error) };
-
-        assert_eq!(out_error.get_code().code(), error_codes::INFERENCE_ERROR);
+        assert_eq!(
+            DengjenTashkeelFFIError::from(error).0,
+            error_codes::INFERENCE_ERROR
+        );
     }
 
     #[test]

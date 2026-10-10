@@ -63,11 +63,11 @@ class TashkeelTest {
 
     @Test
     @Order(1)
-    void loadWithNonexistentModelPathThrowsInferenceError() {
+    void loadWithNonexistentModelPathThrowsModelLoadError() {
         TashkeelException exception = assertThrows(TashkeelException.class,
                 () -> Tashkeel.load(Path.of("/nonexistent/path/to/model.onnx")));
 
-        assertInstanceOf(TashkeelException.InferenceError.class, exception.reason());
+        assertInstanceOf(TashkeelException.ModelLoadError.class, exception.reason());
     }
 
     @Test
@@ -90,7 +90,7 @@ class TashkeelTest {
         TashkeelException exception = assertThrows(TashkeelException.class, Tashkeel::loadDefault);
 
         assertInstanceOf(TashkeelException.Unknown.class, exception.reason());
-        assertEquals(99, ((TashkeelException.Unknown) exception.reason()).code());
+        assertEquals(4, ((TashkeelException.Unknown) exception.reason()).code());
     }
 
     @Test
