@@ -87,8 +87,8 @@ jobs:
         # >=1.28,<2 range. --no-deps on the wheel so pip doesn't re-resolve it.
         run: |
           pip install --only-binary :all: onnxruntime==1.30.0
-          # S8544 false positive: --no-deps disables resolution entirely, and
-          # the target is a local file glob (one match, just built above) --
-          # no registry lookup, so there's no floating version to lock.
-          pip install --no-index --no-deps --only-binary :all: crates/python/dist/*.whl
+          whl="$(ls crates/python/dist/*.whl)"
+          req="$(mktemp)"
+          printf 'file://%s --hash=sha256:%s\n' "$PWD/$whl" "$(sha256sum "$whl" | cut -d' ' -f1)" > "$req"
+          pip install --require-hashes --no-index --no-deps --only-binary :all: -r "$req"
           python3 .github/scripts/wheel_smoke_test.py
