@@ -25,8 +25,9 @@ Native jars exist only for `linux-x86_64`, `windows-x64`, and `macos-aarch64`. O
 platforms, build the C ABI library and set `-Ddengjen.tashkeel.native.library.path` to the file;
 see xref:installation.adoc#_java[Java installation].
 
-== C: `dengjen_tashkeel_init` returns `UNKNOWN_ERROR`
+== C: `dengjen_tashkeel_init` returns `ALREADY_INITIALIZED`
 
-The engine is already initialized, either by an earlier `dengjen_tashkeel_init` call or lazily by
-the first `dengjenTashkeelTashkeel` call. Call `dengjen_tashkeel_init` once, before any
-diacritization.
+Code `4`: the engine is already initialized, either by an earlier `dengjen_tashkeel_init` call or
+lazily by the first `dengjenTashkeelTashkeel` call. The existing engine stays in place. Call
+`dengjen_tashkeel_init` once, before any diacritization, and treat this code as non-fatal if the
+bundled model is what you wanted.

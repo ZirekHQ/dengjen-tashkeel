@@ -11,7 +11,8 @@ The header exports three functions, spelled exactly as shown: `dengjen_tashkeel_
 `ExternError` out-parameter (`code == 0` is success). Release every returned string and every
 non-null `err.message` with `dengjen_tashkeel_free_string`. Without a prior
 `dengjen_tashkeel_init`, the first `dengjenTashkeelTashkeel` call initializes the bundled model
-lazily, after which `dengjen_tashkeel_init` returns `UNKNOWN_ERROR`.
+lazily, after which `dengjen_tashkeel_init` returns `ALREADY_INITIALIZED` (4) and keeps the
+existing engine. A null `text` argument returns `INVALID_ARGUMENT` (5).
 
 ```c
 #include <stdio.h>

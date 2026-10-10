@@ -6,10 +6,10 @@ download the prebuilt cdylib + header from a GitHub Release instead of
 building from source — neither vcpkg nor Conan has a Rust toolchain available
 in its build environment. See [issue #24](https://github.com/ZirekHQ/dengjen-tashkeel/issues/24).
 
-`versions/baseline.json` registers `dengjen-tashkeel-capi` at `1.5.3`, and
+`versions/baseline.json` registers `dengjen-tashkeel-capi` at `1.6.6`, and
 both the vcpkg port and Conan recipe carry the real checksums for that
-release's `dengjen-tashkeel-capi-<target>` archives. They lag the workspace
-version (currently ahead, at `1.6.6`) by design — see
+release's `dengjen-tashkeel-capi-<target>` archives. They can lag the
+workspace version (currently the same, `1.6.6`) by design — see
 [CONTRIBUTING.md](../.github/CONTRIBUTING.md) step 4 — until a maintainer
 ships a follow-up PR pointing them at a newer release:
 

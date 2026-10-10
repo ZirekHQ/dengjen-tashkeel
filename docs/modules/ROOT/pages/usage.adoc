@@ -13,9 +13,10 @@ let diacritized = do_tashkeel(&engine, "بسم الله الرحمن الرحي�
 
 `do_tashkeel`'s third argument is an optional taskeen threshold (see below) and the fourth is
 `preprocessed` — pass `true` only if `text` is already sentence-segmented, otherwise the library
-segments it for you. Input is capped at `CHAR_LIMIT` (12,000 characters); longer input returns
-`Err(DengjenTashkeelError::InputTooLong(_))`. The CLI differs: it truncates each input line to
-`CHAR_LIMIT` characters instead of failing.
+segments it for you. The library segments the text into sentences and caps each sentence at `CHAR_LIMIT` (12,000
+characters); a single longer sentence returns `Err(DengjenTashkeelError::InputTooLong(_))`. With
+`preprocessed = true` the whole text is one sentence. The CLI does not truncate input: it passes
+each line to the library and exits with that error for an over-long sentence.
 
 == Python
 
@@ -37,7 +38,8 @@ The header exports three functions, spelled exactly as shown: `dengjen_tashkeel_
 `ExternError` out-parameter (`code == 0` is success). Release every returned string and every
 non-null `err.message` with `dengjen_tashkeel_free_string`. Without a prior
 `dengjen_tashkeel_init`, the first `dengjenTashkeelTashkeel` call initializes the bundled model
-lazily, after which `dengjen_tashkeel_init` returns `UNKNOWN_ERROR`.
+lazily, after which `dengjen_tashkeel_init` returns `ALREADY_INITIALIZED` (4) and keeps the
+existing engine. A null `text` argument returns `INVALID_ARGUMENT` (5).
 
 [source,c]
 ----
@@ -85,8 +87,8 @@ String diacritized = tashkeel.diacritize("بسم الله الرحمن الرح�
 `diacritize`'s second argument is an optional taskeen threshold (see below) and the third is
 `preprocessed` — pass `true` only if the text is already sentence-segmented, otherwise the
 library segments it for you. Errors surface as a checked `TashkeelException`, whose `reason()` is
-an exhaustively switchable sealed type mirroring the `ErrorCode` values in
-`dengjen_tashkeel.h`.
+an exhaustively switchable sealed type: `InputTooLong`, `InferenceError`, `ModelLoadError` for
+codes 1-3, and `Unknown(code, message)` for every other code in `dengjen_tashkeel.h`.
 
 == CLI
 
