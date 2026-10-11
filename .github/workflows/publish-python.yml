@@ -9,6 +9,17 @@ name: Publish Python wheels
 # (Intel macOS dropped there, dropped here too). PyO3 is abi3-py39, so one
 # wheel per platform covers every CPython >=3.9 -- no version axis needed.
 on:
+  # Re-publishes an existing tag whose release run failed before PyPI.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and publish, e.g. v2.0.0
+        required: true
+        type: string
+      dry_run:
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       tag:
@@ -107,9 +118,15 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --only-binary :all: onnxruntime==1.30.0
-          whl="$(ls crates/python/dist/*.whl)"
-          req="$(mktemp)"
-          printf 'file://%s --hash=sha256:%s\n' "$PWD/$whl" "$(sha256sum "$whl" | cut -d' ' -f1)" > "$req"
+          # Python builds the requirement: macOS has no sha256sum, and Git Bash paths
+          # (/d/a/...) are not valid file URIs for pip on Windows.
+          req="$RUNNER_TEMP/wheel-requirement.txt"
+          python - "$req" <<'PY'
+          import hashlib, pathlib, sys
+          (whl,) = pathlib.Path("crates/python/dist").glob("*.whl")
+          digest = hashlib.sha256(whl.read_bytes()).hexdigest()
+          pathlib.Path(sys.argv[1]).write_text(f"{whl.resolve().as_uri()} --hash=sha256:{digest}\n")
+          PY
           python -m pip install --require-hashes --no-index --no-deps --only-binary :all: -r "$req"
           python .github/scripts/wheel_smoke_test.py
 
