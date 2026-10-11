@@ -68,7 +68,7 @@ jobs:
   tag-and-release:
     runs-on: ubuntu-latest
     # Includes the wait for this commit's CI checks (wait-for-checks.sh).
-    timeout-minutes: 40
+    timeout-minutes: 60
     # github.event_name inherits the top-level caller's event (workflow_dispatch here), not
     # literally 'workflow_call' -- a live dispatch confirmed the old check silently skipped this
     # job. inputs.new_tag != '' detects the override path directly; head_commit is absent here too.
@@ -115,7 +115,12 @@ jobs:
         # or still-running test/lint/MSRV/semver result on this commit must stop it here.
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/wait-for-checks.sh "$GITHUB_SHA" test clippy fmt deny msrv semver-checks
+          # Cold-cache Windows and macOS legs run well past the 30 min default window.
+          MAX_ATTEMPTS: "150"
+        run: |
+          bash .github/scripts/wait-for-checks.sh "$GITHUB_SHA" \
+            test clippy fmt deny msrv semver-checks \
+            "test-platform (windows-latest)" "test-platform (macos-latest)" "test-platform (ubuntu-24.04-arm)"
 
       - name: Push release tag
         env:
