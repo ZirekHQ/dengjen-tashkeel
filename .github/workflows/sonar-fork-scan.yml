@@ -136,22 +136,24 @@ jobs:
           run-id: ${{ steps.run.outputs.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract workspace (plain tar, not a git operation)
+      - name: Extract the coverage artifact (plain tar, not a git operation)
         if: steps.run.outputs.id != ''
         env:
           ARCHIVE_DIR: ${{ runner.temp }}/sonar-fork-workspace
         run: |
-          mkdir -p workspace
-          tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" -C workspace
+          mkdir -p "$RUNNER_TEMP/artifact-tree"
+          tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" -C "$RUNNER_TEMP/artifact-tree"
 
-      # A fresh repository has no hooks, fsmonitor or filter configuration of the fork's.
-      - name: Attach git history from the base repository
+      # Fetch via plain git into a fresh repository (no fork hooks, fsmonitor or filter
+      # configuration), then check out the verified commit so the scanned sources are exactly
+      # the PR head, whatever the fork's build steps modified.
+      - name: Check out the PR head from the base repository
         if: steps.run.outputs.id != ''
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         run: |
-          git -C workspace init -q
+          git init -q workspace
           git -C workspace remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
           git -C workspace fetch -q --no-tags origin \
             "+refs/heads/main:refs/remotes/origin/main" \
@@ -161,7 +163,21 @@ jobs:
             echo "::error::PR head moved: fetched $actual, expected $HEAD_SHA. Re-run the scan."
             exit 1
           fi
-          git -C workspace reset -q --mixed "$HEAD_SHA"
+          git -C workspace checkout -q --detach "$HEAD_SHA"
+
+      # The report is the only file taken from the fork-built artifact.
+      - name: Copy the coverage report into the checkout
+        if: steps.run.outputs.id != ''
+        env:
+          REPORT: crates/capi/coverage-python.xml
+        run: |
+          src="$RUNNER_TEMP/artifact-tree/$REPORT"
+          if [ ! -f "$src" ] || [ -L "$src" ]; then
+            echo "::error::$REPORT missing or not a regular file in the coverage artifact"
+            exit 1
+          fi
+          rm -f "workspace/$REPORT"
+          cp "$src" "workspace/$REPORT"
 
       # Default ref is main, never the fork.
       - name: Check out main's scan config
