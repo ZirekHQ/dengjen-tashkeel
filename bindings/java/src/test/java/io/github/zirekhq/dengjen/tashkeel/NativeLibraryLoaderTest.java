@@ -1,6 +1,7 @@
 package io.github.zirekhq.dengjen.tashkeel;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,6 +20,16 @@ class NativeLibraryLoaderTest {
         assertTrue(Files.exists(extracted));
         assertEquals("hello native library\n", Files.readString(extracted));
         assertTrue(extracted.getFileName().toString().contains("nativeloadertest_sample.txt"));
+    }
+
+    @Test
+    void deleteExtractedRemovesTheTempFile() throws IOException {
+        Path extracted = NativeLibraryLoader.extractResource(
+                "nativeloadertest/sample.txt", NativeLibraryLoaderTest.class.getClassLoader());
+
+        NativeLibraryLoader.deleteExtracted(extracted);
+
+        assertFalse(Files.exists(extracted));
     }
 
     @Test

@@ -86,3 +86,28 @@ jobs:
           .github/scripts/implib-smoke.ps1
           -ImportLib target/release/dengjen_tashkeel_capi.dll.lib
           -DllDir target/release
+
+  conan-package:
+    # Windows joins once a release ships the import library (#182).
+    name: conan-package (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install Conan
+        run: pip install --only-binary ':all:' conan==2.33.0
+      - name: Create the package and run test_package
+        run: |
+          conan profile detect
+          conan create packaging/conan --build=missing
