@@ -241,7 +241,8 @@ as `debug`; default `info`) to change log verbosity.
 
 When enabled (`taskeen_threshold` in Rust/Python, `--taskeen`/`--prob` in
 the CLI), the model substitutes a sukoon for the predicted diacritic wherever its
-softmax probability for sukoon at that position exceeds the threshold (0 to 1).
+confidence (the probability of its top prediction at that position) is below the
+threshold (0 to 1).
 
 ## Building
 

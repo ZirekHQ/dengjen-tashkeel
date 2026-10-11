@@ -23,7 +23,7 @@ def test_tashkeel_diacritizes_without_explicit_init():
 
 
 def test_taskeen_threshold_changes_the_output():
-    assert m.tashkeel(SAMPLE, taskeen_threshold=0.8) != m.tashkeel(SAMPLE)
+    assert m.tashkeel(SAMPLE, taskeen_threshold=0.95) != m.tashkeel(SAMPLE)
 
 
 def test_init_after_the_engine_exists_raises():

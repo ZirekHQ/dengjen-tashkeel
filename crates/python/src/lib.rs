@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn tashkeel_with_taskeen_threshold_differs_from_default() {
         let without_taskeen = call_tashkeel("بسم الله الرحمن الرحيم", None).unwrap();
-        let with_taskeen = call_tashkeel("بسم الله الرحمن الرحيم", Some(0.8)).unwrap();
+        let with_taskeen = call_tashkeel("بسم الله الرحمن الرحيم", Some(0.95)).unwrap();
 
         assert_ne!(without_taskeen, with_taskeen);
     }

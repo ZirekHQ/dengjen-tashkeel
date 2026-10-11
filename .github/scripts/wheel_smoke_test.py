@@ -7,7 +7,7 @@ CHAR_LIMIT = 12000
 default = tashkeel(TEXT)
 assert default and default != TEXT, default
 
-with_taskeen = tashkeel(TEXT, taskeen_threshold=0.8)
+with_taskeen = tashkeel(TEXT, taskeen_threshold=0.95)
 assert with_taskeen and with_taskeen != default, with_taskeen
 
 preprocessed = tashkeel(TEXT, preprocessed=True)

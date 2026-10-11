@@ -210,9 +210,9 @@ fn annotate_text_with_diacritics(
     Ok(output)
 }
 
-/// Per-position softmax probability of the sukoon class, from logits flattened as
-/// `[seq_length * classes]`.
-fn sukoon_probabilities(logits: &[f32]) -> DengjenTashkeelResult<Vec<f32>> {
+/// Per-position model confidence: the highest class probability of each row of `logits`,
+/// which the model emits already softmaxed and flattened as `[seq_length * classes]`.
+fn position_confidences(logits: &[f32]) -> DengjenTashkeelResult<Vec<f32>> {
     let classes = TARGET_ID_MAP.len();
     if !logits.len().is_multiple_of(classes) {
         return Err(DengjenTashkeelError::InferenceError(format!(
@@ -220,21 +220,9 @@ fn sukoon_probabilities(logits: &[f32]) -> DengjenTashkeelResult<Vec<f32>> {
             logits.len()
         )));
     }
-    let sukoon = SUKOON.to_string();
-    let sukoon_id = TARGET_ID_MAP
-        .iter()
-        .find(|(_, name)| **name == sukoon)
-        .map(|(&id, _)| usize::from(id))
-        .ok_or_else(|| {
-            DengjenTashkeelError::InferenceError("no sukoon target class".to_string())
-        })?;
     Ok(logits
         .chunks_exact(classes)
-        .map(|row| {
-            let max = row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-            let total: f32 = row.iter().map(|l| (l - max).exp()).sum();
-            (row[sukoon_id] - max).exp() / total
-        })
+        .map(|row| row.iter().copied().fold(f32::NEG_INFINITY, f32::max))
         .collect())
 }
 
@@ -242,11 +230,11 @@ fn annotate_text_with_diacritics_taskeen(
     input: &str,
     diacritics: Vec<String>,
     removed_chars: HashSet<char>,
-    sukoon_probabilities: Vec<f32>,
+    confidences: Vec<f32>,
     taskeen_threshold: f32,
 ) -> DengjenTashkeelResult<String> {
     let mut output = String::new();
-    let mut diac_iter = diacritics.into_iter().zip(sukoon_probabilities);
+    let mut diac_iter = diacritics.into_iter().zip(confidences);
     for c in input.chars() {
         if ARABIC_DIACRITICS.contains(&c) {
             continue;
@@ -254,12 +242,12 @@ fn annotate_text_with_diacritics_taskeen(
             output.push(c);
         } else {
             output.push(c);
-            let (diac, sukoon_probability) = diac_iter.next().ok_or_else(|| {
+            let (diac, confidence) = diac_iter.next().ok_or_else(|| {
                 DengjenTashkeelError::InferenceError(
                     "model output fewer diacritics/scores than input characters".to_string(),
                 )
             })?;
-            if sukoon_probability > taskeen_threshold {
+            if confidence < taskeen_threshold {
                 output.push(SUKOON);
             } else {
                 output.push_str(&diac);
@@ -315,7 +303,7 @@ fn postprocess(
             annotate_text_with_diacritics(&text, diacritics, removed_chars)
         }
         Some(threshold) => {
-            let probabilities = sukoon_probabilities(&logits)?;
+            let probabilities = position_confidences(&logits)?;
             let kept_probabilities = target_ids
                 .iter()
                 .zip(probabilities)
@@ -534,58 +522,49 @@ mod tests {
 
         Ok(())
     }
-    fn logits_row(sukoon_logit: f32) -> Vec<f32> {
-        let mut row = vec![0.0; TARGET_ID_MAP.len()];
-        row[14] = sukoon_logit;
-        row
+    fn probability_row(top_class: usize, top: f32) -> Vec<f32> {
+        let classes = TARGET_ID_MAP.len();
+        let rest = (1.0 - top) / (classes - 1) as f32;
+        (0..classes)
+            .map(|c| if c == top_class { top } else { rest })
+            .collect()
     }
 
     #[test]
-    fn test_sukoon_probabilities_index_by_position_and_class() -> DengjenTashkeelResult<()> {
-        let logits = [logits_row(10.0), logits_row(-10.0)].concat();
-        let probabilities = sukoon_probabilities(&logits)?;
-        assert_eq!(probabilities.len(), 2);
-        assert!(probabilities[0] > 0.99);
-        assert!(probabilities[1] < 0.01);
+    fn test_position_confidences_take_the_row_maximum() -> DengjenTashkeelResult<()> {
+        let logits = [probability_row(3, 0.9), probability_row(14, 0.4)].concat();
+        let confidences = position_confidences(&logits)?;
+        assert_eq!(confidences, vec![0.9, 0.4]);
         Ok(())
     }
 
     #[test]
-    fn test_sukoon_probabilities_uniform_row() -> DengjenTashkeelResult<()> {
-        let probabilities = sukoon_probabilities(&logits_row(0.0))?;
-        let expected = 1.0 / TARGET_ID_MAP.len() as f32;
-        assert!((probabilities[0] - expected).abs() < 1e-6);
-        Ok(())
+    fn test_position_confidences_reject_ragged_logits() {
+        assert!(position_confidences(&[0.0; 16]).is_err());
     }
 
     #[test]
-    fn test_sukoon_probabilities_reject_ragged_logits() {
-        assert!(sukoon_probabilities(&[0.0; 16]).is_err());
-    }
-
-    #[test]
-    fn test_taskeen_forces_sukoon_only_above_threshold() -> DengjenTashkeelResult<()> {
-        let probabilities = sukoon_probabilities(&[logits_row(10.0), logits_row(-10.0)].concat())?;
+    fn test_taskeen_forces_sukoon_only_below_threshold() -> DengjenTashkeelResult<()> {
         let out = annotate_text_with_diacritics_taskeen(
             "بت",
             vec!["\u{64E}".to_string(), "\u{64F}".to_string()],
             HashSet::new(),
-            probabilities,
+            vec![0.99, 0.4],
             0.8,
         )?;
-        assert_eq!(out, "ب\u{652}ت\u{64F}");
+        assert_eq!(out, "ب\u{64E}ت\u{652}");
         Ok(())
     }
 
     #[test]
-    fn test_taskeen_probabilities_skip_pad_targets() -> DengjenTashkeelResult<()> {
+    fn test_taskeen_confidences_skip_pad_targets() -> DengjenTashkeelResult<()> {
         let pad_id = *TARGET_META_CHAR_IDS.iter().next().unwrap();
         let fatha_id = TARGET_ID_MAP
             .iter()
             .find(|(_, name)| **name == "\u{64E}")
             .map(|(&id, _)| id)
             .unwrap();
-        let logits = [logits_row(10.0), logits_row(-10.0)].concat();
+        let logits = [probability_row(0, 0.1), probability_row(5, 0.99)].concat();
         let out = postprocess(
             "ب".to_string(),
             HashSet::new(),
