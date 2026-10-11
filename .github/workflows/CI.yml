@@ -22,6 +22,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Require AVX2
+        # The bundled ONNX Runtime dies with SIGILL without AVX2; fail here, not mid-suite.
+        run: grep -qw avx2 /proc/cpuinfo || { echo "::error::runner lacks AVX2"; exit 1; }
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo test (workspace)
         run: cargo test --workspace --no-fail-fast
