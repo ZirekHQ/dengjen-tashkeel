@@ -55,10 +55,10 @@ fn ort_session_run(
                 target_ids.len()
             )));
         }
-        if logits.len() < seq_length {
+        let expected_logits_shape = [1, seq_length as i64, crate::TARGET_ID_MAP.len() as i64];
+        if logits_shape[..] != expected_logits_shape {
             return Err(DengjenTashkeelError::InferenceError(format!(
-                "model returned {} logits (shape {logits_shape:?}), fewer than the sequence length {seq_length}",
-                logits.len()
+                "model returned logits with shape {logits_shape:?}, expected {expected_logits_shape:?}"
             )));
         }
         (target_ids.to_vec(), logits.to_vec())

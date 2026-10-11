@@ -210,15 +210,31 @@ fn annotate_text_with_diacritics(
     Ok(output)
 }
 
+/// Per-position model confidence: the highest class probability of each row of `logits`,
+/// which the model emits already softmaxed and flattened as `[seq_length * classes]`.
+fn position_confidences(logits: &[f32]) -> DengjenTashkeelResult<Vec<f32>> {
+    let classes = TARGET_ID_MAP.len();
+    if !logits.len().is_multiple_of(classes) {
+        return Err(DengjenTashkeelError::InferenceError(format!(
+            "model returned {} logits, not a multiple of the {classes} target classes",
+            logits.len()
+        )));
+    }
+    Ok(logits
+        .chunks_exact(classes)
+        .map(|row| row.iter().copied().fold(f32::NEG_INFINITY, f32::max))
+        .collect())
+}
+
 fn annotate_text_with_diacritics_taskeen(
     input: &str,
     diacritics: Vec<String>,
     removed_chars: HashSet<char>,
-    logits: Vec<f32>,
+    confidences: Vec<f32>,
     taskeen_threshold: f32,
 ) -> DengjenTashkeelResult<String> {
     let mut output = String::new();
-    let mut diac_iter = diacritics.into_iter().zip(logits);
+    let mut diac_iter = diacritics.into_iter().zip(confidences);
     for c in input.chars() {
         if ARABIC_DIACRITICS.contains(&c) {
             continue;
@@ -226,12 +242,12 @@ fn annotate_text_with_diacritics_taskeen(
             output.push(c);
         } else {
             output.push(c);
-            let (diac, logit) = diac_iter.next().ok_or_else(|| {
+            let (diac, confidence) = diac_iter.next().ok_or_else(|| {
                 DengjenTashkeelError::InferenceError(
-                    "model output fewer diacritics/logits than input characters".to_string(),
+                    "model output fewer diacritics/scores than input characters".to_string(),
                 )
             })?;
-            if logit > taskeen_threshold {
+            if confidence < taskeen_threshold {
                 output.push(SUKOON);
             } else {
                 output.push_str(&diac);
@@ -281,16 +297,28 @@ fn postprocess(
     logits: Vec<f32>,
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<String> {
-    let diacritics = target_to_diacritics(target_ids.into_iter())?;
     match taskeen_threshold {
-        None => annotate_text_with_diacritics(&text, diacritics, removed_chars),
-        Some(threshold) => annotate_text_with_diacritics_taskeen(
-            &text,
-            diacritics,
-            removed_chars,
-            logits,
-            threshold,
-        ),
+        None => {
+            let diacritics = target_to_diacritics(target_ids.into_iter())?;
+            annotate_text_with_diacritics(&text, diacritics, removed_chars)
+        }
+        Some(threshold) => {
+            let probabilities = position_confidences(&logits)?;
+            let kept_probabilities = target_ids
+                .iter()
+                .zip(probabilities)
+                .filter(|(id, _)| !TARGET_META_CHAR_IDS.contains(id))
+                .map(|(_, p)| p)
+                .collect();
+            let diacritics = target_to_diacritics(target_ids.into_iter())?;
+            annotate_text_with_diacritics_taskeen(
+                &text,
+                diacritics,
+                removed_chars,
+                kept_probabilities,
+                threshold,
+            )
+        }
     }
 }
 
@@ -494,6 +522,60 @@ mod tests {
 
         Ok(())
     }
+    fn probability_row(top_class: usize, top: f32) -> Vec<f32> {
+        let classes = TARGET_ID_MAP.len();
+        let rest = (1.0 - top) / (classes - 1) as f32;
+        (0..classes)
+            .map(|c| if c == top_class { top } else { rest })
+            .collect()
+    }
+
+    #[test]
+    fn test_position_confidences_take_the_row_maximum() -> DengjenTashkeelResult<()> {
+        let logits = [probability_row(3, 0.9), probability_row(14, 0.4)].concat();
+        let confidences = position_confidences(&logits)?;
+        assert_eq!(confidences, vec![0.9, 0.4]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_position_confidences_reject_ragged_logits() {
+        assert!(position_confidences(&[0.0; 16]).is_err());
+    }
+
+    #[test]
+    fn test_taskeen_forces_sukoon_only_below_threshold() -> DengjenTashkeelResult<()> {
+        let out = annotate_text_with_diacritics_taskeen(
+            "بت",
+            vec!["\u{64E}".to_string(), "\u{64F}".to_string()],
+            HashSet::new(),
+            vec![0.99, 0.4],
+            0.8,
+        )?;
+        assert_eq!(out, "ب\u{64E}ت\u{652}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_taskeen_confidences_skip_pad_targets() -> DengjenTashkeelResult<()> {
+        let pad_id = *TARGET_META_CHAR_IDS.iter().next().unwrap();
+        let fatha_id = TARGET_ID_MAP
+            .iter()
+            .find(|(_, name)| **name == "\u{64E}")
+            .map(|(&id, _)| id)
+            .unwrap();
+        let logits = [probability_row(0, 0.1), probability_row(5, 0.99)].concat();
+        let out = postprocess(
+            "ب".to_string(),
+            HashSet::new(),
+            vec![pad_id, fatha_id],
+            logits,
+            Some(0.8),
+        )?;
+        assert_eq!(out, "ب\u{64E}");
+        Ok(())
+    }
+
     #[test]
     fn test_hints() -> DengjenTashkeelResult<()> {
         let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";

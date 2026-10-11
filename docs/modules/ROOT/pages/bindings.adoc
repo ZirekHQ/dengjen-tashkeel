@@ -107,7 +107,7 @@ The `dengjen_tashkeel_py` PyO3 extension exposes one function:
 from dengjen_tashkeel_py import tashkeel
 
 try:
-    diacritized = tashkeel("بسم الله الرحمن الرحيم", taskeen_threshold=0.8)
+    diacritized = tashkeel("بسم الله الرحمن الرحيم", taskeen_threshold=0.95)
 except ValueError:
     ...  # a sentence longer than CHAR_LIMIT (12,000 characters)
 except RuntimeError:
