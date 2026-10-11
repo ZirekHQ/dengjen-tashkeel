@@ -48,6 +48,28 @@ jobs:
         working-directory: crates/capi
         run: pytest test_ffi_usage_example.py
 
+  test-platform:
+    # The other release targets (windows-msvc, aarch64-apple-darwin, aarch64-linux) otherwise
+    # first compile in the release job. The python crate is excluded: it is linked against a
+    # system libpython on these runners and is already covered by `test` and python-wheel.yml.
+    name: test-platform (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - windows-latest
+          - macos-latest
+          - ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo test (workspace, without the python crate)
+        run: cargo test --workspace --exclude dengjen-tashkeel-python --locked --no-fail-fast
+
   windows-import-library:
     runs-on: windows-latest
     timeout-minutes: 30
