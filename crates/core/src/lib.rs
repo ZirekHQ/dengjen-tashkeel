@@ -309,16 +309,28 @@ fn postprocess(
     logits: Vec<f32>,
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<String> {
-    let diacritics = target_to_diacritics(target_ids.into_iter())?;
     match taskeen_threshold {
-        None => annotate_text_with_diacritics(&text, diacritics, removed_chars),
-        Some(threshold) => annotate_text_with_diacritics_taskeen(
-            &text,
-            diacritics,
-            removed_chars,
-            sukoon_probabilities(&logits)?,
-            threshold,
-        ),
+        None => {
+            let diacritics = target_to_diacritics(target_ids.into_iter())?;
+            annotate_text_with_diacritics(&text, diacritics, removed_chars)
+        }
+        Some(threshold) => {
+            let probabilities = sukoon_probabilities(&logits)?;
+            let kept_probabilities = target_ids
+                .iter()
+                .zip(probabilities)
+                .filter(|(id, _)| !TARGET_META_CHAR_IDS.contains(id))
+                .map(|(_, p)| p)
+                .collect();
+            let diacritics = target_to_diacritics(target_ids.into_iter())?;
+            annotate_text_with_diacritics_taskeen(
+                &text,
+                diacritics,
+                removed_chars,
+                kept_probabilities,
+                threshold,
+            )
+        }
     }
 }
 
@@ -562,6 +574,26 @@ mod tests {
             0.8,
         )?;
         assert_eq!(out, "ب\u{652}ت\u{64F}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_taskeen_probabilities_skip_pad_targets() -> DengjenTashkeelResult<()> {
+        let pad_id = *TARGET_META_CHAR_IDS.iter().next().unwrap();
+        let fatha_id = TARGET_ID_MAP
+            .iter()
+            .find(|(_, name)| **name == "\u{64E}")
+            .map(|(&id, _)| id)
+            .unwrap();
+        let logits = [logits_row(10.0), logits_row(-10.0)].concat();
+        let out = postprocess(
+            "ب".to_string(),
+            HashSet::new(),
+            vec![pad_id, fatha_id],
+            logits,
+            Some(0.8),
+        )?;
+        assert_eq!(out, "ب\u{64E}");
         Ok(())
     }
 
