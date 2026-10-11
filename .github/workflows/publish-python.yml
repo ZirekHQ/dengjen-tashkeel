@@ -9,6 +9,17 @@ name: Publish Python wheels
 # (Intel macOS dropped there, dropped here too). PyO3 is abi3-py39, so one
 # wheel per platform covers every CPython >=3.9 -- no version axis needed.
 on:
+  # Re-publishes an existing tag whose release run failed before PyPI.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and publish, e.g. v2.0.0
+        required: true
+        type: string
+      dry_run:
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       tag:
