@@ -12,8 +12,8 @@ documentation.workspace = true
 [features]
 default = ["ort-static", "rayon"]
 rayon = ["dep:rayon"]
-ort-static = ["dep:ort", "ort/download-binaries", "ort/copy-dylibs"]
-ort-dylib = ["dep:ort", "ort/load-dynamic"]
+ort-static = ["dep:ort", "dep:ndarray", "ort/download-binaries", "ort/copy-dylibs"]
+ort-dylib = ["dep:ort", "dep:ndarray", "ort/load-dynamic"]
 # Exposes otherwise-private tokenization/postprocessing internals (doc-hidden) so
 # benches/ can measure hot paths without an ONNX model in the loop. Not for external use.
 internal-benchmarks = []
@@ -21,10 +21,9 @@ internal-benchmarks = []
 [dependencies]
 libtqsm = "0.6.1"
 log = "0.4.18"
-ndarray = "0.17"
+ndarray = { version = "0.17", optional = true }
 once_cell = "1.18.0"
 rayon = { version = "1.8.1", optional = true }
-serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.89"
 thiserror = "2.0.0"
 

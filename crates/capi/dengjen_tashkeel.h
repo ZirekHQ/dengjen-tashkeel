@@ -5,17 +5,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define INPUT_TOO_LONG 1
+#define DENGJEN_TASHKEEL_INPUT_TOO_LONG 1
 
-#define INFERENCE_ERROR 2
+#define DENGJEN_TASHKEEL_INFERENCE_ERROR 2
 
-#define MODEL_LOAD_ERROR 3
+#define DENGJEN_TASHKEEL_MODEL_LOAD_ERROR 3
 
-#define ALREADY_INITIALIZED 4
+#define DENGJEN_TASHKEEL_ALREADY_INITIALIZED 4
 
-#define INVALID_ARGUMENT 5
+#define DENGJEN_TASHKEEL_INVALID_ARGUMENT 5
 
-#define UNKNOWN_ERROR 99
+#define DENGJEN_TASHKEEL_UNKNOWN_ERROR 99
 
 /**
  * `FfiStr<'a>` is a safe (`#[repr(transparent)]`) wrapper around a
@@ -223,7 +223,7 @@ void dengjen_tashkeel_free_string(char *s);
 /**
  * # Safety
  * `text_ptr` must be a valid NUL-terminated string. A null `text_ptr` is
- * reported as `INVALID_ARGUMENT`; invalid UTF-8 is converted lossily.
+ * reported as `DENGJEN_TASHKEEL_INVALID_ARGUMENT`; invalid UTF-8 is converted lossily.
  * `taskeen_threshold` must be either null or point to a single, properly
  * aligned `c_float` that remains valid for the duration of this call.
  * Ownership of the pointee is NOT transferred: this function only reads
@@ -245,7 +245,7 @@ char *dengjenTashkeelTashkeel(FfiStr text_ptr,
 /**
  * # Safety
  * A repeated call, or a call after a successful `dengjenTashkeelTashkeel`,
- * reports `ALREADY_INITIALIZED` and keeps the existing engine.
+ * reports `DENGJEN_TASHKEEL_ALREADY_INITIALIZED` and keeps the existing engine.
  * `out_error` must be either null (in which case this call is a silent
  * no-op) or point to a single, properly aligned, writable `ExternError`
  * valid for the duration of this call.
@@ -255,3 +255,12 @@ void dengjen_tashkeel_init(FfiStr model_path_ptr, struct ExternError *out_error)
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
+
+#ifndef DENGJEN_TASHKEEL_NO_LEGACY_MACROS
+#define INPUT_TOO_LONG DENGJEN_TASHKEEL_INPUT_TOO_LONG
+#define INFERENCE_ERROR DENGJEN_TASHKEEL_INFERENCE_ERROR
+#define MODEL_LOAD_ERROR DENGJEN_TASHKEEL_MODEL_LOAD_ERROR
+#define ALREADY_INITIALIZED DENGJEN_TASHKEEL_ALREADY_INITIALIZED
+#define INVALID_ARGUMENT DENGJEN_TASHKEEL_INVALID_ARGUMENT
+#define UNKNOWN_ERROR DENGJEN_TASHKEEL_UNKNOWN_ERROR
+#endif

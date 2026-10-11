@@ -9,14 +9,14 @@ use std::path::PathBuf;
 static INFERENCE_ENGINE: OnceCell<DynamicInferenceEngine> = OnceCell::new();
 
 mod error_codes {
-    pub const INPUT_TOO_LONG: i32 = 1;
-    pub const INFERENCE_ERROR: i32 = 2;
-    pub const MODEL_LOAD_ERROR: i32 = 3;
-    pub const ALREADY_INITIALIZED: i32 = 4;
-    pub const INVALID_ARGUMENT: i32 = 5;
+    pub const DENGJEN_TASHKEEL_INPUT_TOO_LONG: i32 = 1;
+    pub const DENGJEN_TASHKEEL_INFERENCE_ERROR: i32 = 2;
+    pub const DENGJEN_TASHKEEL_MODEL_LOAD_ERROR: i32 = 3;
+    pub const DENGJEN_TASHKEEL_ALREADY_INITIALIZED: i32 = 4;
+    pub const DENGJEN_TASHKEEL_INVALID_ARGUMENT: i32 = 5;
     // Kept for C header ABI stability.
     #[allow(dead_code)]
-    pub const UNKNOWN_ERROR: i32 = 99;
+    pub const DENGJEN_TASHKEEL_UNKNOWN_ERROR: i32 = 99;
 }
 
 #[derive(Debug)]
@@ -26,13 +26,16 @@ impl From<DengjenTashkeelError> for DengjenTashkeelFFIError {
     fn from(other: DengjenTashkeelError) -> Self {
         let (code, message) = match other {
             DengjenTashkeelError::InputTooLong(max_len) => (
-                error_codes::INPUT_TOO_LONG,
+                error_codes::DENGJEN_TASHKEEL_INPUT_TOO_LONG,
                 format!("Input too long. Max length {}", max_len),
             ),
-            DengjenTashkeelError::InferenceError(msg) => (error_codes::INFERENCE_ERROR, msg),
-            DengjenTashkeelError::ModelLoadError(e) => {
-                (error_codes::MODEL_LOAD_ERROR, e.to_string())
+            DengjenTashkeelError::InferenceError(msg) => {
+                (error_codes::DENGJEN_TASHKEEL_INFERENCE_ERROR, msg)
             }
+            DengjenTashkeelError::ModelLoadError(e) => (
+                error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR,
+                e.to_string(),
+            ),
         };
         Self(code, message)
     }
@@ -59,7 +62,7 @@ pub unsafe extern "C" fn dengjen_tashkeel_free_string(s: *mut c_char) {
 
 /// # Safety
 /// `text_ptr` must be a valid NUL-terminated string. A null `text_ptr` is
-/// reported as `INVALID_ARGUMENT`; invalid UTF-8 is converted lossily.
+/// reported as `DENGJEN_TASHKEEL_INVALID_ARGUMENT`; invalid UTF-8 is converted lossily.
 /// `taskeen_threshold` must be either null or point to a single, properly
 /// aligned `c_float` that remains valid for the duration of this call.
 /// Ownership of the pointee is NOT transferred: this function only reads
@@ -87,7 +90,7 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
     call_with_result(out_error, move || {
         let text = text_ptr.into_opt_string().ok_or_else(|| {
             DengjenTashkeelFFIError(
-                error_codes::INVALID_ARGUMENT,
+                error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT,
                 "text must not be null".to_string(),
             )
         })?;
@@ -100,7 +103,7 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
 
 /// # Safety
 /// A repeated call, or a call after a successful `dengjenTashkeelTashkeel`,
-/// reports `ALREADY_INITIALIZED` and keeps the existing engine.
+/// reports `DENGJEN_TASHKEEL_ALREADY_INITIALIZED` and keeps the existing engine.
 /// `out_error` must be either null (in which case this call is a silent
 /// no-op) or point to a single, properly aligned, writable `ExternError`
 /// valid for the duration of this call.
@@ -128,7 +131,7 @@ fn ffi_do_tashkeel(
 
 fn already_initialized() -> DengjenTashkeelFFIError {
     DengjenTashkeelFFIError(
-        error_codes::ALREADY_INITIALIZED,
+        error_codes::DENGJEN_TASHKEEL_ALREADY_INITIALIZED,
         "Inference engine is already initialized.".to_string(),
     )
 }
@@ -188,7 +191,10 @@ mod tests {
             dengjenTashkeelTashkeel(null_text_ptr, taskeen_threshold, true, &mut out_error)
         };
 
-        assert_eq!(out_error.get_code().code(), error_codes::INVALID_ARGUMENT);
+        assert_eq!(
+            out_error.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT
+        );
         assert!(result_ptr.is_null());
     }
 
@@ -241,7 +247,7 @@ mod tests {
 
         assert_eq!(
             out_error.get_code().code(),
-            error_codes::ALREADY_INITIALIZED
+            error_codes::DENGJEN_TASHKEEL_ALREADY_INITIALIZED
         );
     }
 
@@ -253,7 +259,7 @@ mod tests {
 
         assert_eq!(
             DengjenTashkeelFFIError::from(error).0,
-            error_codes::MODEL_LOAD_ERROR
+            error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR
         );
     }
 
@@ -269,7 +275,7 @@ mod tests {
 
         assert_eq!(
             DengjenTashkeelFFIError::from(error).0,
-            error_codes::INFERENCE_ERROR
+            error_codes::DENGJEN_TASHKEEL_INFERENCE_ERROR
         );
     }
 
@@ -289,7 +295,10 @@ mod tests {
             )
         };
 
-        assert_eq!(out_error.get_code().code(), error_codes::INPUT_TOO_LONG);
+        assert_eq!(
+            out_error.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_INPUT_TOO_LONG
+        );
         assert!(result_ptr.is_null());
     }
 
@@ -308,7 +317,7 @@ mod tests {
         let ffi_error =
             DengjenTashkeelFFIError::from(DengjenTashkeelError::ModelLoadError(io_error));
 
-        assert_eq!(ffi_error.0, error_codes::MODEL_LOAD_ERROR);
+        assert_eq!(ffi_error.0, error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR);
     }
 
     #[test]

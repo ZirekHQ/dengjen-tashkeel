@@ -176,6 +176,13 @@ listOf("integrationTest", "e2e").forEach { suiteName ->
     }
 }
 
+tasks.named<Test>("e2e") {
+    val bundledModel = rootDir.resolve("../../crates/core/data/ort/model.onnx").normalize()
+    if (System.getenv("DENGJEN_TASHKEEL_TEST_MODEL_PATH") == null && bundledModel.isFile) {
+        environment("DENGJEN_TASHKEEL_TEST_MODEL_PATH", bundledModel.absolutePath)
+    }
+}
+
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }

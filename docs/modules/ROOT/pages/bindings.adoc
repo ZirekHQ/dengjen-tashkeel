@@ -39,28 +39,32 @@ rather than a return value; `code == 0` means success. The codes, from the heade
 |===
 |Code |Meaning
 
-|`1` (`INPUT_TOO_LONG`)
+|`1` (`DENGJEN_TASHKEEL_INPUT_TOO_LONG`)
 |A sentence exceeds `CHAR_LIMIT`
 
-|`2` (`INFERENCE_ERROR`)
+|`2` (`DENGJEN_TASHKEEL_INFERENCE_ERROR`)
 |Model inference failed
 
-|`3` (`MODEL_LOAD_ERROR`)
+|`3` (`DENGJEN_TASHKEEL_MODEL_LOAD_ERROR`)
 |The ONNX model file is missing, unreadable, or fails to load (core `ModelLoadError`)
 
-|`4` (`ALREADY_INITIALIZED`)
+|`4` (`DENGJEN_TASHKEEL_ALREADY_INITIALIZED`)
 |`dengjen_tashkeel_init` was called after the engine was initialized, explicitly or lazily; the
 existing engine is kept
 
-|`5` (`INVALID_ARGUMENT`)
+|`5` (`DENGJEN_TASHKEEL_INVALID_ARGUMENT`)
 |`dengjenTashkeelTashkeel` received a null `text`
 
-|`99` (`UNKNOWN_ERROR`)
+|`99` (`DENGJEN_TASHKEEL_UNKNOWN_ERROR`)
 |Declared in the header; the current Rust code never returns it
 
 |`-1` (`ErrorCode_PANIC`)
 |The Rust side panicked instead of returning an error
 |===
+
+The header also defines the unprefixed names (`INPUT_TOO_LONG`, `INFERENCE_ERROR`, and so on) as
+aliases for compatibility. Define `DENGJEN_TASHKEEL_NO_LEGACY_MACROS` before including the header
+to drop them when they collide with your own macros; the next major release removes them.
 
 Both the returned diacritized string and a non-null `ExternError.message` are heap-allocated on
 the Rust side and must be released with `dengjen_tashkeel_free_string` -- freeing them any other
@@ -121,7 +125,7 @@ except RuntimeError:
 preprocessed)` then diacritizes a string. `TashkeelException.reason()` is a sealed interface --
 `InputTooLong`, `InferenceError`, `ModelLoadError`, and `Unknown`, each a record carrying the
 underlying message (`Unknown` also carries the raw `code`). Codes 1, 2, and 3 map to the first
-three; any other code, including `ALREADY_INITIALIZED` (4) and `INVALID_ARGUMENT` (5), maps to
+three; any other code, including `DENGJEN_TASHKEEL_ALREADY_INITIALIZED` (4) and `DENGJEN_TASHKEEL_INVALID_ARGUMENT` (5), maps to
 `Unknown(code, message)` (`Tashkeel.reasonFor`). So callers can exhaustively `switch` over the failure without a default
 branch:
 

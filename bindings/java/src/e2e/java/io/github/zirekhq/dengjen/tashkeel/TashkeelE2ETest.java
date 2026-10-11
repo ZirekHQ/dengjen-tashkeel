@@ -1,6 +1,7 @@
 package io.github.zirekhq.dengjen.tashkeel;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -15,7 +16,11 @@ class TashkeelE2ETest {
     @Test
     void loadWithARealExternalModelDiacritizesText() throws Exception {
         String modelPath = System.getenv(MODEL_PATH_ENV_VAR);
-        assumeTrue(modelPath != null, MODEL_PATH_ENV_VAR + " not set -- skipping e2e test");
+        if (System.getenv("CI") != null) {
+            assertNotNull(modelPath, MODEL_PATH_ENV_VAR + " must be set in CI");
+        } else {
+            assumeTrue(modelPath != null, MODEL_PATH_ENV_VAR + " not set -- skipping e2e test");
+        }
 
         Tashkeel tashkeel = Tashkeel.load(Path.of(modelPath));
 

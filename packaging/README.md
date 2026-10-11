@@ -84,3 +84,9 @@ Instead:
 - **Conan** has no equivalent zero-infrastructure distribution path, so
   consumers run `conan create packaging/conan --version=<version>` locally to
   populate their own cache (see the README's "From Conan" section).
+
+## Conan test_package
+
+`packaging/conan/test_package` links a C program against the package and runs it. The
+`conan-package` CI job runs `conan create` on Linux and macOS; the Windows leg joins once a
+release ships the import library (see "Windows import library" above).

@@ -45,7 +45,20 @@ final class NativeLibraryLoader {
         } catch (IOException e) {
             throw new UncheckedIOException("failed to extract native library " + resourcePath, e);
         }
-        return SymbolLookup.libraryLookup(extracted, Arena.global());
+        try {
+            return SymbolLookup.libraryLookup(extracted, Arena.global());
+        } finally {
+            deleteExtracted(extracted);
+        }
+    }
+
+    // POSIX keeps a mapped library alive after unlink; Windows refuses, so deleteOnExit stays.
+    static void deleteExtracted(Path extracted) {
+        try {
+            Files.deleteIfExists(extracted);
+        } catch (IOException e) {
+            extracted.toFile().deleteOnExit();
+        }
     }
 
     static Path extractResource(String resourcePath, ClassLoader loader) throws IOException {
@@ -61,9 +74,11 @@ final class NativeLibraryLoader {
             }
             Path extracted = Files.createTempFile(
                     "dengjen-tashkeel-native-", "-" + resourcePath.replace('/', '_'), OWNER_ONLY_PERMISSIONS);
-            extracted.toFile().deleteOnExit();
             try (OutputStream out = Files.newOutputStream(extracted, StandardOpenOption.TRUNCATE_EXISTING)) {
                 in.transferTo(out);
+            } catch (IOException e) {
+                deleteExtracted(extracted);
+                throw e;
             }
             return extracted;
         }
