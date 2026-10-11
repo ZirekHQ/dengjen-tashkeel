@@ -74,7 +74,11 @@ packages to diverge, so don't let them.
    Settings, tracked separately, not part of any workflow file); until it
    is, "requires approval" means a click, not necessarily a second person.
    `publish-python.yml`'s own `environment: pypi` is a second gate further
-   down this same path, for PyPI specifically.
+   down this same path, for PyPI specifically. `publish-java.yml`'s publish
+   job declares `environment: maven-central`, which holds the
+   `JRELEASER_*` secrets. One-time repo setup: create that environment, add
+   required reviewers, move the five secrets from repository level into it,
+   then delete the repository-level copies.
 4. Once the release archives exist, refresh the vcpkg port and Conan
    recipe's checksums against them and open a PR -- see
    [packaging/README.md](../packaging/README.md). These necessarily lag one
@@ -85,3 +89,13 @@ packages to diverge, so don't let them.
 ## Getting started
 
 See [README.md](../README.md) for build instructions.
+
+## Pull requests from forks
+
+Forks never receive `SONAR_TOKEN`. `sonar-fork-coverage.yml` builds the
+coverage report from the fork's head with no secrets, and
+`sonar-fork-scan.yml` then scans that artifact with the token and posts the
+real `SonarCloud Code Analysis` status to the head commit. The required check
+stays pending until the scan finishes, so a fork PR cannot merge without a
+quality-gate result. A maintainer can comment `/sonar` on the PR to re-run the
+scan.
