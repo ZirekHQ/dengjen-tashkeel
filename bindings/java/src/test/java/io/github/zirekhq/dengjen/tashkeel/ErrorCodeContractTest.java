@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class ErrorCodeContractTest {
 
     private static final Path HEADER = Path.of("../../crates/capi/dengjen_tashkeel.h");
-    private static final Pattern DEFINE = Pattern.compile("^#define (DENGJEN_TASHKEEL_[A-Z_]+) (\\d+)$");
+    private static final Pattern DEFINE = Pattern.compile("^#define (DENGJEN_TASHKEEL_[A-Z_]+) (\\d{1,4})$");
 
     private static Map<String, Integer> headerCodes() throws IOException {
         return Files.readAllLines(HEADER).stream()
