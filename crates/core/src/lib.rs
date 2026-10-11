@@ -210,15 +210,43 @@ fn annotate_text_with_diacritics(
     Ok(output)
 }
 
+/// Per-position softmax probability of the sukoon class, from logits flattened as
+/// `[seq_length * classes]`.
+fn sukoon_probabilities(logits: &[f32]) -> DengjenTashkeelResult<Vec<f32>> {
+    let classes = TARGET_ID_MAP.len();
+    if !logits.len().is_multiple_of(classes) {
+        return Err(DengjenTashkeelError::InferenceError(format!(
+            "model returned {} logits, not a multiple of the {classes} target classes",
+            logits.len()
+        )));
+    }
+    let sukoon = SUKOON.to_string();
+    let sukoon_id = TARGET_ID_MAP
+        .iter()
+        .find(|(_, name)| **name == sukoon)
+        .map(|(&id, _)| usize::from(id))
+        .ok_or_else(|| {
+            DengjenTashkeelError::InferenceError("no sukoon target class".to_string())
+        })?;
+    Ok(logits
+        .chunks_exact(classes)
+        .map(|row| {
+            let max = row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            let total: f32 = row.iter().map(|l| (l - max).exp()).sum();
+            (row[sukoon_id] - max).exp() / total
+        })
+        .collect())
+}
+
 fn annotate_text_with_diacritics_taskeen(
     input: &str,
     diacritics: Vec<String>,
     removed_chars: HashSet<char>,
-    logits: Vec<f32>,
+    sukoon_probabilities: Vec<f32>,
     taskeen_threshold: f32,
 ) -> DengjenTashkeelResult<String> {
     let mut output = String::new();
-    let mut diac_iter = diacritics.into_iter().zip(logits);
+    let mut diac_iter = diacritics.into_iter().zip(sukoon_probabilities);
     for c in input.chars() {
         if ARABIC_DIACRITICS.contains(&c) {
             continue;
@@ -226,12 +254,12 @@ fn annotate_text_with_diacritics_taskeen(
             output.push(c);
         } else {
             output.push(c);
-            let (diac, logit) = diac_iter.next().ok_or_else(|| {
+            let (diac, sukoon_probability) = diac_iter.next().ok_or_else(|| {
                 DengjenTashkeelError::InferenceError(
-                    "model output fewer diacritics/logits than input characters".to_string(),
+                    "model output fewer diacritics/scores than input characters".to_string(),
                 )
             })?;
-            if logit > taskeen_threshold {
+            if sukoon_probability > taskeen_threshold {
                 output.push(SUKOON);
             } else {
                 output.push_str(&diac);
@@ -288,7 +316,7 @@ fn postprocess(
             &text,
             diacritics,
             removed_chars,
-            logits,
+            sukoon_probabilities(&logits)?,
             threshold,
         ),
     }
@@ -494,6 +522,49 @@ mod tests {
 
         Ok(())
     }
+    fn logits_row(sukoon_logit: f32) -> Vec<f32> {
+        let mut row = vec![0.0; TARGET_ID_MAP.len()];
+        row[14] = sukoon_logit;
+        row
+    }
+
+    #[test]
+    fn test_sukoon_probabilities_index_by_position_and_class() -> DengjenTashkeelResult<()> {
+        let logits = [logits_row(10.0), logits_row(-10.0)].concat();
+        let probabilities = sukoon_probabilities(&logits)?;
+        assert_eq!(probabilities.len(), 2);
+        assert!(probabilities[0] > 0.99);
+        assert!(probabilities[1] < 0.01);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sukoon_probabilities_uniform_row() -> DengjenTashkeelResult<()> {
+        let probabilities = sukoon_probabilities(&logits_row(0.0))?;
+        let expected = 1.0 / TARGET_ID_MAP.len() as f32;
+        assert!((probabilities[0] - expected).abs() < 1e-6);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sukoon_probabilities_reject_ragged_logits() {
+        assert!(sukoon_probabilities(&[0.0; 16]).is_err());
+    }
+
+    #[test]
+    fn test_taskeen_forces_sukoon_only_above_threshold() -> DengjenTashkeelResult<()> {
+        let probabilities = sukoon_probabilities(&[logits_row(10.0), logits_row(-10.0)].concat())?;
+        let out = annotate_text_with_diacritics_taskeen(
+            "بت",
+            vec!["\u{64E}".to_string(), "\u{64F}".to_string()],
+            HashSet::new(),
+            probabilities,
+            0.8,
+        )?;
+        assert_eq!(out, "ب\u{652}ت\u{64F}");
+        Ok(())
+    }
+
     #[test]
     fn test_hints() -> DengjenTashkeelResult<()> {
         let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";

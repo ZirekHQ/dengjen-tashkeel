@@ -240,8 +240,8 @@ as `debug`; default `info`) to change log verbosity.
 ## The taskeen option
 
 When enabled (`taskeen_threshold` in Rust/Python, `--taskeen`/`--prob` in
-the CLI), the model substitutes a sukoon for a case-ending diacritic it
-isn't confident about, instead of guessing.
+the CLI), the model substitutes a sukoon for the predicted diacritic wherever its
+softmax probability for sukoon at that position exceeds the threshold (0 to 1).
 
 ## Building
 

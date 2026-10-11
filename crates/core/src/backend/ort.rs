@@ -55,9 +55,10 @@ fn ort_session_run(
                 target_ids.len()
             )));
         }
-        if logits.len() < seq_length {
+        let expected_logits = seq_length * crate::TARGET_ID_MAP.len();
+        if logits.len() != expected_logits {
             return Err(DengjenTashkeelError::InferenceError(format!(
-                "model returned {} logits (shape {logits_shape:?}), fewer than the sequence length {seq_length}",
+                "model returned {} logits (shape {logits_shape:?}), expected {expected_logits} for a sequence of length {seq_length}",
                 logits.len()
             )));
         }
