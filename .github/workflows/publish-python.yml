@@ -115,6 +115,10 @@ jobs:
         # Same checks as python-wheel.yml, run against the exact artifact about to be
         # uploaded -- PyPI publishes are irreversible. onnxruntime pin matches that workflow.
         shell: bash
+        env:
+          # The script runs from the checked-out tag, so a fix to it on main does not reach
+          # a re-dispatch of an older tag; UTF-8 keeps its Arabic output off cp1252 consoles.
+          PYTHONUTF8: "1"
         run: |
           set -euo pipefail
           python -m pip install --only-binary :all: onnxruntime==1.30.0
