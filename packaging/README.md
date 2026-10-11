@@ -6,10 +6,10 @@ download the prebuilt cdylib + header from a GitHub Release instead of
 building from source — neither vcpkg nor Conan has a Rust toolchain available
 in its build environment. See [issue #24](https://github.com/ZirekHQ/dengjen-tashkeel/issues/24).
 
-`versions/baseline.json` registers `dengjen-tashkeel-capi` at `1.6.6`, and
+`versions/baseline.json` registers `dengjen-tashkeel-capi` at `2.0.0`, and
 both the vcpkg port and Conan recipe carry the real checksums for that
 release's `dengjen-tashkeel-capi-<target>` archives. They can lag the
-workspace version (currently the same, `1.6.6`) by design — see
+workspace version (currently the same, `2.0.0`) by design — see
 [CONTRIBUTING.md](../.github/CONTRIBUTING.md) step 4 — until a maintainer
 ships a follow-up PR pointing them at a newer release:
 
@@ -58,16 +58,17 @@ ships a follow-up PR pointing them at a newer release:
 ## Windows import library
 
 cargo-dist packages `dengjen_tashkeel_capi.dll` but not the `.dll.lib` rustc emits
-beside it, so the release archives alone do not link on Windows. Releases built after
-this was added also publish `dengjen_tashkeel_capi-x86_64-pc-windows-msvc.dll.lib`
-(plus a `.sha256`) as a separate asset. Releases up to and including 1.6.6 do not have
-it, so the port and recipe keep globbing `*.dll.lib` from the archive until the first
-release that carries the asset. When bumping to that release:
+beside it, so the release archives alone do not link on Windows. Releases from 2.0.0 on
+publish `dengjen_tashkeel_capi-x86_64-pc-windows-msvc.dll.lib` (plus a `.sha256`) as a
+separate asset. The port and recipe download it with its own checksum on Windows only and
+install it as `dengjen_tashkeel_capi.dll.lib`. When bumping the version, also recompute
+that asset's SHA512 (port) and SHA256 (recipe, `_WINDOWS_IMPORT_LIBRARY`):
 
-1. Download the `.dll.lib` asset and compute its SHA512 and SHA256.
-2. Add a second `vcpkg_download_distfile` in `portfile.cmake` and a second `get` in
-   `conanfile.py` for the Windows branch only, writing the file next to the DLL.
-3. Re-run the verification in step 5 above on a Windows machine.
+```bash
+asset=dengjen_tashkeel_capi-x86_64-pc-windows-msvc.dll.lib
+curl -fsSLO "https://github.com/ZirekHQ/dengjen-tashkeel/releases/download/v${version}/${asset}"
+sha512sum "$asset"; sha256sum "$asset"
+```
 
 ## Why not submit to the central registries?
 
@@ -88,5 +89,4 @@ Instead:
 ## Conan test_package
 
 `packaging/conan/test_package` links a C program against the package and runs it. The
-`conan-package` CI job runs `conan create` on Linux and macOS; the Windows leg joins once a
-release ships the import library (see "Windows import library" above).
+`conan-package` CI job runs `conan create` on Linux, macOS and Windows.
