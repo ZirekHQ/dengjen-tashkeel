@@ -20,4 +20,4 @@ except ValueError as err:
 else:
     raise AssertionError("over-limit input did not raise ValueError")
 
-print(default)
+print(ascii(default))
