@@ -14,8 +14,6 @@ mod error_codes {
     pub const DENGJEN_TASHKEEL_MODEL_LOAD_ERROR: i32 = 3;
     pub const DENGJEN_TASHKEEL_ALREADY_INITIALIZED: i32 = 4;
     pub const DENGJEN_TASHKEEL_INVALID_ARGUMENT: i32 = 5;
-    // Kept for C header ABI stability.
-    #[allow(dead_code)]
     pub const DENGJEN_TASHKEEL_UNKNOWN_ERROR: i32 = 99;
 }
 
@@ -35,6 +33,10 @@ impl From<DengjenTashkeelError> for DengjenTashkeelFFIError {
             DengjenTashkeelError::ModelLoadError(e) => (
                 error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR,
                 e.to_string(),
+            ),
+            other => (
+                error_codes::DENGJEN_TASHKEEL_UNKNOWN_ERROR,
+                other.to_string(),
             ),
         };
         Self(code, message)

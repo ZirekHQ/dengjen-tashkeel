@@ -49,7 +49,8 @@ static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
 static NORMALIZED_DIAC_MAP: Lazy<HashMap<&str, &str>> =
     Lazy::new(|| HashMap::from([("َّ", "َّ"), ("ًّ", "ًّ"), ("ُّ", "ُّ"), ("ٌّ", "ٌّ"), ("ِّ", "ِّ"), ("ٍّ", "ٍّ")]));
 
-pub trait InferenceEngine {
+/// A model backend. Engines are shared across threads, so they must be `Send + Sync`.
+pub trait InferenceEngine: Send + Sync {
     fn infer(
         &self,
         input_ids: Vec<i64>,
@@ -73,6 +74,7 @@ pub trait InferenceEngine {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DengjenTashkeelError {
     #[error("input too long. Expected {0} characters")]
     InputTooLong(usize),
@@ -298,7 +300,7 @@ fn log_inference_time(elapsed: std::time::Duration) {
 
 fn map_sentences(
     sentences: &[String],
-    engine: &(impl InferenceEngine + Send + Sync),
+    engine: &impl InferenceEngine,
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<Vec<String>> {
     if sentences.is_empty() {
@@ -363,13 +365,13 @@ fn map_sentences(
 }
 
 pub fn do_tashkeel(
-    engine: &(impl InferenceEngine + Send + Sync),
+    engine: &impl InferenceEngine,
     text: &str,
     taskeen_threshold: Option<f32>,
     preprocessed: bool,
 ) -> DengjenTashkeelResult<String> {
     if preprocessed {
-        return _do_tashkeel_impl(engine, text, taskeen_threshold);
+        return tashkeel_preprocessed(engine, text, taskeen_threshold);
     }
 
     let sentences = libtqsm::segment("ar", text).map_err(|e| {
@@ -381,8 +383,8 @@ pub fn do_tashkeel(
     map_sentences(&sentences, engine, taskeen_threshold).map(|v| v.join(" "))
 }
 
-pub fn _do_tashkeel_impl(
-    engine: &(impl InferenceEngine + Send + Sync),
+fn tashkeel_preprocessed(
+    engine: &impl InferenceEngine,
     text: &str,
     taskeen_threshold: Option<f32>,
 ) -> DengjenTashkeelResult<String> {

@@ -62,10 +62,6 @@ existing engine is kept
 |The Rust side panicked instead of returning an error
 |===
 
-The header also defines the unprefixed names (`INPUT_TOO_LONG`, `INFERENCE_ERROR`, and so on) as
-aliases for compatibility. Define `DENGJEN_TASHKEEL_NO_LEGACY_MACROS` before including the header
-to drop them when they collide with your own macros; the next major release removes them.
-
 Both the returned diacritized string and a non-null `ExternError.message` are heap-allocated on
 the Rust side and must be released with `dengjen_tashkeel_free_string` -- freeing them any other
 way, or freeing twice, is undefined behavior.

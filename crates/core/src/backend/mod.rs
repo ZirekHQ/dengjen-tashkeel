@@ -2,10 +2,10 @@ use crate::{DengjenTashkeelResult, InferenceEngine};
 #[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
 use std::path::PathBuf;
 
-pub struct DynamicInferenceEngine(Box<dyn InferenceEngine + Send + Sync>);
+pub struct DynamicInferenceEngine(Box<dyn InferenceEngine>);
 
 impl DynamicInferenceEngine {
-    pub fn new(engine: Box<dyn InferenceEngine + Send + Sync>) -> Self {
+    pub fn new(engine: Box<dyn InferenceEngine>) -> Self {
         Self(engine)
     }
 }
