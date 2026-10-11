@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "io.github.zirekhq"
-version = "1.6.6"
+version = "2.0.0"
 
 java {
     toolchain {
