@@ -2,7 +2,7 @@
 use dengjen_tashkeel::init_ort_dylib;
 use dengjen_tashkeel::{
     create_inference_engine, do_tashkeel_with, DengjenTashkeelError, DynamicInferenceEngine,
-    TashkeelOptions,
+    ErrorKind, TashkeelOptions,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -12,11 +12,9 @@ use pyo3::types::PyModule;
 static INFERENCE_ENGINE: PyOnceLock<DynamicInferenceEngine> = PyOnceLock::new();
 
 fn to_py_err(error: DengjenTashkeelError) -> PyErr {
-    match error {
-        DengjenTashkeelError::InputTooLong(max_len) => {
-            PyValueError::new_err(format!("Input too long. Max length {max_len}"))
-        }
-        other => PyRuntimeError::new_err(format!("Failed to diacritize text. Caused by: {other}")),
+    match error.kind() {
+        ErrorKind::InputTooLong => PyValueError::new_err(error.to_string()),
+        _ => PyRuntimeError::new_err(format!("Failed to diacritize text. Caused by: {error}")),
     }
 }
 
@@ -178,7 +176,9 @@ mod tests {
             let err = to_py_err(DengjenTashkeelError::InputTooLong(10));
 
             assert!(err.is_instance_of::<PyValueError>(py));
-            assert!(err.to_string().contains("10"));
+            assert!(err
+                .to_string()
+                .contains(&DengjenTashkeelError::InputTooLong(10).to_string()));
         });
     }
 
