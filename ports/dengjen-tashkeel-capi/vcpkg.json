@@ -1,7 +1,7 @@
 {
   "name": "dengjen-tashkeel-capi",
   "version": "2.0.0",
-  "port-version": 0,
+  "port-version": 1,
   "description": "Arabic-text diacritic restoration using neural networks (C API)",
   "homepage": "https://github.com/ZirekHQ/dengjen-tashkeel",
   "documentation": "https://github.com/ZirekHQ/dengjen-tashkeel",

@@ -32,12 +32,9 @@ ships a follow-up PR pointing them at a newer release:
    `_RELEASE_ASSETS` in `packaging/conan/conanfile.py`.
 3. If the version being released differs from what's already recorded, bump
    it in `ports/dengjen-tashkeel-capi/vcpkg.json`, `portfile.cmake`'s
-   `CAPI_VERSION`, `conanfile.py`'s `version`, and the two literal version
-   numbers in the root README's "Install" section under **C:** and in the
-   docs' `installation.adoc` "C" section (the `conan create` example and the
-   `dengjen-tashkeel-capi/<version>` requirement) -- easy to miss
-   since nothing fails loudly if they go stale, they just quietly stop
-   pointing at the latest release.
+   `CAPI_VERSION` and `conanfile.py`'s `version`. The literal version
+   numbers in the root README and the docs' `installation.adoc` are bumped by
+   `scripts/bump-version.sh` in the release PR.
 4. Recompute the port's git-tree hash (vcpkg's version file must match the
    *exact* contents of `ports/dengjen-tashkeel-capi/` after the above edits)
    and put the result in `versions/d-/dengjen-tashkeel-capi.json`:
@@ -47,6 +44,9 @@ ships a follow-up PR pointing them at a newer release:
    ```
    Then update `versions/baseline.json`'s `"default"` map entry to
    `{"dengjen-tashkeel-capi": {"baseline": "<version>", "port-version": 0}}`.
+   Any later port-only change (no new upstream version) bumps `port-version`
+   instead. CI's `vcpkg-versions` job fails when `versions/` and the port
+   disagree.
 5. Verify end-to-end before merging:
    ```bash
    # vcpkg, from a vcpkg checkout with this repo added as a registry

@@ -116,7 +116,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
           git add Cargo.toml Cargo.lock bindings/java/build.gradle.kts README.md \
-            crates/capi/Cargo.toml crates/cli/Cargo.toml crates/python/Cargo.toml
+            docs/modules/ROOT/pages/installation.adoc crates/capi/Cargo.toml crates/cli/Cargo.toml crates/python/Cargo.toml
           git commit -m "chore: bump workspace version -> ${VERSION}"
           git push -u origin "$branch"
           gh pr create --title "chore: bump workspace version -> ${VERSION}" \

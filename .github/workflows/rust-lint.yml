@@ -103,12 +103,32 @@ jobs:
           tool: cargo-llvm-cov
       - name: cargo llvm-cov (workspace)
         run: cargo llvm-cov --workspace --no-fail-fast --cobertura --output-path cobertura.xml
+      - name: coverage summary
+        run: |
+          {
+            echo '### Rust line coverage'
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: upload coverage report
         uses: actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52 # v1
         with:
           file: cobertura.xml
           language: Rust
           label: code-coverage/rust
+
+  # vcpkg reads ports/ at the exact tree hash recorded in versions/, so a port edit without a
+  # matching registry entry breaks every consumer of this registry.
+  vcpkg-versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Registry entry matches the port
+        run: bash .github/scripts/check-vcpkg-versions.sh
 
   # Compiles against the floor in [workspace.package].rust-version (Cargo.toml), separate
   # from the toolchain the jobs above use -- catches a dependency bump or language
