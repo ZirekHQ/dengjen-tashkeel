@@ -24,7 +24,7 @@ jobs:
     # and the scan would fail with a red X the contributor cannot clear.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      HAS_SONAR_TOKEN: ${{ secrets.SONAR_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,5 +65,7 @@ jobs:
           pytest test_ffi_usage_example.py --cov=. --cov-report=xml:coverage-python.xml
 
       - name: SonarQube scan
-        if: env.SONAR_TOKEN != ''
+        if: env.HAS_SONAR_TOKEN == 'true'
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

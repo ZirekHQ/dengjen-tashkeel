@@ -6,8 +6,8 @@ name: Publish Python wheels
 # every push/PR, not a release artifact.
 #
 # Platform matrix mirrors [workspace.metadata.dist]'s Cargo.toml targets
-# (Intel macOS dropped there, dropped here too). PyO3 is abi3-py39, so one
-# wheel per platform covers every CPython >=3.9 -- no version axis needed.
+# (Intel macOS dropped there, dropped here too). PyO3 builds abi3 wheels (crates/python/Cargo.toml), so one
+# wheel per platform covers every supported CPython -- no version axis needed.
 on:
   # Re-publishes an existing tag whose release run failed before PyPI.
   workflow_dispatch:

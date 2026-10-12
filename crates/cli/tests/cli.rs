@@ -31,6 +31,7 @@ fn missing_model_file_exits_with_an_error() {
         .unwrap();
 
     assert!(!output.status.success());
+    assert!(!output.stderr.is_empty());
 }
 
 #[test]
@@ -53,4 +54,29 @@ fn stdin_line_is_diacritized_to_stdout() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("بِسْمِ"));
+}
+
+#[test]
+fn multi_line_stdin_is_fully_diacritized_to_output_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let out_path = dir.path().join("out.txt");
+    let mut child = Command::new(BIN)
+        .args(["--output-file", out_path.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all("بسم الله\nالرحمن الرحيم\n".as_bytes())
+        .unwrap();
+
+    let status = child.wait().unwrap();
+
+    assert!(status.success());
+    let written = std::fs::read_to_string(out_path).unwrap();
+    assert_eq!(written.lines().count(), 2);
 }

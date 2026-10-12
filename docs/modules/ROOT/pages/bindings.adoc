@@ -46,7 +46,7 @@ rather than a return value; `code == 0` means success. The codes, from the heade
 |Model inference failed
 
 |`3` (`DENGJEN_TASHKEEL_MODEL_LOAD_ERROR`)
-|The ONNX model file is missing, unreadable, or fails to load (core `ModelLoadError`)
+|The ONNX model file is missing or unreadable (core `ModelLoadError`, an I/O failure reading the file). A file that is readable but not a valid ONNX model is reported as code `2`
 
 |`4` (`DENGJEN_TASHKEEL_ALREADY_INITIALIZED`)
 |`dengjen_tashkeel_init` was called after the engine was initialized, explicitly or lazily; the
@@ -61,6 +61,10 @@ existing engine is kept
 |`-1` (`ErrorCode_PANIC`)
 |The Rust side panicked instead of returning an error
 |===
+
+The engine is a process-global singleton, and inference runs on a bounded pool of ONNX sessions
+(`SessionPool` in `crates/core`). Concurrent `dengjenTashkeelTashkeel` calls from multiple
+threads are safe; a call blocks until a pooled session is free.
 
 Both the returned diacritized string and a non-null `ExternError.message` are heap-allocated on
 the Rust side and must be released with `dengjen_tashkeel_free_string` -- freeing them any other
@@ -155,7 +159,7 @@ Beyond the flags reference in xref:usage.adoc[Usage], `--input-file`/`-f` change
 batched: with `-f`, the CLI reads the whole file and diacritizes each *line* independently,
 writing one output line per input line. Without it, the CLI reads stdin one line at a time and
 diacritizes each line as its own call; in interactive mode (the default when neither `-f` nor `-o`
-is given) it keeps reading until EOF, but with only `-o` it processes just the first stdin line
+is given) it keeps reading until EOF, and with only `-o` it reads all of stdin
 (`crates/cli/src/main.rs`, `get_input_text`, `tashkeel_main`).
 
 The CLI does not truncate input: a line containing a single sentence longer than `CHAR_LIMIT`

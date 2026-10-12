@@ -22,17 +22,18 @@ this depends on context the model wasn't trained to resolve. See
 https://github.com/ZirekHQ/dengjen-tashkeel/issues/28[issue #28] for the full discrepancy and any
 follow-up.
 
-== Mitigating uncertain case endings: taskeen
+== Mitigating uncertain diacritics: taskeen
 
 Every binding exposes a taskeen option (`taskeen_threshold` in Rust and Python, the second
 `Optional<Float>` argument in Java, `--taskeen`/`--prob` in the CLI -- see
-xref:bindings.adoc[Per-binding usage]). When enabled, the model substitutes a sukoon for a
-case-ending diacritic it isn't confident about, instead of guessing -- trading a possibly-wrong
-diacritic for an explicit "unresolved" marker.
+xref:bindings.adoc[Per-binding usage]). When enabled, the model substitutes a sukoon for any
+predicted diacritic whose confidence is below the threshold, instead of guessing -- trading a
+possibly-wrong diacritic for an explicit "unresolved" marker. It applies at every character that
+receives a diacritic, not only the final case ending (the CLI's `--taskeen` help text says
+"case-ending", which understates this).
 
-Taskeen only affects the final case-ending diacritic. It would not fully correct the `حفص` example
-above: the discrepancy there isn't limited to the case ending (`ِ` vs. `ٍ`) -- the internal vowel
-also differs (`فَ` vs. `فْ`), so taskeen doesn't fully hide an error like this one.
+Taskeen only helps where the model's confidence is actually low. A confidently wrong prediction
+is not replaced, so taskeen does not guarantee a fix for the `حفص` example above.
 
 == Scope
 

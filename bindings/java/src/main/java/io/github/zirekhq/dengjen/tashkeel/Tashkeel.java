@@ -5,6 +5,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Optional;
 
 public final class Tashkeel implements AutoCloseable {
@@ -13,11 +14,14 @@ public final class Tashkeel implements AutoCloseable {
     private static final int INPUT_TOO_LONG = 1;
     private static final int INFERENCE_ERROR = 2;
     private static final int MODEL_LOAD_ERROR = 3;
+    private static final int ALREADY_INITIALIZED = 4;
+    private static final int INVALID_ARGUMENT = 5;
 
     Tashkeel() {
     }
 
     public static Tashkeel load(Path modelPath) throws TashkeelException {
+        Objects.requireNonNull(modelPath, "modelPath must not be null");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment outError = arena.allocate(TashkeelLib.EXTERN_ERROR);
             MemorySegment modelPathPtr = arena.allocateFrom(modelPath.toString());
@@ -38,6 +42,11 @@ public final class Tashkeel implements AutoCloseable {
 
     public String diacritize(String text, Optional<Float> taskeenThreshold, boolean preprocessed)
             throws TashkeelException {
+        Objects.requireNonNull(text, "text must not be null");
+        Objects.requireNonNull(taskeenThreshold, "taskeenThreshold must not be null; use Optional.empty()");
+        if (text.indexOf('\u0000') >= 0) {
+            throw new IllegalArgumentException("text must not contain U+0000");
+        }
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment outError = arena.allocate(TashkeelLib.EXTERN_ERROR);
             MemorySegment textPtr = arena.allocateFrom(text);
@@ -98,6 +107,8 @@ public final class Tashkeel implements AutoCloseable {
             case INPUT_TOO_LONG -> new TashkeelException.InputTooLong(message);
             case INFERENCE_ERROR -> new TashkeelException.InferenceError(message);
             case MODEL_LOAD_ERROR -> new TashkeelException.ModelLoadError(message);
+            case ALREADY_INITIALIZED -> new TashkeelException.AlreadyInitialized(message);
+            case INVALID_ARGUMENT -> new TashkeelException.InvalidArgument(message);
             default -> new TashkeelException.Unknown(code, message);
         };
     }

@@ -17,6 +17,9 @@ pub use self::backend::init_ort_dylib;
 pub type DengjenTashkeelResult<T> = Result<T, DengjenTashkeelError>;
 
 pub const CHAR_LIMIT: usize = 12000;
+
+/// Upper bound on padded tokens (batch size x longest sequence) per model call.
+const BATCH_PADDED_TOKEN_BUDGET: usize = 4 * CHAR_LIMIT;
 const PAD: char = '_';
 const NUMERAL_SYMBOL: char = '#';
 const SUKOON: char = '\u{652}';
@@ -76,7 +79,7 @@ pub trait InferenceEngine: Send + Sync {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum DengjenTashkeelError {
-    #[error("input too long. Expected {0} characters")]
+    #[error("input too long. Maximum is {0} characters")]
     InputTooLong(usize),
     #[error("Inference error. {0}")]
     InferenceError(String),
@@ -326,6 +329,25 @@ fn log_inference_time(elapsed: std::time::Duration) {
     log::debug!("Inference time: {:.3} ms", elapsed.as_secs_f64() * 1000.0);
 }
 
+/// Splits `(position, seq_length)` items into inference batches whose padded size
+/// (items x longest item) stays within `budget`. A single item above the budget gets its
+/// own batch. Items are grouped by ascending length so padding stays minimal.
+fn chunk_by_padded_cost(mut items: Vec<(usize, usize)>, budget: usize) -> Vec<Vec<usize>> {
+    items.sort_by_key(|&(_, len)| len);
+    let mut chunks: Vec<Vec<usize>> = Vec::new();
+    let mut current: Vec<usize> = Vec::new();
+    for (position, len) in items {
+        if !current.is_empty() && (current.len() + 1) * len > budget {
+            chunks.push(std::mem::take(&mut current));
+        }
+        current.push(position);
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
 fn map_sentences(
     sentences: &[String],
     engine: &impl InferenceEngine,
@@ -348,30 +370,37 @@ fn map_sentences(
 
     // A sentence that tokenizes to nothing (all-out-of-vocabulary chars) has no
     // defined inference behavior; exclude it from the batch and pass it through unchanged.
-    let mut batch = Vec::new();
-    let mut batch_positions = Vec::new();
-    for (i, tok) in tokenized.iter().enumerate() {
-        if tok.seq_length > 0 {
-            batch.push((tok.input_ids.clone(), tok.diac_ids.clone(), tok.seq_length));
-            batch_positions.push(i);
-        }
-    }
-
-    let expected_results = batch_positions.len();
-    let timer = std::time::Instant::now();
-    let batch_results = engine.infer_batch(batch)?;
-    log_inference_time(timer.elapsed());
-
-    if batch_results.len() != expected_results {
-        return Err(DengjenTashkeelError::InferenceError(format!(
-            "infer_batch returned {} result(s) for {expected_results} batch item(s)",
-            batch_results.len()
-        )));
-    }
+    let lengths: Vec<(usize, usize)> = tokenized
+        .iter()
+        .enumerate()
+        .filter(|(_, tok)| tok.seq_length > 0)
+        .map(|(i, tok)| (i, tok.seq_length))
+        .collect();
 
     let mut results: Vec<Option<(Vec<u8>, Vec<f32>)>> = vec![None; tokenized.len()];
-    for (position, result) in batch_positions.into_iter().zip(batch_results) {
-        results[position] = Some(result);
+    for chunk in chunk_by_padded_cost(lengths, BATCH_PADDED_TOKEN_BUDGET) {
+        let batch: Vec<_> = chunk
+            .iter()
+            .map(|&i| {
+                let tok = &tokenized[i];
+                (tok.input_ids.clone(), tok.diac_ids.clone(), tok.seq_length)
+            })
+            .collect();
+
+        let timer = std::time::Instant::now();
+        let batch_results = engine.infer_batch(batch)?;
+        log_inference_time(timer.elapsed());
+
+        if batch_results.len() != chunk.len() {
+            return Err(DengjenTashkeelError::InferenceError(format!(
+                "infer_batch returned {} result(s) for {} batch item(s)",
+                batch_results.len(),
+                chunk.len()
+            )));
+        }
+        for (position, result) in chunk.into_iter().zip(batch_results) {
+            results[position] = Some(result);
+        }
     }
 
     #[cfg(feature = "rayon")]
@@ -579,9 +608,12 @@ mod tests {
     #[test]
     fn test_hints() -> DengjenTashkeelResult<()> {
         let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";
-        do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
+        let out = do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
+        assert!(out.contains("ABC"));
+        assert!(out.starts_with("بِسمِ"));
         let text = "مّنْ يُقلِّب  ABC";
-        do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
+        let out = do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
+        assert!(out.contains("ABC"));
         Ok(())
     }
 
@@ -741,6 +773,58 @@ mod tests {
             engine.infer_calls.load(std::sync::atomic::Ordering::SeqCst),
             0,
             "map_sentences should not fall back to per-sentence infer"
+        );
+    }
+
+    #[test]
+    fn chunk_by_padded_cost_keeps_short_items_in_one_batch() {
+        let chunks = chunk_by_padded_cost(vec![(0, 2), (1, 2), (2, 2)], 100);
+
+        assert_eq!(chunks, vec![vec![0, 1, 2]]);
+    }
+
+    #[test]
+    fn chunk_by_padded_cost_bounds_padded_size_and_groups_by_length() {
+        let items = vec![(0, 10), (1, 90), (2, 10), (3, 90), (4, 10)];
+
+        let chunks = chunk_by_padded_cost(items, 100);
+
+        assert_eq!(chunks, vec![vec![0, 2, 4], vec![1], vec![3]]);
+    }
+
+    #[test]
+    fn chunk_by_padded_cost_isolates_an_item_above_the_budget() {
+        let chunks = chunk_by_padded_cost(vec![(0, 5), (1, 500)], 100);
+
+        assert_eq!(chunks, vec![vec![0], vec![1]]);
+    }
+
+    #[test]
+    fn chunk_by_padded_cost_of_nothing_is_empty() {
+        assert!(chunk_by_padded_cost(Vec::new(), 100).is_empty());
+    }
+
+    #[test]
+    fn map_sentences_splits_oversized_batches_and_preserves_order() {
+        let engine = CountingEngine::new();
+        let long = "ا".repeat(CHAR_LIMIT);
+        let sentences = vec![
+            long.clone(),
+            "اب".to_string(),
+            long.clone(),
+            long.clone(),
+            long,
+        ];
+
+        let results = map_sentences(&sentences, &engine, None).unwrap();
+
+        assert_eq!(results.len(), 5);
+        assert_eq!(
+            engine
+                .infer_batch_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            2,
+            "four 12k sentences plus a short one exceed the padded budget"
         );
     }
 

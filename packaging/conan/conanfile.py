@@ -1,3 +1,4 @@
+import glob
 import os
 
 from conan import ConanFile
@@ -91,6 +92,10 @@ class DengjenTashkeelCapiConan(ConanFile):
         for pattern, subdir in _PACKAGE_LAYOUT:
             copy(self, pattern, src=self.build_folder,
                  dst=os.path.join(self.package_folder, subdir), keep_path=False)
+        if self.settings.os == "Macos":
+            lib_dir = os.path.join(self.package_folder, "lib")
+            for dylib in glob.glob(os.path.join(lib_dir, "*.dylib")):
+                self.run(f'install_name_tool -id "@rpath/{os.path.basename(dylib)}" "{dylib}"')
 
     def package_info(self) -> None:
         # Conan appends .lib, so the import library <crate>.dll.lib is referenced as <crate>.dll.

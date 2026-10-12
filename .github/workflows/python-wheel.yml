@@ -54,8 +54,8 @@ jobs:
 
       - name: Install pinned toolchain
         run: |
-          rustup toolchain install 1.97.1 --profile minimal -c clippy,rustfmt
-          rustup default 1.97.1
+          rustup toolchain install 1.99.0 --profile minimal -c clippy,rustfmt
+          rustup default 1.99.0
 
       - name: Install uv and Python 3.11
         # onnxruntime>=1.28 dropped cp310 wheels, so 22.04's stock python3

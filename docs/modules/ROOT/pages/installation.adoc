@@ -31,9 +31,11 @@ See xref:troubleshooting.adoc[Troubleshooting] for common failures.
 pip install dengjen-tashkeel-py
 ----
 
-Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yml` CI workflow whenever a
-version tag is pushed — availability at any given moment depends on whether a tag has been
-pushed since this was set up, so if the install fails, build the wheel yourself instead (see
+Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yml` CI workflow, which
+`release.yml` runs after tagging each release (merging the Prepare release PR). Wheels are built
+for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` (manylinux 2_28),
+`aarch64-apple-darwin`, and `x86_64-pc-windows-msvc`, as one `abi3` wheel per platform for
+CPython 3.11 and later; on other platforms, build the wheel yourself (see
 xref:building.adoc[Building]). The wheel depends on `onnxruntime` (installed automatically by
 `pip`); don't have `onnxruntime-gpu` installed alongside it — they share the same import name.
 
@@ -91,12 +93,12 @@ library yourself and point `-Ddengjen.tashkeel.native.library.path` at it.
 
 [source,kotlin]
 ----
-implementation("io.github.zirekhq:dengjen-tashkeel:1.6.6")
-runtimeOnly("io.github.zirekhq:dengjen-tashkeel:1.6.6:linux-x86_64")
+implementation("io.github.zirekhq:dengjen-tashkeel:2.0.0")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:2.0.0:linux-x86_64")
 ----
 
-Published to Maven Central by the `publish-java.yml` CI workflow whenever a version tag is
-pushed. The binding uses the JDK Foreign Function & Memory API (`java.lang.foreign`), not JNA, to
+Published to Maven Central by the `publish-java.yml` CI workflow, which `release.yml` runs after
+tagging each release (merging the Prepare release PR). The binding uses the JDK Foreign Function & Memory API (`java.lang.foreign`), not JNA, to
 load the native `dengjen_tashkeel_capi` shared library. The native library ships as per-platform
 classifier jars — `linux-x86_64`, `windows-x64`, and `macos-aarch64` — so add a `runtimeOnly`
 dependency on the one matching your platform alongside the main dependency; it's picked up

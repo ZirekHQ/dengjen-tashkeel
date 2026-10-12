@@ -33,8 +33,9 @@ ships a follow-up PR pointing them at a newer release:
 3. If the version being released differs from what's already recorded, bump
    it in `ports/dengjen-tashkeel-capi/vcpkg.json`, `portfile.cmake`'s
    `CAPI_VERSION`, `conanfile.py`'s `version`, and the two literal version
-   numbers in the README's "From Conan" section (the `conan create` example
-   and the `dengjen-tashkeel-capi/<version>` requirement) -- easy to miss
+   numbers in the root README's "Install" section under **C:** and in the
+   docs' `installation.adoc` "C" section (the `conan create` example and the
+   `dengjen-tashkeel-capi/<version>` requirement) -- easy to miss
    since nothing fails loudly if they go stale, they just quietly stop
    pointing at the latest release.
 4. Recompute the port's git-tree hash (vcpkg's version file must match the
@@ -80,11 +81,12 @@ Instead:
 
 - **vcpkg** consumers add this repository directly as a
   [custom git registry](https://learn.microsoft.com/en-us/vcpkg/consuming/git-registries)
-  (see the README's "From vcpkg" section) — no server or approval needed,
+  (see the root README's "Install" section under **C:**) — no server or approval needed,
   because vcpkg's git-registry protocol works against a bare git repo.
 - **Conan** has no equivalent zero-infrastructure distribution path, so
   consumers run `conan create packaging/conan --version=<version>` locally to
-  populate their own cache (see the README's "From Conan" section).
+  populate their own cache (see the root README's "Install" section under
+  **C:**).
 
 ## Conan test_package
 

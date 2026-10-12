@@ -13,12 +13,12 @@ for GPG, SSH, or S/MIME setup — a few minutes, one time.
 ## Conventional Commit PR titles (recommended)
 
 We squash-merge, so the PR title becomes the commit that lands on `main`. Prefixing it with a
-type — `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:` — lets the release tooling compute
-the next version from history (see **Releasing**) and keeps `git log` skimmable. The repository
-keeps no `CHANGELOG` file; releases are published on
+type — `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `style:`, `ci:`, `build:` — lets
+the release tooling compute the next version from history (see **Releasing**) and keeps `git log`
+skimmable. The repository keeps no `CHANGELOG` file; releases are published on
 [GitHub Releases](https://github.com/ZirekHQ/dengjen-tashkeel/releases). Mark a breaking change
-with `feat!:` or a `BREAKING CHANGE:` footer so it triggers a major bump. Example: `fix: point repository/documentation metadata at ZirekHQ
-fork, not upstream`. See [conventionalcommits.org](https://www.conventionalcommits.org/) for the
+with `feat!:` or a `BREAKING CHANGE:` footer so it triggers a major bump. Example:
+`fix: point repository metadata at the ZirekHQ fork`. See [conventionalcommits.org](https://www.conventionalcommits.org/) for the
 full spec.
 
 Not following either convention won't block your PR — a maintainer may just tweak the title or
@@ -89,6 +89,19 @@ packages to diverge, so don't let them.
 ## Getting started
 
 See [README.md](../README.md) for build instructions.
+
+## Development checks
+
+CI (`CI.yml`, `rust-lint.yml`) enforces these; run them before opening a PR:
+
+- `cargo fmt --all -- --check`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo test --workspace --no-fail-fast`
+- `cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings`,
+  and the same for `-p dengjen-tashkeel-python` with `--all-targets` (the `ort-dylib` path the
+  wheel ships)
+- `cargo check --workspace --locked` on Rust 1.88.0 (the minimum supported version)
+- `cargo deny check licenses bans sources`, `cargo audit`
 
 ## Pull requests from forks
 

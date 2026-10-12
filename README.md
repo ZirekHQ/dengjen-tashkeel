@@ -43,10 +43,10 @@ pip install dengjen-tashkeel-py
 ```
 
 Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yml` CI
-workflow whenever a version tag is pushed — availability at any given
-moment depends on whether a tag has been pushed since this was set up, so
-if the install fails, build the wheel yourself instead (see **Building**
-below). The wheel depends on `onnxruntime` (installed automatically by
+workflow, which `release.yml` runs after tagging each release (merging the
+Prepare release PR). If no wheel exists for your platform (see
+**Supported platforms**), build it yourself (see **Building** below). The
+wheel depends on `onnxruntime` (installed automatically by
 `pip`); don't have `onnxruntime-gpu` installed alongside it — they share
 the same import name.
 
@@ -105,8 +105,9 @@ implementation("io.github.zirekhq:dengjen-tashkeel:2.0.0")
 runtimeOnly("io.github.zirekhq:dengjen-tashkeel:2.0.0:linux-x86_64")
 ```
 
-Published to Maven Central by the `publish-java.yml` CI workflow whenever a
-version tag is pushed. The binding uses the JDK Foreign Function & Memory
+Published to Maven Central by the `publish-java.yml` CI workflow, which
+`release.yml` runs after tagging each release (merging the Prepare release
+PR). The binding uses the JDK Foreign Function & Memory
 API (`java.lang.foreign`), not JNA, to load the native
 `dengjen_tashkeel_capi` shared library. The native library ships as
 per-platform classifier jars — `linux-x86_64`, `windows-x64`, and
@@ -120,6 +121,20 @@ native-access warning.
 
 **CLI:** either build from source (see **Building**) or `cargo install
 dengjen-tashkeel-cli` (published to crates.io).
+
+## Supported platforms
+
+| Artifact | Platforms |
+| --- | --- |
+| C ABI archives, CLI binaries (cargo-dist) | `aarch64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-pc-windows-msvc` |
+| Python wheels (`abi3`, CPython 3.11+) | the same four targets; Linux wheels are `manylinux_2_28` |
+| Java native jars | `linux-x86_64`, `windows-x64`, `macos-aarch64` (JDK 22+) |
+| vcpkg port | macOS arm64, Linux x64, Windows x64 (not MinGW) |
+| Conan recipe | macOS armv8, Linux x86_64, Windows x86_64 (MSVC only) |
+
+CI exercises the Rust workspace on Linux x86_64, Linux aarch64, macOS, and Windows. On x86_64,
+the bundled ONNX Runtime needs a CPU with AVX2 (CI fails fast on runners without it). Minimum
+supported Rust version: 1.88.0.
 
 ## Quick start
 
@@ -140,7 +155,7 @@ The library segments the text into sentences and caps each sentence at
 `CHAR_LIMIT` (12,000 characters); a single longer sentence returns
 `Err(DengjenTashkeelError::InputTooLong(_))`. With `preprocessed = true` the whole text is one
 sentence. The CLI does not truncate input: with an input file it passes each line to the library and
-exits with that error for an over-long sentence; from stdin it reads one line.
+exits with that error for an over-long sentence; from stdin it reads all of stdin.
 
 **Python:**
 
@@ -233,8 +248,9 @@ Options:
   -V, --version                    Print version
 ```
 
-With neither `--input-file` nor `--output-file`, the CLI runs in
-interactive mode by default. Set `TASHKEEL_LOG` (an `env_logger` filter such
+The `--taskeen` help text mentions case-ending diacritics, but the threshold
+applies to every predicted diacritic (see below). With neither `--input-file`
+nor `--output-file`, the CLI runs in interactive mode by default. Set `TASHKEEL_LOG` (an `env_logger` filter such
 as `debug`; default `info`) to change log verbosity.
 
 ## The taskeen option
@@ -242,7 +258,8 @@ as `debug`; default `info`) to change log verbosity.
 When enabled (`taskeen_threshold` in Rust/Python, `--taskeen`/`--prob` in
 the CLI), the model substitutes a sukoon for the predicted diacritic wherever its
 confidence (the probability of its top prediction at that position) is below the
-threshold (0 to 1).
+threshold (0 to 1). This applies at every character that receives a
+diacritic, not only the final case ending.
 
 ## Building
 

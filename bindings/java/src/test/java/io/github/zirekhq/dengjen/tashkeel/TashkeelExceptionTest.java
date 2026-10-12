@@ -19,6 +19,8 @@ class TashkeelExceptionTest {
         assertEquals("too long: too long msg", describe(new TashkeelException.InputTooLong("too long msg")));
         assertEquals("inference: inference msg", describe(new TashkeelException.InferenceError("inference msg")));
         assertEquals("model: model msg", describe(new TashkeelException.ModelLoadError("model msg")));
+        assertEquals("already: already msg", describe(new TashkeelException.AlreadyInitialized("already msg")));
+        assertEquals("invalid: invalid msg", describe(new TashkeelException.InvalidArgument("invalid msg")));
         assertEquals("unknown(-1): panic", describe(new TashkeelException.Unknown(-1, "panic")));
     }
 
@@ -27,6 +29,8 @@ class TashkeelExceptionTest {
             case TashkeelException.InputTooLong r -> "too long: " + r.message();
             case TashkeelException.InferenceError r -> "inference: " + r.message();
             case TashkeelException.ModelLoadError r -> "model: " + r.message();
+            case TashkeelException.AlreadyInitialized r -> "already: " + r.message();
+            case TashkeelException.InvalidArgument r -> "invalid: " + r.message();
             case TashkeelException.Unknown r -> "unknown(" + r.code() + "): " + r.message();
         };
     }
@@ -36,6 +40,8 @@ class TashkeelExceptionTest {
         assertEquals(new TashkeelException.InputTooLong("m"), Tashkeel.reasonFor(1, "m"));
         assertEquals(new TashkeelException.InferenceError("m"), Tashkeel.reasonFor(2, "m"));
         assertEquals(new TashkeelException.ModelLoadError("m"), Tashkeel.reasonFor(3, "m"));
+        assertEquals(new TashkeelException.AlreadyInitialized("m"), Tashkeel.reasonFor(4, "m"));
+        assertEquals(new TashkeelException.InvalidArgument("m"), Tashkeel.reasonFor(5, "m"));
         assertEquals(new TashkeelException.Unknown(99, "m"), Tashkeel.reasonFor(99, "m"));
     }
 }

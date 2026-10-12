@@ -34,20 +34,19 @@ class ErrorCodeContractTest {
                 Tashkeel.reasonFor(codes.get("DENGJEN_TASHKEEL_INFERENCE_ERROR"), "m"));
         assertInstanceOf(TashkeelException.ModelLoadError.class,
                 Tashkeel.reasonFor(codes.get("DENGJEN_TASHKEEL_MODEL_LOAD_ERROR"), "m"));
+        assertInstanceOf(TashkeelException.AlreadyInitialized.class,
+                Tashkeel.reasonFor(codes.get("DENGJEN_TASHKEEL_ALREADY_INITIALIZED"), "m"));
+        assertInstanceOf(TashkeelException.InvalidArgument.class,
+                Tashkeel.reasonFor(codes.get("DENGJEN_TASHKEEL_INVALID_ARGUMENT"), "m"));
     }
 
     @Test
-    void remainingHeaderCodesMapToUnknownWithTheirCode() throws IOException {
+    void unknownErrorCodeMapsToUnknownWithItsCode() throws IOException {
         Map<String, Integer> codes = headerCodes();
 
-        for (String name : new String[] {
-            "DENGJEN_TASHKEEL_ALREADY_INITIALIZED",
-            "DENGJEN_TASHKEEL_INVALID_ARGUMENT",
-            "DENGJEN_TASHKEEL_UNKNOWN_ERROR"
-        }) {
-            TashkeelException.Unknown unknown =
-                    assertInstanceOf(TashkeelException.Unknown.class, Tashkeel.reasonFor(codes.get(name), "m"));
-            assertEquals(codes.get(name), unknown.code());
-        }
+        int code = codes.get("DENGJEN_TASHKEEL_UNKNOWN_ERROR");
+        TashkeelException.Unknown unknown =
+                assertInstanceOf(TashkeelException.Unknown.class, Tashkeel.reasonFor(code, "m"));
+        assertEquals(code, unknown.code());
     }
 }

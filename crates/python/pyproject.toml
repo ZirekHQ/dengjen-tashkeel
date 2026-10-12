@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "dengjen-tashkeel-py"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = ["onnxruntime>=1.28,<2"]
 classifiers = [
     "Programming Language :: Rust",
