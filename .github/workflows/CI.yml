@@ -114,3 +114,64 @@ jobs:
         run: |
           conan profile detect
           conan create packaging/conan --build=missing
+
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      java: ${{ steps.filter.outputs.java }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        # On a pull_request the checkout is the merge commit, so HEAD^1 is the base.
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != pull_request ] \
+            || git diff --name-only HEAD^1 HEAD \
+              | grep -qE '^(crates/(capi|core)/|Cargo\.(toml|lock)$|bindings/java/|\.github/workflows/(CI|java-test)\.yml$)'; then
+            echo "java=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "java=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    uses: ./.github/workflows/rust-lint.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    permissions:
+      contents: read
+      issues: write
+      checks: write
+      code-quality: write
+
+  wheel:
+    uses: ./.github/workflows/python-wheel.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    permissions:
+      contents: read
+
+  java:
+    needs: changes
+    if: needs.changes.outputs.java == 'true'
+    uses: ./.github/workflows/java-test.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    permissions:
+      contents: read
+
+  # The single required status check: one stable name that survives job and matrix
+  # renames, and counts a path-filtered `java` skip as a pass.
+  build:
+    name: build
+    needs: [changes, test, test-platform, windows-import-library, conan-package, lint, wheel, java]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every job to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: >-
+          jq -e 'to_entries | all(.value.result == "success" or (.key == "java" and .value.result == "skipped"))'
+          <<< "$NEEDS"

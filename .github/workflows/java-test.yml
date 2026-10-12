@@ -4,30 +4,10 @@ name: Java Bindings Test
 # test suite against it on every push/PR -- the CI counterpart to
 # publish-java.yml (tag-triggered, publish-only, never runs tests).
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'crates/capi/**'
-      - 'crates/core/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'bindings/java/**'
-      - '.github/workflows/java-test.yml'
-  pull_request:
-    paths:
-      - 'crates/capi/**'
-      - 'crates/core/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'bindings/java/**'
-      - '.github/workflows/java-test.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions: {}
-
-concurrency:
-  group: java-test-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:

@@ -4,17 +4,11 @@ name: Python Wheel
 # build`) and smoke-tests it across recent Ubuntu LTS releases, to guard the
 # glibc/libstdc++ floor fixed for issue #29 (onnxruntime now loads dynamically).
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: python-wheel-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-wheel:
