@@ -84,6 +84,8 @@ CI (`CI.yml`, which calls `rust-lint.yml`, `java-test.yml` and `python-wheel.yml
   wheel ships)
 - `cargo check --workspace --locked` on Rust 1.88.0 (the minimum supported version)
 - `cargo deny check licenses bans sources`, `cargo audit`
+- `cargo llvm-cov --workspace --fail-under-lines 80` (CI's `lint / coverage` job; workspace line
+  coverage must stay at or above 80%)
 
 ## Pull requests from forks
 

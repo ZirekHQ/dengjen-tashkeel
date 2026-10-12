@@ -102,8 +102,9 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - name: cargo llvm-cov (workspace)
-        run: cargo llvm-cov --workspace --no-fail-fast --cobertura --output-path cobertura.xml
+        run: cargo llvm-cov --workspace --no-fail-fast --fail-under-lines 80 --cobertura --output-path cobertura.xml
       - name: coverage summary
+        if: ${{ !cancelled() }}
         run: |
           {
             echo '### Rust line coverage'
