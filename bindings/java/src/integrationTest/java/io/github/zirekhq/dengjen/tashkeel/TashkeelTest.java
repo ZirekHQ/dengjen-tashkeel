@@ -3,6 +3,7 @@ package io.github.zirekhq.dengjen.tashkeel;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,8 +26,8 @@ class TashkeelTest {
     private static final int CHAR_LIMIT = 12000;
 
     @Test
-    @Order(2)
-    void diacritizeLazilyInitializesTheDefaultEngineAndChangesTheText() throws Exception {
+    @Order(3)
+    void diacritizeChangesTheTextAndOnlyAddsDiacritics() throws Exception {
         Tashkeel tashkeel = new Tashkeel();
 
         String result = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), true);
@@ -40,7 +41,7 @@ class TashkeelTest {
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void diacritizeWithTaskeenThresholdSucceeds() throws Exception {
         Tashkeel tashkeel = new Tashkeel();
 
@@ -50,7 +51,7 @@ class TashkeelTest {
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void diacritizeOverCharLimitThrowsInputTooLong() {
         Tashkeel tashkeel = new Tashkeel();
         String tooLong = "ا".repeat(CHAR_LIMIT + 1);
@@ -83,17 +84,30 @@ class TashkeelTest {
     }
 
     @Test
-    @Order(3)
-    void loadAfterTheEngineIsAlreadyInitializedThrowsAlreadyInitialized() throws Exception {
-        new Tashkeel().diacritize("بسم الله", Optional.empty(), true);
+    @Order(2)
+    void repeatedLoadReturnsTheSameInstanceAndADifferentModelIsRejected(@TempDir Path tempDir)
+            throws Exception {
+        Tashkeel first = Tashkeel.loadDefault();
 
-        TashkeelException exception = assertThrows(TashkeelException.class, Tashkeel::loadDefault);
+        Tashkeel second = Tashkeel.loadDefault();
+        TashkeelException differentModel = assertThrows(TashkeelException.class,
+                () -> Tashkeel.load(tempDir.resolve("other.onnx")));
 
-        assertInstanceOf(TashkeelException.AlreadyInitialized.class, exception.reason());
+        assertSame(first, second);
+        assertInstanceOf(TashkeelException.AlreadyInitialized.class, differentModel.reason());
     }
 
     @Test
-    @Order(2)
+    @Order(4)
+    void loadDefaultAfterDiacritizingReturnsTheAlreadyLoadedInstance() throws Exception {
+        Tashkeel loaded = Tashkeel.loadDefault();
+        loaded.diacritize("بسم الله", Optional.empty(), true);
+
+        assertSame(loaded, Tashkeel.loadDefault());
+    }
+
+    @Test
+    @Order(3)
     void diacritizeWithoutPreprocessingKeepsTheInputLetters() throws Exception {
         String input = "بسم الله الرحمن الرحيم";
 
@@ -103,13 +117,13 @@ class TashkeelTest {
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void diacritizeEmptyStringReturnsEmptyString() throws Exception {
         assertEquals("", new Tashkeel().diacritize("", Optional.empty(), true));
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void repeatedDiacritizeCallsReturnTheSameResult() throws Exception {
         Tashkeel tashkeel = new Tashkeel();
 
@@ -121,14 +135,14 @@ class TashkeelTest {
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void diacritizeNullTextThrowsNullPointerException() {
         assertThrows(NullPointerException.class,
                 () -> new Tashkeel().diacritize(null, Optional.empty(), true));
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void loadNullModelPathThrowsNullPointerException() {
         assertThrows(NullPointerException.class, () -> Tashkeel.load(null));
     }

@@ -6,12 +6,13 @@ Builds as the `dengjen_tashkeel_capi` cdylib.
 
 ## Usage
 
-The header exports three functions, spelled exactly as shown: `dengjen_tashkeel_init`,
-`dengjenTashkeelTashkeel`, and `dengjen_tashkeel_free_string`. Errors come back through the
+The header exports four functions, spelled exactly as shown: `dengjen_tashkeel_init`,
+`dengjenTashkeelTashkeel`, `dengjenTashkeelTashkeelWithOptions` (the same call with its settings in
+a `DengjenTashkeelOptions` struct), and `dengjen_tashkeel_free_string`. Errors come back through the
 `ExternError` out-parameter (`code == 0` is success). Release every returned string and every
 non-null `err.message` with `dengjen_tashkeel_free_string`. Without a prior
-`dengjen_tashkeel_init`, the first `dengjenTashkeelTashkeel` call initializes the bundled model
-lazily, after which `dengjen_tashkeel_init` returns `DENGJEN_TASHKEEL_ALREADY_INITIALIZED` (4) and keeps the
+`dengjen_tashkeel_init`, the first `dengjenTashkeelTashkeel` or `dengjenTashkeelTashkeelWithOptions`
+call initializes the bundled model lazily, after which `dengjen_tashkeel_init` returns `DENGJEN_TASHKEEL_ALREADY_INITIALIZED` (4) and keeps the
 existing engine. A null `text` argument returns `DENGJEN_TASHKEEL_INVALID_ARGUMENT` (5).
 
 ```c

@@ -421,13 +421,58 @@ fn map_sentences(
     .collect()
 }
 
+/// Per-call settings for [`do_tashkeel_with`].
+///
+/// New settings are added as fields without a breaking change; build values with
+/// [`TashkeelOptions::new`] and the `with_*` methods.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[non_exhaustive]
+pub struct TashkeelOptions {
+    /// Confidence below which a diacritic becomes a sukun (taskeen); `None` disables taskeen.
+    pub taskeen_threshold: Option<f32>,
+    /// Skip sentence segmentation and treat the whole input as one already-normalized sentence.
+    pub preprocessed: bool,
+}
+
+impl TashkeelOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_taskeen_threshold(mut self, taskeen_threshold: f32) -> Self {
+        self.taskeen_threshold = Some(taskeen_threshold);
+        self
+    }
+
+    pub fn with_preprocessed(mut self, preprocessed: bool) -> Self {
+        self.preprocessed = preprocessed;
+        self
+    }
+}
+
 pub fn do_tashkeel(
     engine: &impl InferenceEngine,
     text: &str,
     taskeen_threshold: Option<f32>,
     preprocessed: bool,
 ) -> DengjenTashkeelResult<String> {
-    if preprocessed {
+    do_tashkeel_with(
+        engine,
+        text,
+        &TashkeelOptions {
+            taskeen_threshold,
+            preprocessed,
+        },
+    )
+}
+
+pub fn do_tashkeel_with(
+    engine: &impl InferenceEngine,
+    text: &str,
+    options: &TashkeelOptions,
+) -> DengjenTashkeelResult<String> {
+    let taskeen_threshold = options.taskeen_threshold;
+    if options.preprocessed {
         return tashkeel_preprocessed(engine, text, taskeen_threshold);
     }
 
@@ -630,6 +675,48 @@ mod tests {
         ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
             Ok((self.target_ids.clone(), self.logits.clone()))
         }
+    }
+
+    #[test]
+    fn do_tashkeel_with_matches_the_positional_do_tashkeel() {
+        let engine = StubEngine {
+            target_ids: vec![],
+            logits: vec![],
+        };
+        let options = TashkeelOptions::new()
+            .with_taskeen_threshold(0.5)
+            .with_preprocessed(true);
+
+        let positional = do_tashkeel(&engine, "", Some(0.5), true);
+        let with_options = do_tashkeel_with(&engine, "", &options);
+
+        assert_eq!(positional.unwrap(), with_options.unwrap());
+    }
+
+    #[test]
+    fn do_tashkeel_with_reports_input_too_long_like_do_tashkeel() {
+        let engine = StubEngine {
+            target_ids: vec![],
+            logits: vec![],
+        };
+        let too_long_text: String = "ا".repeat(CHAR_LIMIT + 1);
+
+        let result = do_tashkeel_with(
+            &engine,
+            &too_long_text,
+            &TashkeelOptions::new().with_preprocessed(true),
+        );
+
+        assert!(matches!(result, Err(DengjenTashkeelError::InputTooLong(n)) if n == CHAR_LIMIT));
+    }
+
+    #[test]
+    fn tashkeel_options_default_to_no_threshold_and_segmented_input() {
+        let options = TashkeelOptions::new();
+
+        assert_eq!(options.taskeen_threshold, None);
+        assert!(!options.preprocessed);
+        assert_eq!(options, TashkeelOptions::default());
     }
 
     #[test]
