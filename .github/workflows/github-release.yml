@@ -287,6 +287,9 @@ jobs:
           ref: ${{ !github.event.pull_request && (inputs.tag || github.ref_name) || '' }}
           persist-credentials: false
           submodules: recursive
+          # Hand-patched: full history and tags so scripts/release-notes.sh can diff against the
+          # previous release -- re-apply if regenerating via 'cargo dist generate'.
+          fetch-depth: 0
       - name: Install cached dist
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -342,8 +345,15 @@ jobs:
           ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
           RELEASE_TAG: "${{ needs.plan.outputs.tag }}"
         run: |
-          # Write and read notes from a file to avoid quoting breaking things
-          echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
+          # Write and read notes from a file to avoid quoting breaking things.
+          # Hand-patched: the commit-derived "what's changed" section goes above cargo-dist's
+          # download table (scripts/release-notes.sh) -- re-apply if regenerating via 'cargo dist
+          # generate'. Notes are not worth failing the release for, so a failure only warns.
+          if ! bash scripts/release-notes.sh "$RELEASE_TAG" > "$RUNNER_TEMP/changes.md"; then
+            echo "::warning::scripts/release-notes.sh failed; publishing the release without a changelog section"
+            : > "$RUNNER_TEMP/changes.md"
+          fi
+          { cat "$RUNNER_TEMP/changes.md"; echo; echo "$ANNOUNCEMENT_BODY"; } > "$RUNNER_TEMP/notes.txt"
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt"

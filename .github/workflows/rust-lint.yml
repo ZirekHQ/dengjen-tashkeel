@@ -170,3 +170,14 @@ jobs:
       # dengjen-tashkeel-cli has no `lib` target (bin-only), so only the core crate is checked.
       - name: cargo semver-checks (dengjen-tashkeel)
         run: bash .github/scripts/semver-check.sh dengjen-tashkeel
+      - name: release notes render for the latest tag
+        # Same script the release workflow runs; catches a broken script before a release does.
+        run: |
+          latest="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+          if [ -z "$latest" ]; then
+            echo "::notice::No vX.Y.Z tag found; skipping the release notes check"
+            exit 0
+          fi
+          bash scripts/release-notes.sh "$latest" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+          grep -q "^## What's changed" "$RUNNER_TEMP/notes.md"
