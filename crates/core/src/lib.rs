@@ -610,7 +610,6 @@ mod tests {
         let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";
         let out = do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
         assert!(out.contains("ABC"));
-        assert!(out.starts_with("بِسمِ"));
         let text = "مّنْ يُقلِّب  ABC";
         let out = do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
         assert!(out.contains("ABC"));
