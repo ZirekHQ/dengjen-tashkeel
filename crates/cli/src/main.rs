@@ -42,9 +42,10 @@ fn get_input_text(args: &Cli) -> anyhow::Result<(usize, String)> {
     let bytes_read = if let Some(ref input_filename) = args.input_file {
         let mut file = File::open(input_filename)?;
         file.read_to_string(&mut input_buffer)?
+    } else if args.interactive {
+        io::stdin().read_line(&mut input_buffer)?
     } else {
-        let stdin = io::stdin();
-        stdin.read_line(&mut input_buffer)?
+        io::stdin().read_to_string(&mut input_buffer)?
     };
 
     Ok((bytes_read, input_buffer))
@@ -77,17 +78,13 @@ fn tashkeel_main(
             let diacritized = diacritize(model, &input_text, taskeen_threshold)?;
             write_to_stdout(&diacritized)?;
         }
-        (None, Some(output_filename)) => {
-            let diacritized = diacritize(model, &input_text, taskeen_threshold)?;
-            write_output_file(output_filename, &diacritized)?;
-        }
         (Some(_), None) => {
             for input_line in input_text.lines() {
                 let diacritized_line = diacritize(model, input_line, taskeen_threshold)?;
                 write_to_stdout(&diacritized_line)?;
             }
         }
-        (Some(_), Some(output_filename)) => {
+        (_, Some(output_filename)) => {
             let mut diacritized_lines = String::new();
             for input_line in input_text.lines() {
                 let diacritized_line = diacritize(model, input_line, taskeen_threshold)?;
@@ -110,6 +107,11 @@ fn validate_args(args: &mut Cli) -> anyhow::Result<()> {
         }
     } else {
         args.interactive = true;
+    }
+    if let Some(prob) = args.prob {
+        if !(0.0..=1.0).contains(&prob) {
+            anyhow::bail!("`--prob` must be a number between 0 and 1, got {prob}")
+        }
     }
     Ok(())
 }
@@ -263,10 +265,14 @@ mod tests {
         ]);
         args.input_file = None;
 
-        tashkeel_main(&ENGINE, &args, "بسم الله الرحمن الرحيم".to_string()).unwrap();
+        let text = "بسم الله الرحمن الرحيم".to_string();
 
-        let written = std::fs::read_to_string(output_file.path()).unwrap();
-        assert!(!written.trim().is_empty());
+        tashkeel_main(&ENGINE, &args, text.clone()).unwrap();
+
+        let with_taskeen = std::fs::read_to_string(output_file.path()).unwrap();
+        let plain = diacritize(&ENGINE, &text, None).unwrap();
+        let sukoon_count = |s: &str| s.chars().filter(|c| *c == '\u{652}').count();
+        assert!(sukoon_count(&with_taskeen) > sukoon_count(&plain));
     }
 
     #[test]
@@ -279,7 +285,7 @@ mod tests {
 
         let written = std::fs::read_to_string(output_file.path()).unwrap();
         assert_ne!(written.trim(), "بسم الله الرحمن الرحيم");
-        assert!(!written.trim().is_empty());
+        assert!(written.contains("بِسْمِ"));
     }
 
     #[test]
@@ -308,6 +314,24 @@ mod tests {
         let input_text = std::fs::read_to_string(input_file.path()).unwrap();
 
         tashkeel_main(&ENGINE, &args, input_text).unwrap();
+    }
+
+    #[test]
+    fn validate_args_rejects_out_of_range_prob() {
+        for bad in ["-0.1", "1.5", "NaN", "inf"] {
+            let mut args = parse(&["--taskeen", &format!("--prob={bad}")]);
+
+            assert!(validate_args(&mut args).is_err(), "prob {bad}");
+        }
+    }
+
+    #[test]
+    fn validate_args_accepts_boundary_prob() {
+        for ok in ["0", "0.5", "1"] {
+            let mut args = parse(&["--taskeen", "--prob", ok]);
+
+            validate_args(&mut args).unwrap();
+        }
     }
 
     #[test]

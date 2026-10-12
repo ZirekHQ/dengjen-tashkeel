@@ -142,7 +142,10 @@ jobs:
           ARCHIVE_DIR: ${{ runner.temp }}/sonar-fork-workspace
         run: |
           mkdir -p "$RUNNER_TEMP/artifact-tree"
-          tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" -C "$RUNNER_TEMP/artifact-tree"
+          # Extract the one member the scan uses: the fork controls every other path,
+          # including symlinks that could redirect a later write outside the tree.
+          tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" -C "$RUNNER_TEMP/artifact-tree" \
+            --no-same-owner --no-same-permissions ./crates/capi/coverage-python.xml
 
       # Fetch via plain git into a fresh repository (no fork hooks, fsmonitor or filter
       # configuration), then check out the verified commit so the scanned sources are exactly

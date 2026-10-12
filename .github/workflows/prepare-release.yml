@@ -49,8 +49,8 @@ jobs:
           # exit 1 = normal "nothing release-worthy", treated as skip. Any
           # other exit means the computation itself is broken and must fail
           # loudly, or a broken tag state would silently suppress every future release.
-          version="$(bash scripts/next-version.sh)"
-          rc=$?
+          # The `&& rc=0 || rc=$?` form keeps the default `bash -e` shell from aborting on exit 1.
+          version="$(bash scripts/next-version.sh)" && rc=0 || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "version=${version}" >> "$GITHUB_OUTPUT"
           elif [ "$rc" -eq 1 ]; then

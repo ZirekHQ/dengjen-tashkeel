@@ -84,13 +84,12 @@ class TashkeelTest {
 
     @Test
     @Order(3)
-    void loadAfterTheEngineIsAlreadyInitializedThrowsUnknown() throws Exception {
+    void loadAfterTheEngineIsAlreadyInitializedThrowsAlreadyInitialized() throws Exception {
         new Tashkeel().diacritize("بسم الله", Optional.empty(), true);
 
         TashkeelException exception = assertThrows(TashkeelException.class, Tashkeel::loadDefault);
 
-        assertInstanceOf(TashkeelException.Unknown.class, exception.reason());
-        assertEquals(4, ((TashkeelException.Unknown) exception.reason()).code());
+        assertInstanceOf(TashkeelException.AlreadyInitialized.class, exception.reason());
     }
 
     @Test

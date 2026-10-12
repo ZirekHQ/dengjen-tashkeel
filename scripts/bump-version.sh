@@ -43,7 +43,7 @@ require_line bindings/java/build.gradle.kts "version = \"${new_version}\""
 
 sed -i.bak "s/dengjen-tashkeel:${old_version}/dengjen-tashkeel:${new_version}/g" README.md
 rm -f README.md.bak
-if grep -qE "dengjen-tashkeel:${old_version//./\\.}([^0-9A-Za-z.]|\$)" README.md; then
+if [ "$old_version" != "$new_version" ] && grep -qE "dengjen-tashkeel:${old_version//./\\.}([^0-9A-Za-z.]|\$)" README.md; then
   echo "::error::README.md still references dengjen-tashkeel:${old_version}" >&2
   exit 1
 fi
@@ -63,6 +63,11 @@ for sub_crate_toml in crates/capi/Cargo.toml crates/cli/Cargo.toml crates/python
   fi
   sed -i.bak "/^\[dependencies\.dengjen-tashkeel\]/,/^\[/{s/^version = \"${sub_old_version}\"\$/version = \"${new_version}\"/}" "$sub_crate_toml"
   rm -f "${sub_crate_toml}.bak"
+  sub_new_version="$(awk '/^\[dependencies\.dengjen-tashkeel\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' "$sub_crate_toml")"
+  if [ "$sub_new_version" != "$new_version" ]; then
+    echo "::error::${sub_crate_toml} pins dengjen-tashkeel ${sub_new_version} after bump, expected ${new_version}" >&2
+    exit 1
+  fi
 done
 
 cargo check --quiet

@@ -145,6 +145,9 @@ tasks.named("check") {
 val nativeArtifactsDir: Directory =
     layout.projectDirectory.dir((findProperty("nativeArtifactsDir") as String?) ?: "native-artifacts")
 
+val publishRequested =
+    gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) || it.contains("jreleaser", ignoreCase = true) }
+
 val nativeClassifierJars =
     nativeClassifiers.associateWith { classifier ->
         tasks.register<Jar>("nativeJar-$classifier") {
@@ -153,7 +156,7 @@ val nativeClassifierJars =
             archiveClassifier.set(classifier)
             val sourceDir = nativeArtifactsDir.dir(classifier)
             from(sourceDir) { into("natives/$classifier") }
-            onlyIf { sourceDir.asFile.exists() }
+            onlyIf { sourceDir.asFile.exists() || publishRequested }
             doFirst {
                 val expectedName = expectedNativeLibraryFileName(classifier)
                 val files = sourceDir.asFile.listFiles().orEmpty()

@@ -15,7 +15,7 @@ public final class TashkeelException extends Exception {
         return reason;
     }
 
-    public sealed interface Reason extends Serializable permits InputTooLong, InferenceError, ModelLoadError, Unknown {
+    public sealed interface Reason extends Serializable permits InputTooLong, InferenceError, ModelLoadError, AlreadyInitialized, InvalidArgument, Unknown {
         String message();
     }
 
@@ -26,6 +26,12 @@ public final class TashkeelException extends Exception {
     }
 
     public record ModelLoadError(String message) implements Reason {
+    }
+
+    public record AlreadyInitialized(String message) implements Reason {
+    }
+
+    public record InvalidArgument(String message) implements Reason {
     }
 
     public record Unknown(int code, String message) implements Reason {
