@@ -52,10 +52,10 @@ packages to diverge, so don't let them.
    run (Actions tab): it re-runs just the failed job(s) against the run's
    own commit, and every publish step is idempotent (skips a
    crate/package/artifact already published), so no new tag is needed.
-3. The bump PR is opened with the release GitHub App's token so its checks
-   run. One-time setup: install an app with `contents: write` and
-   `pull-requests: write` on this repo, set the `RELEASE_APP_CLIENT_ID`
-   repository variable and the `RELEASE_APP_PRIVATE_KEY` secret. Without
+3. The bump PR is opened with the `zirekhq-automation` GitHub App's token so
+   its checks run. It needs `contents: write` and `pull-requests: write`, is
+   installed on this repo, and its org secrets `AUTOMATION_APP_CLIENT_ID` and
+   `AUTOMATION_APP_PRIVATE_KEY` must be shared with this repo. Without
    them the PR opens with `GITHUB_TOKEN` and its checks don't start until
    someone closes and reopens it.
    `publish-python.yml`'s `environment: pypi` and `publish-java.yml`'s
