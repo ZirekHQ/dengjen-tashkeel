@@ -19,6 +19,12 @@ fn to_py_err(error: DengjenTashkeelError) -> PyErr {
     }
 }
 
+fn require_engine(engine: Option<&DynamicInferenceEngine>) -> PyResult<&DynamicInferenceEngine> {
+    engine.ok_or_else(|| {
+        PyRuntimeError::new_err("Failed to retrieve inference engine global instance")
+    })
+}
+
 #[pyfunction]
 #[pyo3(signature = (text, taskeen_threshold=None, preprocessed=None))]
 fn tashkeel(
@@ -28,14 +34,7 @@ fn tashkeel(
     preprocessed: Option<bool>,
 ) -> PyResult<String> {
     let preprocessed = preprocessed.unwrap_or_default();
-    let engine = match INFERENCE_ENGINE.get(py) {
-        Some(eng) => eng,
-        None => {
-            let error =
-                PyRuntimeError::new_err("Failed to retrieve inference engine global instance");
-            return Err(error);
-        }
-    };
+    let engine = require_engine(INFERENCE_ENGINE.get(py))?;
     py.detach(|| do_tashkeel(engine, &text, taskeen_threshold, preprocessed))
         .map_err(to_py_err)
 }
@@ -135,10 +134,73 @@ mod tests {
     use super::*;
 
     fn call_tashkeel(text: &str, taskeen_threshold: Option<f32>) -> PyResult<String> {
+        call_tashkeel_with(text, taskeen_threshold, None)
+    }
+
+    fn call_tashkeel_with(
+        text: &str,
+        taskeen_threshold: Option<f32>,
+        preprocessed: Option<bool>,
+    ) -> PyResult<String> {
         Python::attach(|py| {
             INFERENCE_ENGINE.get_or_init(py, || create_inference_engine(None).unwrap());
-            tashkeel(py, text.to_string(), taskeen_threshold, None)
+            tashkeel(py, text.to_string(), taskeen_threshold, preprocessed)
         })
+    }
+
+    #[test]
+    fn to_py_err_maps_input_too_long_to_value_error_naming_the_limit() {
+        Python::attach(|py| {
+            let err = to_py_err(DengjenTashkeelError::InputTooLong(10));
+
+            assert!(err.is_instance_of::<PyValueError>(py));
+            assert!(err.to_string().contains("10"));
+        });
+    }
+
+    #[test]
+    fn to_py_err_maps_other_errors_to_runtime_error_carrying_the_cause() {
+        Python::attach(|py| {
+            let inference = to_py_err(DengjenTashkeelError::InferenceError("boom".into()));
+            let load = to_py_err(DengjenTashkeelError::ModelLoadError(std::io::Error::other(
+                "missing model",
+            )));
+
+            assert!(inference.is_instance_of::<PyRuntimeError>(py));
+            assert!(inference.to_string().contains("boom"));
+            assert!(load.is_instance_of::<PyRuntimeError>(py));
+            assert!(load.to_string().contains("missing model"));
+        });
+    }
+
+    #[test]
+    fn require_engine_reports_an_uninitialized_engine_as_runtime_error() {
+        Python::attach(|py| {
+            let err = require_engine(None).err().unwrap();
+
+            assert!(err.is_instance_of::<PyRuntimeError>(py));
+            assert!(err.to_string().contains("inference engine"));
+        });
+    }
+
+    #[test]
+    fn tashkeel_accepts_preprocessed_input() {
+        let result = call_tashkeel_with("بسم الله الرحمن الرحيم", None, Some(true));
+
+        assert!(!result.unwrap().is_empty());
+    }
+
+    #[cfg(not(feature = "ort-dylib"))]
+    #[test]
+    fn module_init_registers_tashkeel_and_tolerates_a_second_init() {
+        Python::attach(|py| {
+            let module = PyModule::new(py, "dengjen_tashkeel_py").unwrap();
+
+            dengjen_tashkeel_py(&module).unwrap();
+            dengjen_tashkeel_py(&module).unwrap();
+
+            assert!(module.hasattr("tashkeel").unwrap());
+        });
     }
 
     #[cfg(target_os = "linux")]
