@@ -1,7 +1,8 @@
 #[cfg(feature = "ort-dylib")]
 use dengjen_tashkeel::init_ort_dylib;
 use dengjen_tashkeel::{
-    create_inference_engine, do_tashkeel, DengjenTashkeelError, DynamicInferenceEngine,
+    create_inference_engine, do_tashkeel_with, DengjenTashkeelError, DynamicInferenceEngine,
+    TashkeelOptions,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -19,10 +20,46 @@ fn to_py_err(error: DengjenTashkeelError) -> PyErr {
     }
 }
 
-fn require_engine(engine: Option<&DynamicInferenceEngine>) -> PyResult<&DynamicInferenceEngine> {
-    engine.ok_or_else(|| {
-        PyRuntimeError::new_err("Failed to retrieve inference engine global instance")
-    })
+fn engine_creation_error(error: DengjenTashkeelError) -> PyErr {
+    PyRuntimeError::new_err(format!(
+        "Failed to create inference engine.\nCaused by: {error}\n\
+         Please make sure the system dependencies are properly installed"
+    ))
+}
+
+fn engine(py: Python<'_>) -> PyResult<&DynamicInferenceEngine> {
+    if let Some(existing) = INFERENCE_ENGINE.get(py) {
+        return Ok(existing);
+    }
+    // Loading builds the ONNX sessions; other Python threads keep running meanwhile. A thread
+    // that loses the race drops its engine and uses the winner's.
+    let created = py
+        .detach(|| create_inference_engine(None))
+        .map_err(engine_creation_error)?;
+    let _ = INFERENCE_ENGINE.set(py, created);
+    INFERENCE_ENGINE
+        .get(py)
+        .ok_or_else(|| PyRuntimeError::new_err("Failed to retrieve inference engine"))
+}
+
+/// Loads the engine up front, optionally from a custom ONNX model file.
+///
+/// Without an explicit call the bundled model loads on the first `tashkeel` call.
+/// Raises `RuntimeError` when an engine is already loaded or the model cannot be loaded.
+#[pyfunction]
+#[pyo3(signature = (model_path=None))]
+fn init(py: Python, model_path: Option<std::path::PathBuf>) -> PyResult<()> {
+    if INFERENCE_ENGINE.get(py).is_some() {
+        return Err(PyRuntimeError::new_err(
+            "Inference engine is already initialized.",
+        ));
+    }
+    let created = py
+        .detach(|| create_inference_engine(model_path))
+        .map_err(engine_creation_error)?;
+    INFERENCE_ENGINE
+        .set(py, created)
+        .map_err(|_| PyRuntimeError::new_err("Inference engine is already initialized."))
 }
 
 #[pyfunction]
@@ -33,9 +70,12 @@ fn tashkeel(
     taskeen_threshold: Option<f32>,
     preprocessed: Option<bool>,
 ) -> PyResult<String> {
-    let preprocessed = preprocessed.unwrap_or_default();
-    let engine = require_engine(INFERENCE_ENGINE.get(py))?;
-    py.detach(|| do_tashkeel(engine, &text, taskeen_threshold, preprocessed))
+    let mut options = TashkeelOptions::new().with_preprocessed(preprocessed.unwrap_or_default());
+    if let Some(threshold) = taskeen_threshold {
+        options = options.with_taskeen_threshold(threshold);
+    }
+    let engine = engine(py)?;
+    py.detach(|| do_tashkeel_with(engine, &text, &options))
         .map_err(to_py_err)
 }
 
@@ -102,30 +142,17 @@ fn resolve_dylib_path(py: Python, module_name: &str) -> PyResult<std::path::Path
 
 #[pymodule]
 fn dengjen_tashkeel_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = m.py();
-
     #[cfg(feature = "ort-dylib")]
     {
+        let py = m.py();
         let dylib_path = resolve_dylib_path(py, "onnxruntime")?;
         init_ort_dylib(&dylib_path).map_err(|e| {
             PyRuntimeError::new_err(format!("Failed to load onnxruntime. Caused by: {e}"))
         })?;
     }
 
-    let engine = match create_inference_engine(None) {
-        Ok(eng) => eng,
-        Err(e) => {
-            let error = PyRuntimeError::new_err(
-                format!("Failed to create inference engine.\nCaused by: {}\nPlease make sure the system dependencies are properly installed", e)
-            );
-            return Err(error);
-        }
-    };
-    if INFERENCE_ENGINE.set(py, engine).is_err() {
-        log::warn!("Inference engine was already initialized; ignoring redundant init.");
-    }
-
     m.add_function(wrap_pyfunction!(tashkeel, m)?)?;
+    m.add_function(wrap_pyfunction!(init, m)?)?;
     Ok(())
 }
 
@@ -142,10 +169,7 @@ mod tests {
         taskeen_threshold: Option<f32>,
         preprocessed: Option<bool>,
     ) -> PyResult<String> {
-        Python::attach(|py| {
-            INFERENCE_ENGINE.get_or_init(py, || create_inference_engine(None).unwrap());
-            tashkeel(py, text.to_string(), taskeen_threshold, preprocessed)
-        })
+        Python::attach(|py| tashkeel(py, text.to_string(), taskeen_threshold, preprocessed))
     }
 
     #[test]
@@ -174,12 +198,25 @@ mod tests {
     }
 
     #[test]
-    fn require_engine_reports_an_uninitialized_engine_as_runtime_error() {
+    fn init_with_a_missing_model_file_is_a_runtime_error() {
         Python::attach(|py| {
-            let err = require_engine(None).err().unwrap();
+            let missing = std::path::PathBuf::from("/nonexistent/path/to/model.onnx");
+
+            let err = init(py, Some(missing)).unwrap_err();
 
             assert!(err.is_instance_of::<PyRuntimeError>(py));
-            assert!(err.to_string().contains("inference engine"));
+        });
+    }
+
+    #[test]
+    fn init_after_the_engine_is_loaded_is_a_runtime_error() {
+        call_tashkeel("بسم الله", None).unwrap();
+
+        Python::attach(|py| {
+            let err = init(py, None).unwrap_err();
+
+            assert!(err.is_instance_of::<PyRuntimeError>(py));
+            assert!(err.to_string().contains("already initialized"));
         });
     }
 
@@ -192,14 +229,14 @@ mod tests {
 
     #[cfg(not(feature = "ort-dylib"))]
     #[test]
-    fn module_init_registers_tashkeel_and_tolerates_a_second_init() {
+    fn module_init_registers_tashkeel_and_init_without_loading_the_engine() {
         Python::attach(|py| {
             let module = PyModule::new(py, "dengjen_tashkeel_py").unwrap();
 
             dengjen_tashkeel_py(&module).unwrap();
-            dengjen_tashkeel_py(&module).unwrap();
 
             assert!(module.hasattr("tashkeel").unwrap());
+            assert!(module.hasattr("init").unwrap());
         });
     }
 

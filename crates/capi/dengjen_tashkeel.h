@@ -207,6 +207,21 @@ typedef struct ExternError {
   char *message;
 } ExternError;
 
+/**
+ * Options for `dengjenTashkeelTashkeelWithOptions`.
+ *
+ * Set `struct_size` to `sizeof(DengjenTashkeelOptions)` when filling the struct. The library
+ * reads only the fields that `struct_size` covers and uses defaults for the rest, so a caller
+ * built against an older header, with fewer fields, keeps working when fields are appended.
+ * Flag fields are `0` (off) or non-zero (on).
+ */
+typedef struct DengjenTashkeelOptions {
+  uint32_t struct_size;
+  uint8_t preprocessed;
+  uint8_t has_taskeen_threshold;
+  float taskeen_threshold;
+} DengjenTashkeelOptions;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -241,6 +256,17 @@ char *dengjenTashkeelTashkeel(FfiStr text_ptr,
                               const float *taskeen_threshold,
                               bool preprocessed,
                               struct ExternError *out_error);
+
+/**
+ * # Safety
+ * Same contract as `dengjenTashkeelTashkeel`, except that the settings come from `options`.
+ * `options` must be either null (defaults: no taskeen, segment sentences) or point to at least
+ * `struct_size` readable bytes of a `DengjenTashkeelOptions`, where `struct_size` is its first
+ * field and at least 4. Fields beyond `struct_size` take their defaults.
+ */
+char *dengjenTashkeelTashkeelWithOptions(FfiStr text_ptr,
+                                         const struct DengjenTashkeelOptions *options,
+                                         struct ExternError *out_error);
 
 /**
  * # Safety

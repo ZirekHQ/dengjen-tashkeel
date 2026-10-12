@@ -1,5 +1,6 @@
 use dengjen_tashkeel::{
-    create_inference_engine, do_tashkeel, DengjenTashkeelError, DynamicInferenceEngine,
+    create_inference_engine, do_tashkeel_with, DengjenTashkeelError, DynamicInferenceEngine,
+    TashkeelOptions,
 };
 use ffi_support::{call_with_result, rust_string_to_c, ErrorCode, ExternError, FfiStr};
 use once_cell::sync::OnceCell;
@@ -89,17 +90,99 @@ pub unsafe extern "C" fn dengjenTashkeelTashkeel(
         return std::ptr::null_mut();
     };
     let taskeen_threshold = unsafe { taskeen_threshold.as_ref().copied() };
+    let mut options = TashkeelOptions::new().with_preprocessed(preprocessed);
+    if let Some(threshold) = taskeen_threshold {
+        options = options.with_taskeen_threshold(threshold);
+    }
+    call_with_result(out_error, move || run_tashkeel(text_ptr, &options))
+}
+
+fn run_tashkeel(
+    text_ptr: FfiStr,
+    options: &TashkeelOptions,
+) -> DengjenTashkeelFFIResult<*mut c_char> {
+    let text = text_ptr.into_opt_string().ok_or_else(|| {
+        DengjenTashkeelFFIError(
+            error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT,
+            "text must not be null".to_string(),
+        )
+    })?;
+    let engine = INFERENCE_ENGINE.get_or_try_init(|| create_inference_engine(None))?;
+    let diacritized_text = do_tashkeel_with(engine, &text, options)?;
+    Ok(rust_string_to_c(diacritized_text))
+}
+
+/// Options for `dengjenTashkeelTashkeelWithOptions`.
+///
+/// Set `struct_size` to `sizeof(DengjenTashkeelOptions)` when filling the struct. The library
+/// reads only the fields that `struct_size` covers and uses defaults for the rest, so a caller
+/// built against an older header, with fewer fields, keeps working when fields are appended.
+/// Flag fields are `0` (off) or non-zero (on).
+#[repr(C)]
+pub struct DengjenTashkeelOptions {
+    pub struct_size: u32,
+    pub preprocessed: u8,
+    pub has_taskeen_threshold: u8,
+    pub taskeen_threshold: libc::c_float,
+}
+
+/// # Safety
+/// `options` must be null or point to at least `struct_size` readable bytes, the first four of
+/// which hold `struct_size` itself.
+unsafe fn options_from_c(
+    options: *const DengjenTashkeelOptions,
+) -> DengjenTashkeelFFIResult<TashkeelOptions> {
+    if options.is_null() {
+        return Ok(TashkeelOptions::new());
+    }
+    let size_field = std::mem::size_of::<u32>();
+    let covered = unsafe { std::ptr::read_unaligned(options.cast::<u32>()) } as usize;
+    if covered < size_field {
+        return Err(DengjenTashkeelFFIError(
+            error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT,
+            format!("options.struct_size is {covered}, expected at least {size_field}"),
+        ));
+    }
+    let read = |offset: usize, size: usize| covered >= offset + size;
+    let base = options.cast::<u8>();
+    let preprocessed = std::mem::offset_of!(DengjenTashkeelOptions, preprocessed);
+    let has_threshold = std::mem::offset_of!(DengjenTashkeelOptions, has_taskeen_threshold);
+    let threshold = std::mem::offset_of!(DengjenTashkeelOptions, taskeen_threshold);
+
+    let mut converted = TashkeelOptions::new();
+    if read(preprocessed, 1) {
+        let flag = unsafe { base.add(preprocessed).read() };
+        converted = converted.with_preprocessed(flag != 0);
+    }
+    if read(has_threshold, 1) && read(threshold, std::mem::size_of::<libc::c_float>()) {
+        let flag = unsafe { base.add(has_threshold).read() };
+        if flag != 0 {
+            let value =
+                unsafe { std::ptr::read_unaligned(base.add(threshold).cast::<libc::c_float>()) };
+            converted = converted.with_taskeen_threshold(value);
+        }
+    }
+    Ok(converted)
+}
+
+/// # Safety
+/// Same contract as `dengjenTashkeelTashkeel`, except that the settings come from `options`.
+/// `options` must be either null (defaults: no taskeen, segment sentences) or point to at least
+/// `struct_size` readable bytes of a `DengjenTashkeelOptions`, where `struct_size` is its first
+/// field and at least 4. Fields beyond `struct_size` take their defaults.
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn dengjenTashkeelTashkeelWithOptions(
+    text_ptr: FfiStr,
+    options: *const DengjenTashkeelOptions,
+    out_error: *mut ExternError,
+) -> *mut c_char {
+    let Some(out_error) = (unsafe { out_error.as_mut() }) else {
+        return std::ptr::null_mut();
+    };
     call_with_result(out_error, move || {
-        let text = text_ptr.into_opt_string().ok_or_else(|| {
-            DengjenTashkeelFFIError(
-                error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT,
-                "text must not be null".to_string(),
-            )
-        })?;
-        let engine = INFERENCE_ENGINE.get_or_try_init(|| create_inference_engine(None))?;
-        let diacritized_text = ffi_do_tashkeel(engine, &text, taskeen_threshold, preprocessed)?;
-        let retval = rust_string_to_c(diacritized_text);
-        Ok::<*mut c_char, DengjenTashkeelFFIError>(retval)
+        let options = unsafe { options_from_c(options) }?;
+        run_tashkeel(text_ptr, &options)
     })
 }
 
@@ -120,15 +203,6 @@ pub unsafe extern "C" fn dengjen_tashkeel_init(
     };
     let model_path = model_path_ptr.into_opt_string().map(PathBuf::from);
     call_with_result(out_error, move || do_init_library(model_path))
-}
-
-fn ffi_do_tashkeel(
-    model: &DynamicInferenceEngine,
-    text: &str,
-    taskeen_threshold: Option<f32>,
-    preprocessed: bool,
-) -> DengjenTashkeelFFIResult<String> {
-    Ok(do_tashkeel(model, text, taskeen_threshold, preprocessed)?)
 }
 
 fn already_initialized() -> DengjenTashkeelFFIError {
@@ -339,5 +413,168 @@ mod tests {
 
         let null_path = unsafe { FfiStr::from_raw(std::ptr::null()) };
         unsafe { dengjen_tashkeel_init(null_path, std::ptr::null_mut()) };
+    }
+
+    fn c_options(
+        struct_size: usize,
+        preprocessed: u8,
+        threshold: Option<f32>,
+    ) -> DengjenTashkeelOptions {
+        DengjenTashkeelOptions {
+            struct_size: struct_size as u32,
+            preprocessed,
+            has_taskeen_threshold: threshold.is_some() as u8,
+            taskeen_threshold: threshold.unwrap_or_default(),
+        }
+    }
+
+    #[test]
+    fn missing_options_default_to_no_taskeen_and_segmented_input() {
+        let options = unsafe { options_from_c(std::ptr::null()) }.unwrap();
+
+        assert_eq!(options, TashkeelOptions::new());
+    }
+
+    #[test]
+    fn c_options_carry_the_threshold_and_preprocessed_flag() {
+        let size = std::mem::size_of::<DengjenTashkeelOptions>();
+
+        let raw = c_options(size, 1, Some(0.8));
+
+        let options = unsafe { options_from_c(&raw) }.unwrap();
+
+        assert_eq!(
+            options,
+            TashkeelOptions::new()
+                .with_preprocessed(true)
+                .with_taskeen_threshold(0.8)
+        );
+    }
+
+    #[test]
+    fn c_options_without_a_threshold_ignore_the_threshold_field() {
+        let size = std::mem::size_of::<DengjenTashkeelOptions>();
+        let mut raw = c_options(size, 0, None);
+        raw.taskeen_threshold = 0.9;
+
+        let options = unsafe { options_from_c(&raw) }.unwrap();
+
+        assert_eq!(options.taskeen_threshold, None);
+        assert!(!options.preprocessed);
+    }
+
+    #[test]
+    fn c_options_from_a_newer_header_with_a_larger_struct_size_are_accepted() {
+        let larger = std::mem::size_of::<DengjenTashkeelOptions>() + 16;
+
+        let raw = c_options(larger, 1, None);
+
+        let options = unsafe { options_from_c(&raw) };
+
+        assert!(options.unwrap().preprocessed);
+    }
+
+    #[test]
+    fn c_options_from_an_older_header_use_defaults_for_the_fields_they_lack() {
+        let older = c_options(
+            std::mem::offset_of!(DengjenTashkeelOptions, preprocessed) + 1,
+            1,
+            Some(0.5),
+        );
+
+        let options = unsafe { options_from_c(&older) }.unwrap();
+
+        assert!(options.preprocessed);
+        assert_eq!(options.taskeen_threshold, None);
+    }
+
+    #[test]
+    fn c_options_that_do_not_cover_struct_size_itself_are_an_invalid_argument() {
+        let raw = c_options(2, 1, None);
+
+        let error = unsafe { options_from_c(&raw) }.unwrap_err();
+
+        assert_eq!(error.0, error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT);
+        assert!(error.1.contains("struct_size"));
+    }
+
+    #[test]
+    fn with_options_entry_point_reports_a_zero_struct_size_before_touching_the_engine() {
+        let text = CString::new("بسم الله").unwrap();
+        let raw = c_options(0, 0, None);
+        let mut out_error = new_out_error();
+
+        let result_ptr = unsafe {
+            dengjenTashkeelTashkeelWithOptions(FfiStr::from_cstr(&text), &raw, &mut out_error)
+        };
+
+        assert_eq!(
+            out_error.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT
+        );
+        assert!(result_ptr.is_null());
+    }
+
+    #[test]
+    fn with_options_entry_point_reports_null_text_as_invalid_argument() {
+        let mut out_error = new_out_error();
+        let null_text_ptr = unsafe { FfiStr::from_raw(std::ptr::null()) };
+
+        let result_ptr = unsafe {
+            dengjenTashkeelTashkeelWithOptions(null_text_ptr, std::ptr::null(), &mut out_error)
+        };
+
+        assert_eq!(
+            out_error.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT
+        );
+        assert!(result_ptr.is_null());
+    }
+
+    #[test]
+    fn with_options_entry_point_matches_the_positional_one() {
+        let text = CString::new("بسم الله الرحمن الرحيم").unwrap();
+        let size = std::mem::size_of::<DengjenTashkeelOptions>();
+        let raw = c_options(size, 1, Some(0.95));
+        let threshold = 0.95_f32;
+        let mut positional_error = new_out_error();
+        let mut options_error = new_out_error();
+
+        let positional = unsafe {
+            dengjenTashkeelTashkeel(
+                FfiStr::from_cstr(&text),
+                &threshold,
+                true,
+                &mut positional_error,
+            )
+        };
+        let with_options = unsafe {
+            dengjenTashkeelTashkeelWithOptions(FfiStr::from_cstr(&text), &raw, &mut options_error)
+        };
+
+        assert!(positional_error.get_code().is_success());
+        assert!(options_error.get_code().is_success());
+        let read = |ptr| unsafe { CStr::from_ptr(ptr) }.to_str().unwrap().to_string();
+        assert_eq!(read(positional), read(with_options));
+        unsafe {
+            dengjen_tashkeel_free_string(positional);
+            dengjen_tashkeel_free_string(with_options);
+        };
+    }
+
+    // Java (TashkeelLib.EXTERN_ERROR) hand-declares this layout: int32 code at 0, pointer at 8.
+    #[test]
+    fn extern_error_layout_matches_the_one_the_java_binding_declares() {
+        let error = ExternError::new_error(ErrorCode::new(7), "boom");
+        let base = &error as *const ExternError as *const u8;
+
+        let code = unsafe { std::ptr::read_unaligned(base as *const i32) };
+        let message = unsafe { std::ptr::read_unaligned(base.add(8) as *const *const c_char) };
+
+        assert_eq!(std::mem::size_of::<ExternError>(), 16);
+        assert_eq!(std::mem::align_of::<ExternError>(), 8);
+        assert_eq!(code, 7);
+        assert_eq!(unsafe { CStr::from_ptr(message) }.to_str().unwrap(), "boom");
+        unsafe { error.manually_release() };
     }
 }

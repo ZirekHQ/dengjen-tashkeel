@@ -25,12 +25,24 @@ match do_tashkeel(&engine, "بسم الله الرحمن الرحيم", None, fa
 `Option<PathBuf>` -- `None` loads the model bundled at build time, `Some(path)` loads an external
 ONNX model from that path.
 
+`do_tashkeel(engine, text, taskeen_threshold, preprocessed)` keeps its positional shape.
+`do_tashkeel_with(engine, text, &options)` takes a `TashkeelOptions` instead, built with
+`TashkeelOptions::new().with_taskeen_threshold(0.95).with_preprocessed(true)`; the struct is
+`#[non_exhaustive]`, so later settings do not break callers.
+
 == C ABI
 
-The C ABI (`crates/capi`, header `crates/capi/dengjen_tashkeel.h`) exposes 3 functions:
-`dengjen_tashkeel_init`, `dengjenTashkeelTashkeel`, and `dengjen_tashkeel_free_string`. Calling
-`dengjenTashkeelTashkeel` without ever calling `dengjen_tashkeel_init` first also works -- it
-lazily initializes the engine on first use with the bundled default model.
+The C ABI (`crates/capi`, header `crates/capi/dengjen_tashkeel.h`) exposes 4 functions:
+`dengjen_tashkeel_init`, `dengjenTashkeelTashkeel`, `dengjenTashkeelTashkeelWithOptions`, and
+`dengjen_tashkeel_free_string`. `dengjenTashkeelTashkeelWithOptions` takes a pointer to a
+`DengjenTashkeelOptions` struct (`struct_size` set to `sizeof(DengjenTashkeelOptions)`, `preprocessed`,
+`has_taskeen_threshold`, `taskeen_threshold`) in place of positional settings; a null pointer means
+the defaults. The library reads only the fields `struct_size` covers and defaults the rest, so a
+caller built against an older header keeps working when later releases append fields; a
+`struct_size` below 4 is `DENGJEN_TASHKEEL_INVALID_ARGUMENT`. Calling
+`dengjenTashkeelTashkeel` or `dengjenTashkeelTashkeelWithOptions` without ever calling
+`dengjen_tashkeel_init` first also works -- either lazily initializes the engine on first use with the
+bundled default model, after which `dengjen_tashkeel_init` reports `ALREADY_INITIALIZED`.
 
 Errors are reported through an `ExternError` out-parameter (`{ code: i32, message: *mut c_char }`)
 rather than a return value; `code == 0` means success. The codes, from the header:
@@ -53,7 +65,8 @@ rather than a return value; `code == 0` means success. The codes, from the heade
 existing engine is kept
 
 |`5` (`DENGJEN_TASHKEEL_INVALID_ARGUMENT`)
-|`dengjenTashkeelTashkeel` received a null `text`
+|`dengjenTashkeelTashkeel` or `dengjenTashkeelTashkeelWithOptions` received a null `text`, or the
+options' `struct_size` is below 4
 
 |`99` (`DENGJEN_TASHKEEL_UNKNOWN_ERROR`)
 |Declared in the header; the current Rust code never returns it
@@ -101,8 +114,11 @@ setup it depends on.
 
 == Python
 
-The `dengjen_tashkeel_py` PyO3 extension exposes one function:
-`tashkeel(text, taskeen_threshold=None, preprocessed=None) -> str`. It maps
+The `dengjen_tashkeel_py` PyO3 extension exposes `tashkeel(text, taskeen_threshold=None,
+preprocessed=None) -> str` and `init(model_path=None)`. The engine loads lazily on the first
+`tashkeel` call, with the bundled model; call `init` first to load it up front or from a custom ONNX
+file. `init` raises `RuntimeError` when the engine is already loaded or the model cannot be loaded,
+the same rule as `dengjen_tashkeel_init`. `tashkeel` maps
 `DengjenTashkeelError::InputTooLong` to a `ValueError` and every other error variant to a
 `RuntimeError` (`crates/python/src/lib.rs`, `to_py_err`):
 
@@ -115,19 +131,21 @@ try:
 except ValueError:
     ...  # a sentence longer than CHAR_LIMIT (12,000 characters)
 except RuntimeError:
-    ...  # inference failure (model load failures surface at import)
+    ...  # inference failure, or the engine could not be loaded on first use
 ----
 
 == Java
 
 `Tashkeel.loadDefault()` or `Tashkeel.load(Path)` initialize the native engine once (both throw
-`TashkeelException` on failure); `diacritize(text, Optional<Float> taskeenThreshold, boolean
-preprocessed)` then diacritizes a string. `TashkeelException.reason()` is a sealed interface --
-`InputTooLong`, `InferenceError`, `ModelLoadError`, and `Unknown`, each a record carrying the
-underlying message (`Unknown` also carries the raw `code`). Codes 1, 2, and 3 map to the first
-three; any other code, including `DENGJEN_TASHKEEL_ALREADY_INITIALIZED` (4) and `DENGJEN_TASHKEEL_INVALID_ARGUMENT` (5), maps to
-`Unknown(code, message)` (`Tashkeel.reasonFor`). So callers can exhaustively `switch` over the failure without a default
-branch:
+`TashkeelException` on failure). The engine is process-global, so repeating a successful load with
+the same source returns the same instance; loading a different model, or switching between the
+bundled and a custom one, throws `AlreadyInitialized`. `diacritize(text, Optional<Float>
+taskeenThreshold, boolean preprocessed)` then diacritizes a string. `TashkeelException.reason()` is a
+sealed interface -- `InputTooLong`, `InferenceError`, `ModelLoadError`, `AlreadyInitialized`,
+`InvalidArgument`, and `Unknown`, each a record carrying the underlying message (`Unknown` also
+carries the raw `code`). Codes 1 to 5 map to the first five in that order; any other code maps to
+`Unknown(code, message)` (`Tashkeel.reasonFor`). So callers can exhaustively `switch` over the failure
+without a default branch:
 
 [source,java]
 ----
@@ -142,6 +160,8 @@ try (Tashkeel tashkeel = Tashkeel.loadDefault()) {
         case TashkeelException.InputTooLong r -> "input too long: " + r.message();
         case TashkeelException.InferenceError r -> "inference failed: " + r.message();
         case TashkeelException.ModelLoadError r -> "model load failed: " + r.message();
+        case TashkeelException.AlreadyInitialized r -> "already initialized: " + r.message();
+        case TashkeelException.InvalidArgument r -> "invalid argument: " + r.message();
         case TashkeelException.Unknown r -> "unknown error " + r.code() + ": " + r.message();
     };
 }

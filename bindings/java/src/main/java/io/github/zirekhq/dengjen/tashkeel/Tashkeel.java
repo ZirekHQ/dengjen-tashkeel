@@ -17,27 +17,65 @@ public final class Tashkeel implements AutoCloseable {
     private static final int ALREADY_INITIALIZED = 4;
     private static final int INVALID_ARGUMENT = 5;
 
+    // The native engine is process-global, so the instances load() hands out share one engine.
+    private static final Object LOAD_LOCK = new Object();
+    private static Optional<Loaded> loaded = Optional.empty();
+
+    record Loaded(Tashkeel engine, Optional<Path> modelPath) {
+    }
+
     Tashkeel() {
     }
 
+    /**
+     * Loads the engine from {@code modelPath}.
+     *
+     * <p>Repeating a successful load with the same path returns the same instance; loading a
+     * different model, or the default one, after that throws {@link TashkeelException.AlreadyInitialized}
+     * because the native engine cannot be replaced.
+     */
     public static Tashkeel load(Path modelPath) throws TashkeelException {
         Objects.requireNonNull(modelPath, "modelPath must not be null");
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment outError = arena.allocate(TashkeelLib.EXTERN_ERROR);
-            MemorySegment modelPathPtr = arena.allocateFrom(modelPath.toString());
-            invokeInit(modelPathPtr, outError);
-            checkError(outError);
-            return new Tashkeel();
+        return loadFrom(Optional.of(modelPath.toAbsolutePath().normalize()));
+    }
+
+    /**
+     * Loads the bundled model; repeating a successful call returns the same instance.
+     */
+    public static Tashkeel loadDefault() throws TashkeelException {
+        return loadFrom(Optional.empty());
+    }
+
+    private static Tashkeel loadFrom(Optional<Path> modelPath) throws TashkeelException {
+        synchronized (LOAD_LOCK) {
+            if (loaded.isPresent()) {
+                return reuse(loaded.get(), modelPath);
+            }
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment outError = arena.allocate(TashkeelLib.EXTERN_ERROR);
+                MemorySegment modelPathPtr = modelPath
+                        .map(path -> arena.allocateFrom(path.toString()))
+                        .orElse(MemorySegment.NULL);
+                invokeInit(modelPathPtr, outError);
+                checkError(outError);
+            }
+            Tashkeel engine = new Tashkeel();
+            loaded = Optional.of(new Loaded(engine, modelPath));
+            return engine;
         }
     }
 
-    public static Tashkeel loadDefault() throws TashkeelException {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment outError = arena.allocate(TashkeelLib.EXTERN_ERROR);
-            invokeInit(MemorySegment.NULL, outError);
-            checkError(outError);
-            return new Tashkeel();
+    static Tashkeel reuse(Loaded existing, Optional<Path> requested) throws TashkeelException {
+        if (existing.modelPath().equals(requested)) {
+            return existing.engine();
         }
+        throw new TashkeelException(new TashkeelException.AlreadyInitialized(
+                "engine already loaded from " + describe(existing.modelPath())
+                        + "; cannot load " + describe(requested)));
+    }
+
+    private static String describe(Optional<Path> modelPath) {
+        return modelPath.map(path -> "model " + path).orElse("the bundled model");
     }
 
     public String diacritize(String text, Optional<Float> taskeenThreshold, boolean preprocessed)
