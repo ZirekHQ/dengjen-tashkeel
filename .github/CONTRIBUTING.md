@@ -47,7 +47,10 @@ packages to diverge, so don't let them.
    [`release.yml`](workflows/release.yml) tags that merge
    commit `vX.Y.Z` and triggers `github-release.yml` (GitHub Release),
    `publish-python.yml` (PyPI), `publish-java.yml` (Maven Central), and
-   `publish-crates.yml` (crates.io) automatically. If any of them fails
+   `publish-crates.yml` (crates.io) automatically. The GitHub Release body opens with
+   a "What's changed" section that `scripts/release-notes.sh` builds from the Conventional
+   Commit subjects since the previous tag (dependency updates are counted, not listed), so a
+   clear PR title is the changelog entry. If any of them fails
    partway through, use GitHub's "Re-run failed jobs" on that `release.yml`
    run (Actions tab): it re-runs just the failed job(s) against the run's
    own commit, and every publish step is idempotent (skips a
