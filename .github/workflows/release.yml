@@ -4,55 +4,15 @@ name: Release
 # (matched by its exact commit subject, the only commit on that branch).
 # Every other push to main is a no-op here.
 #
-# One vX.Y.Z tag now feeds all four registries (crates.io, PyPI, Maven
-# Central, GitHub Releases) as reusable-workflow jobs of this same run.
-# No trigger or gate of its own -- prepare-release.yml is the single entry
-# point into the whole pipeline (its `prepare` job for the PR-merge path,
-# its `gate` + `release-now` jobs for the direct-release override path);
-# this file only reacts to that PR's merge commit landing on main (push) or
-# being invoked directly by prepare-release.yml's override path
-# (workflow_call). vcpkg/Conan (CONTRIBUTING.md step 4) stays manual --
-# needs the release archives first.
-#
-# Tag push itself isn't gated by dry_run -- github-release.yml/publish-python.yml/
-# publish-java.yml/publish-crates.yml all need a real tag ref to build against.
-# Only the publish steps inside those jobs honor dry_run.
+# One vX.Y.Z tag feeds all four registries (crates.io, PyPI, Maven Central,
+# GitHub Releases) as reusable-workflow jobs of this same run. The bump PR's
+# required checks are the only gate: the merge commit is the tested PR head,
+# so nothing here waits on CI. vcpkg/Conan (CONTRIBUTING.md step 4) stay
+# manual -- they need the release archives first.
 on:
   push:
     branches:
       - main
-  workflow_call:
-    inputs:
-      new_tag:
-        required: false
-        type: string
-      dry_run:
-        required: false
-        type: boolean
-        default: false
-    secrets:
-      JRELEASER_MAVENCENTRAL_USERNAME:
-        required: false
-      JRELEASER_MAVENCENTRAL_PASSWORD:
-        required: false
-      JRELEASER_GPG_PASSPHRASE:
-        required: false
-      JRELEASER_GPG_SECRET_KEY:
-        required: false
-      JRELEASER_GPG_PUBLIC_KEY:
-        required: false
-      MASTODON_INSTANCE_URL:
-        required: false
-      MASTODON_ACCESS_TOKEN:
-        required: false
-      BLUESKY_HANDLE:
-        required: false
-      BLUESKY_APP_PASSWORD:
-        required: false
-      DOCS_APP_CLIENT_ID:
-        required: false
-      DOCS_APP_PRIVATE_KEY:
-        required: false
 
 permissions:
   contents: read
@@ -61,23 +21,18 @@ permissions:
 # to main never queue behind (and never replace) each other -- a replaced pending run would
 # silently drop a release.
 concurrency:
-  group: release-${{ inputs.new_tag || github.sha }}
+  group: release-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
-    # Includes the wait for this commit's CI checks (wait-for-checks.sh).
-    timeout-minutes: 60
-    # github.event_name inherits the top-level caller's event (workflow_dispatch here), not
-    # literally 'workflow_call' -- a live dispatch confirmed the old check silently skipped this
-    # job. inputs.new_tag != '' detects the override path directly; head_commit is absent here too.
+    timeout-minutes: 15
     if: >-
-      inputs.new_tag != '' ||
       startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')
     permissions:
       contents: write
-      checks: read
+      pull-requests: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -87,47 +42,40 @@ jobs:
 
       - name: Resolve workspace version
         id: version
-        env:
-          NEW_TAG: ${{ inputs.new_tag }}
+        # Python's version is dynamic from Cargo.toml, so Cargo.toml plus build.gradle.kts
+        # covers all four published packages; bump-version.sh writes both.
         run: |
           set -euo pipefail
-          cargo_version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
-          if [ -n "${NEW_TAG:-}" ]; then
-            version="${NEW_TAG#v}"
-            if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
-              echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
-              exit 1
-            fi
-            # Python's version is dynamic from Cargo.toml, so checking Cargo.toml
-            # and build.gradle.kts covers all four published packages.
-            gradle_version="$(awk -F'"' '/^version = /{print $2; exit}' bindings/java/build.gradle.kts)"
-            if [ "$version" != "$cargo_version" ] || [ "$version" != "$gradle_version" ]; then
-              echo "::error::new_tag version '${version}' doesn't match package metadata (Cargo.toml: ${cargo_version}, build.gradle.kts: ${gradle_version})" >&2
-              exit 1
-            fi
-          else
-            version="$cargo_version"
+          version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+          gradle_version="$(awk -F'"' '/^version = /{print $2; exit}' bindings/java/build.gradle.kts)"
+          if [ "$version" != "$gradle_version" ]; then
+            echo "::error::Cargo.toml (${version}) and build.gradle.kts (${gradle_version}) disagree" >&2
+            exit 1
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for CI checks on this commit
-        # The tag fans out to irreversible PyPI/Maven Central/crates.io publishes, so a red
-        # or still-running test/lint/MSRV/semver result on this commit must stop it here.
+      - name: Require the merged PR to be the version-bump PR
+        # Squash merges make the PR title the commit subject, so the subject alone proves
+        # nothing; the head branch has to come from this repo and name this exact version.
         env:
           GH_TOKEN: ${{ github.token }}
-          # Cold-cache Windows and macOS legs run well past the 30 min default window.
-          MAX_ATTEMPTS: "150"
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          bash .github/scripts/wait-for-checks.sh "$GITHUB_SHA" \
-            test clippy fmt deny msrv semver-checks \
-            "test-platform (windows-latest)" "test-platform (macos-latest)" "test-platform (ubuntu-24.04-arm)"
+          set -euo pipefail
+          heads="$(gh api "repos/${REPO}/commits/${GITHUB_SHA}/pulls" \
+            --jq '.[] | select(.merged_at != null and .head.repo.full_name == "'"${REPO}"'") | .head.ref')"
+          if ! grep -qx "chore/bump-${VERSION}" <<<"$heads"; then
+            echo "::error::${GITHUB_SHA} was not merged from this repo's chore/bump-${VERSION} branch (found: ${heads:-none})" >&2
+            exit 1
+          fi
 
       - name: Push release tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
         # Checked against origin: ls-remote needs the `^{}`-suffixed query to
         # peel an annotated tag to its commit SHA (unsuffixed returns the tag
-        # object's own SHA instead). Not gated by dry_run -- see file header.
+        # object's own SHA instead).
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -162,7 +110,6 @@ jobs:
     uses: ./.github/workflows/github-release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
-      dry_run: ${{ inputs.dry_run == true }}
 
   crates:
     name: crates.io
@@ -172,8 +119,6 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/publish-crates.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
-    with:
-      dry_run: ${{ inputs.dry_run == true }}
 
   java:
     name: Maven Central (Java bindings)
@@ -184,7 +129,6 @@ jobs:
     uses: ./.github/workflows/publish-java.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
-      dry_run: ${{ inputs.dry_run == true }}
     secrets:
       JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
       JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
@@ -202,14 +146,13 @@ jobs:
     uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
-      dry_run: ${{ inputs.dry_run == true }}
 
   docs:
     name: Notify docs site
     needs: [tag-and-release, release]
     # The release:published event never fires for releases created with GITHUB_TOKEN
     # (github-release.yml), so notify-docs.yml is called from here instead.
-    if: ${{ !cancelled() && inputs.dry_run != true && needs.release.result == 'success' }}
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
     permissions:
       contents: read
     uses: ./.github/workflows/notify-docs.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
@@ -223,7 +166,7 @@ jobs:
     name: Announce the release
     needs: [tag-and-release, release, crates, java, python]
     if: >-
-      ${{ !cancelled() && inputs.dry_run != true &&
+      ${{ !cancelled() &&
       needs.release.result == 'success' && needs.crates.result == 'success' &&
       needs.java.result == 'success' && needs.python.result == 'success' }}
     permissions: {}

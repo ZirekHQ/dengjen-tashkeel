@@ -5,15 +5,11 @@ name: Prepare release
 on:
   workflow_dispatch:
     inputs:
-      new_tag:
-        description: "Skip the PR: release this exact vX.Y.Z tag directly (requires approval)"
-        required: false
-        type: string
       dry_run:
-        description: "Dry Run: publish nothing (only used together with new_tag)"
-        required: false
+        description: "Only compute the release plan, do not open the version-bump PR"
         type: boolean
-        default: false
+        required: false
+        default: true
 
 permissions: {}
 
@@ -22,20 +18,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Normal path: compute the next version and open the PR. Merging it is the release gate
-  # (see .github/CONTRIBUTING.md) -- nothing here needs approval of its own. Skipped when
-  # new_tag selects the direct-release override path below instead.
+  authorize:
+    name: Authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Require a maintainer on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.triggering_actor }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$REF" != 'refs/heads/main' ]; then
+            echo "::error::Releases are prepared from main, not $REF"
+            exit 1
+          fi
+          role=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .role_name)
+          case "$role" in
+            admin|maintain) echo "$ACTOR has role $role" ;;
+            *) echo "::error::$ACTOR has role '$role'; preparing a release needs admin or maintain"; exit 1 ;;
+          esac
+
   prepare:
-    if: inputs.new_tag == ''
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
+      - name: Create release app token
+        id: app-token
+        # A PR opened with GITHUB_TOKEN gets no CI, so it could never satisfy the required
+        # `build` check. Without the app secrets the PR is still opened, but needs a manual
+        # close/reopen to start its checks.
+        if: ${{ !inputs.dry_run && vars.RELEASE_APP_CLIENT_ID != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+          token: ${{ steps.app-token.outputs.token || github.token }}
           persist-credentials: true
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
@@ -53,24 +84,26 @@ jobs:
           version="$(bash scripts/next-version.sh)" && rc=0 || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "version=${version}" >> "$GITHUB_OUTPUT"
+            echo "### Release plan: v${version}" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$rc" -eq 1 ]; then
             echo "::notice::Nothing release-worthy since the last tag -- skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "### Release plan: nothing to release" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "::error::scripts/next-version.sh failed (exit ${rc})"
             exit "$rc"
           fi
 
       - name: Bump version
-        if: steps.next.outputs.skip != 'true'
+        if: steps.next.outputs.skip != 'true' && !inputs.dry_run
         env:
           VERSION: ${{ steps.next.outputs.version }}
         run: bash scripts/bump-version.sh "$VERSION"
 
       - name: Open release PR
-        if: steps.next.outputs.skip != 'true'
+        if: steps.next.outputs.skip != 'true' && !inputs.dry_run
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           VERSION: ${{ steps.next.outputs.version }}
         run: |
           set -euo pipefail
@@ -83,39 +116,5 @@ jobs:
           git commit -m "chore: bump workspace version -> ${VERSION}"
           git push -u origin "$branch"
           gh pr create --title "chore: bump workspace version -> ${VERSION}" \
-            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`github-release.yml\` (GitHub Release), \`publish-python.yml\` (PyPI), \`publish-java.yml\` (Maven Central), and \`publish-crates.yml\` (crates.io) automatically, no further approval needed. Review the version and the diff carefully before merging -- this is the real decision point (the vcpkg/Conan follow-up in CONTRIBUTING.md's step 4 still needs its own PR once the release archives exist)." \
+            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`github-release.yml\` (GitHub Release), \`publish-python.yml\` (PyPI), \`publish-java.yml\` (Maven Central), and \`publish-crates.yml\` (crates.io) automatically, no further approval needed. The required checks on this PR are the only gate: review the version and the diff before merging (the vcpkg/Conan follow-up in CONTRIBUTING.md's step 4 still needs its own PR once the release archives exist)." \
             --base main --head "$branch"
-
-  # Override path: skip prepare/PR entirely and hand off straight to release.yml. This is
-  # the one path in the whole pipeline with no PR review to fall back on, so it's the only
-  # thing that still needs a human gate.
-  gate:
-    if: inputs.new_tag != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: release
-    steps:
-      - run: echo "approved"
-
-  release-now:
-    needs: gate
-    permissions:
-      contents: write
-      id-token: write
-      checks: read
-    uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
-    secrets:
-      JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
-      JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
-      JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
-      JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
-      JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
-      MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
-      MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
-      BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
-      BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
-      DOCS_APP_CLIENT_ID: ${{ secrets.DOCS_APP_CLIENT_ID }}
-      DOCS_APP_PRIVATE_KEY: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
-    with:
-      new_tag: ${{ inputs.new_tag }}
-      dry_run: ${{ inputs.dry_run == true }}
