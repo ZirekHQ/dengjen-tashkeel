@@ -1,6 +1,6 @@
 use dengjen_tashkeel::{
     create_inference_engine, do_tashkeel_with, DengjenTashkeelError, DynamicInferenceEngine,
-    TashkeelOptions,
+    ErrorKind, TashkeelOptions,
 };
 use ffi_support::{call_with_result, rust_string_to_c, ErrorCode, ExternError, FfiStr};
 use once_cell::sync::OnceCell;
@@ -23,24 +23,13 @@ struct DengjenTashkeelFFIError(i32, String);
 
 impl From<DengjenTashkeelError> for DengjenTashkeelFFIError {
     fn from(other: DengjenTashkeelError) -> Self {
-        let (code, message) = match other {
-            DengjenTashkeelError::InputTooLong(max_len) => (
-                error_codes::DENGJEN_TASHKEEL_INPUT_TOO_LONG,
-                format!("Input too long. Max length {}", max_len),
-            ),
-            DengjenTashkeelError::InferenceError(msg) => {
-                (error_codes::DENGJEN_TASHKEEL_INFERENCE_ERROR, msg)
-            }
-            DengjenTashkeelError::ModelLoadError(e) => (
-                error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR,
-                e.to_string(),
-            ),
-            other => (
-                error_codes::DENGJEN_TASHKEEL_UNKNOWN_ERROR,
-                other.to_string(),
-            ),
+        let code = match other.kind() {
+            ErrorKind::InputTooLong => error_codes::DENGJEN_TASHKEEL_INPUT_TOO_LONG,
+            ErrorKind::Inference => error_codes::DENGJEN_TASHKEEL_INFERENCE_ERROR,
+            ErrorKind::ModelLoad => error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR,
+            _ => error_codes::DENGJEN_TASHKEEL_UNKNOWN_ERROR,
         };
-        Self(code, message)
+        Self(code, other.to_string())
     }
 }
 
@@ -384,6 +373,17 @@ mod tests {
 
         let owned = rust_string_to_c("owned".to_string());
         unsafe { dengjen_tashkeel_free_string(owned) };
+    }
+
+    #[test]
+    fn ffi_error_message_is_the_core_error_text() {
+        let core_error = DengjenTashkeelError::InputTooLong(7);
+        let expected = core_error.to_string();
+
+        let ffi_error = DengjenTashkeelFFIError::from(core_error);
+
+        assert_eq!(ffi_error.0, error_codes::DENGJEN_TASHKEEL_INPUT_TOO_LONG);
+        assert_eq!(ffi_error.1, expected);
     }
 
     #[test]

@@ -87,6 +87,26 @@ pub enum DengjenTashkeelError {
     ModelLoadError(#[from] std::io::Error),
 }
 
+/// Classification of a [`DengjenTashkeelError`] that bindings map onto their own error codes
+/// and exception types, so a new error variant is classified here once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    InputTooLong,
+    Inference,
+    ModelLoad,
+}
+
+impl DengjenTashkeelError {
+    pub fn kind(&self) -> ErrorKind {
+        match self {
+            Self::InputTooLong(_) => ErrorKind::InputTooLong,
+            Self::InferenceError(_) => ErrorKind::Inference,
+            Self::ModelLoadError(_) => ErrorKind::ModelLoad,
+        }
+    }
+}
+
 fn reversed_mapping<K, V>(input: &HashMap<K, V>) -> HashMap<V, K>
 where
     K: ToOwned<Owned = K>,
@@ -675,6 +695,24 @@ mod tests {
         ) -> DengjenTashkeelResult<(Vec<u8>, Vec<f32>)> {
             Ok((self.target_ids.clone(), self.logits.clone()))
         }
+    }
+
+    #[test]
+    fn every_error_variant_has_its_own_kind() {
+        let io_error = std::io::Error::from(std::io::ErrorKind::NotFound);
+
+        assert_eq!(
+            DengjenTashkeelError::InputTooLong(1).kind(),
+            ErrorKind::InputTooLong
+        );
+        assert_eq!(
+            DengjenTashkeelError::InferenceError("x".into()).kind(),
+            ErrorKind::Inference
+        );
+        assert_eq!(
+            DengjenTashkeelError::ModelLoadError(io_error).kind(),
+            ErrorKind::ModelLoad
+        );
     }
 
     #[test]
