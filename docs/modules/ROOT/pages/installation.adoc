@@ -78,10 +78,10 @@ into your local Conan cache:
 
 [source,bash]
 ----
-conan create packaging/conan --version=2.0.0
+conan create packaging/conan --version=2.1.0
 ----
 
-then add `dengjen-tashkeel-capi/2.0.0` to your `conanfile.txt`/`conanfile.py` `requires`. See
+then add `dengjen-tashkeel-capi/2.1.0` to your `conanfile.txt`/`conanfile.py` `requires`. See
 `packaging/README.md` in the repository for how both are maintained.
 
 == Java
@@ -93,8 +93,8 @@ library yourself and point `-Ddengjen.tashkeel.native.library.path` at it.
 
 [source,kotlin]
 ----
-implementation("io.github.zirekhq:dengjen-tashkeel:2.0.0")
-runtimeOnly("io.github.zirekhq:dengjen-tashkeel:2.0.0:linux-x86_64")
+implementation("io.github.zirekhq:dengjen-tashkeel:2.1.0")
+runtimeOnly("io.github.zirekhq:dengjen-tashkeel:2.1.0:linux-x86_64")
 ----
 
 Published to Maven Central by the `publish-java.yml` CI workflow, which `release.yml` runs after
