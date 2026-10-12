@@ -52,6 +52,19 @@ grep -qF "dengjen-tashkeel:${new_version}" README.md || {
   exit 1
 }
 
+adoc=docs/modules/ROOT/pages/installation.adoc
+old_re="${old_version//./\\.}"
+sed -i.bak -E "s/(--version=|dengjen-tashkeel-capi\/|dengjen-tashkeel:)${old_re}([^0-9A-Za-z.]|\$)/\1${new_version}\2/g" "$adoc"
+rm -f "${adoc}.bak"
+if [ "$old_version" != "$new_version" ] && grep -qE "(--version=|dengjen-tashkeel-capi/|dengjen-tashkeel:)${old_re}([^0-9A-Za-z.]|\$)" "$adoc"; then
+  echo "::error::${adoc} still references ${old_version}" >&2
+  exit 1
+fi
+grep -qF "dengjen-tashkeel:${new_version}" "$adoc" || {
+  echo "::error::${adoc} has no dengjen-tashkeel:${new_version} coordinate" >&2
+  exit 1
+}
+
 for sub_crate_toml in crates/capi/Cargo.toml crates/cli/Cargo.toml crates/python/Cargo.toml; do
   # Read each file's own current pin rather than reusing $old_version: the pin can already
   # lag behind [workspace.package].version, and matching against $old_version would silently
@@ -74,4 +87,5 @@ cargo check --quiet
 
 echo "Bumped ${old_version} -> ${new_version}:"
 git diff --stat -- Cargo.toml Cargo.lock bindings/java/build.gradle.kts README.md \
+  docs/modules/ROOT/pages/installation.adoc \
   crates/capi/Cargo.toml crates/cli/Cargo.toml crates/python/Cargo.toml
