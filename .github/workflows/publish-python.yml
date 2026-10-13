@@ -193,3 +193,6 @@ jobs:
         with:
           packages-dir: dist
           skip-existing: true
+          # Called from release.yml, the attestation certificate names that caller
+          # while the trusted publisher matches this file, so PyPI rejects it.
+          attestations: false
