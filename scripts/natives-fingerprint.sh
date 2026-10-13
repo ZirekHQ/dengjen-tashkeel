@@ -27,7 +27,7 @@ fingerprint() {
           esac
         done
     printf '== dependencies\n'
-    cargo tree --locked -p dengjen-tashkeel-capi --no-default-features --features ort-dylib \
+    cargo tree --color never --locked -p dengjen-tashkeel-capi --no-default-features --features ort-dylib \
       --target all -e normal,build,features --prefix none --no-dedupe \
       | grep -v '(/' | LC_ALL=C sort -u
   } | sha256sum | cut -d' ' -f1
