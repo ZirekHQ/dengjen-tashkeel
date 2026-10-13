@@ -21,8 +21,8 @@ path = "src/main.rs"
 
 [features]
 default = ["ort"]
-ort = ["dengjen-tashkeel/ort-static"]
-ort-dylib = ["dengjen-tashkeel/ort-dylib"]
+ort = ["dengjen-tashkeel/ort-static", "dengjen-tashkeel/bundled-model"]
+ort-dylib = ["dengjen-tashkeel/ort-dylib", "dengjen-tashkeel/bundled-model"]
 
 [dependencies]
 anyhow = "1.0.72"

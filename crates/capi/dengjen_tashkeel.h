@@ -278,6 +278,24 @@ char *dengjenTashkeelTashkeelWithOptions(FfiStr text_ptr,
  */
 void dengjen_tashkeel_init(FfiStr model_path_ptr, struct ExternError *out_error);
 
+#if defined(DENGJEN_TASHKEEL_ORT_DYLIB)
+/**
+ * Loads the onnxruntime shared library at `ort_path_ptr` for this build's dynamic backend.
+ *
+ * Only exported when built with the `ort-dylib` feature; the header guards the declaration with
+ * `DENGJEN_TASHKEEL_ORT_DYLIB`. Call it before the first
+ * `dengjenTashkeelTashkeel` or `dengjen_tashkeel_init`; without it the library is looked up
+ * through `ORT_DYLIB_PATH` and the platform loader search path. A null `ort_path_ptr` is
+ * reported as `DENGJEN_TASHKEEL_INVALID_ARGUMENT`.
+ *
+ * # Safety
+ * `out_error` must be either null (in which case this call is a silent
+ * no-op) or point to a single, properly aligned, writable `ExternError`
+ * valid for the duration of this call.
+ */
+void dengjen_tashkeel_init_ort_dylib(FfiStr ort_path_ptr, struct ExternError *out_error);
+#endif
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus

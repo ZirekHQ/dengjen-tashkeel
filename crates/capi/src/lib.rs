@@ -194,6 +194,40 @@ pub unsafe extern "C" fn dengjen_tashkeel_init(
     call_with_result(out_error, move || do_init_library(model_path))
 }
 
+/// Loads the onnxruntime shared library at `ort_path_ptr` for this build's dynamic backend.
+///
+/// Only exported when built with the `ort-dylib` feature; the header guards the declaration with
+/// `DENGJEN_TASHKEEL_ORT_DYLIB`. Call it before the first
+/// `dengjenTashkeelTashkeel` or `dengjen_tashkeel_init`; without it the library is looked up
+/// through `ORT_DYLIB_PATH` and the platform loader search path. A null `ort_path_ptr` is
+/// reported as `DENGJEN_TASHKEEL_INVALID_ARGUMENT`.
+///
+/// # Safety
+/// `out_error` must be either null (in which case this call is a silent
+/// no-op) or point to a single, properly aligned, writable `ExternError`
+/// valid for the duration of this call.
+#[cfg(feature = "ort-dylib")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn dengjen_tashkeel_init_ort_dylib(
+    ort_path_ptr: FfiStr,
+    out_error: *mut ExternError,
+) {
+    let Some(out_error) = (unsafe { out_error.as_mut() }) else {
+        return;
+    };
+    let ort_path = ort_path_ptr.into_opt_string().map(PathBuf::from);
+    call_with_result(out_error, move || {
+        let path = ort_path.ok_or_else(|| {
+            DengjenTashkeelFFIError(
+                error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT,
+                "onnxruntime library path must not be null.".to_string(),
+            )
+        })?;
+        dengjen_tashkeel::init_ort_dylib(path).map_err(DengjenTashkeelFFIError::from)
+    })
+}
+
 fn already_initialized() -> DengjenTashkeelFFIError {
     DengjenTashkeelFFIError(
         error_codes::DENGJEN_TASHKEEL_ALREADY_INITIALIZED,
@@ -211,7 +245,7 @@ fn do_init_library(model_path: Option<PathBuf>) -> DengjenTashkeelFFIResult<()> 
         .map_err(|_| already_initialized())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "bundled-model"))]
 mod tests {
     use super::*;
     use std::ffi::{CStr, CString};
@@ -576,5 +610,44 @@ mod tests {
         assert_eq!(code, 7);
         assert_eq!(unsafe { CStr::from_ptr(message) }.to_str().unwrap(), "boom");
         unsafe { error.manually_release() };
+    }
+}
+
+#[cfg(all(test, any(feature = "ort-dylib", not(feature = "bundled-model"))))]
+mod build_variant_tests {
+    use super::*;
+    #[cfg(not(feature = "bundled-model"))]
+    #[test]
+    fn init_without_a_model_path_reports_model_load_error_when_nothing_is_bundled() {
+        let mut err = ExternError::success();
+        unsafe { dengjen_tashkeel_init(FfiStr::from_raw(std::ptr::null()), &mut err) };
+        assert_eq!(
+            err.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_MODEL_LOAD_ERROR
+        );
+        unsafe { dengjen_tashkeel_free_string(err.get_raw_message() as *mut c_char) };
+    }
+
+    #[cfg(feature = "ort-dylib")]
+    #[test]
+    fn init_ort_dylib_rejects_null_and_missing_paths() {
+        let mut err = ExternError::success();
+        unsafe { dengjen_tashkeel_init_ort_dylib(FfiStr::from_raw(std::ptr::null()), &mut err) };
+        assert_eq!(
+            err.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_INVALID_ARGUMENT
+        );
+        unsafe { dengjen_tashkeel_free_string(err.get_raw_message() as *mut c_char) };
+
+        let missing = std::ffi::CString::new("/nonexistent/libonnxruntime.so").unwrap();
+        let mut err = ExternError::success();
+        unsafe {
+            dengjen_tashkeel_init_ort_dylib(FfiStr::from_cstr(&missing), &mut err);
+        }
+        assert_eq!(
+            err.get_code().code(),
+            error_codes::DENGJEN_TASHKEEL_INFERENCE_ERROR
+        );
+        unsafe { dengjen_tashkeel_free_string(err.get_raw_message() as *mut c_char) };
     }
 }

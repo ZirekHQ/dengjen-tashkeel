@@ -10,7 +10,9 @@ repository.workspace = true
 documentation.workspace = true
 
 [features]
-default = ["ort-static", "rayon"]
+default = ["ort-static", "rayon", "bundled-model"]
+# Embeds data/ort/model.onnx so `create_inference_engine(None)` needs no model path.
+bundled-model = []
 rayon = ["dep:rayon"]
 ort-static = ["dep:ort", "dep:ndarray", "ort/download-binaries", "ort/copy-dylibs"]
 ort-dylib = ["dep:ort", "dep:ndarray", "ort/load-dynamic"]

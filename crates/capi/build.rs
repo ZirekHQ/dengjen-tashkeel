@@ -14,6 +14,7 @@ fn main() {
         .with_parse_include(&["ffi-support"])
         .with_cpp_compat(true)
         .with_language(cbindgen::Language::C)
+        .with_define("feature", "ort-dylib", "DENGJEN_TASHKEEL_ORT_DYLIB")
         .include_item("ExternError")
         .generate()
         .expect("Unable to generate bindings")

@@ -33,6 +33,7 @@ jobs:
       contents: read
     outputs:
       skip: ${{ steps.check-published.outputs.skip }}
+      skip_model: ${{ steps.check-published.outputs.skip_model }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,6 +59,21 @@ jobs:
         run: |
           set -euo pipefail
           version="$(echo "${RELEASE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
+          model_version="$(grep -m1 '^val modelVersion = ' bindings/java/build.gradle.kts | sed -E 's/val modelVersion = "(.*)"/\1/')"
+          if ! [[ "${model_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::could not read modelVersion from bindings/java/build.gradle.kts" >&2
+            exit 1
+          fi
+          model_url="https://repo1.maven.org/maven2/io/github/zirekhq/dengjen-tashkeel-model/${model_version}/dengjen-tashkeel-model-${model_version}.pom"
+          model_status="$(curl -s -o /dev/null -w '%{http_code}' "$model_url")"
+          case "$model_status" in
+            200) echo "skip_model=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "skip_model=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::unexpected HTTP ${model_status} checking Maven Central for dengjen-tashkeel-model ${model_version}" >&2
+              exit 1
+              ;;
+          esac
           url="https://repo1.maven.org/maven2/io/github/zirekhq/dengjen-tashkeel/${version}/dengjen-tashkeel-${version}.pom"
           status="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
           case "$status" in
@@ -104,7 +120,9 @@ jobs:
           toolchain: "1.99.0"
 
       - name: Build dengjen_tashkeel_capi
-        run: cargo build --release -p dengjen-tashkeel-capi --locked
+        # ort-dylib leaves onnxruntime out and no bundled-model leaves the model out (it ships as
+        # the dengjen-tashkeel-model artifact), so each library is ~1 MB instead of ~13 MB.
+        run: cargo build --release -p dengjen-tashkeel-capi --locked --no-default-features --features ort-dylib
 
       - name: Stage native library
         shell: bash
@@ -191,9 +209,10 @@ jobs:
           JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
           JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
           JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+          SKIP_MODEL: ${{ needs.check-version.outputs.skip_model }}
         # jreleaserDeploy only uploads to Maven Central -- it does not touch GitHub releases,
         # which github-release.yml (cargo-dist) already publishes for this same tag.
-        run: ./gradlew publish jreleaserDeploy --no-daemon --stacktrace
+        run: ./gradlew publish jreleaserDeploy --no-daemon --stacktrace -PskipModelPublish="${SKIP_MODEL}"
 
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

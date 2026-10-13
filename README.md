@@ -115,7 +115,13 @@ per-platform classifier jars — `linux-x86_64`, `windows-x64`, and
 your platform alongside the main dependency; it's picked up automatically
 at runtime. To use a library you built or placed yourself instead, set
 `-Ddengjen.tashkeel.native.library.path=/path/to/library` (a file path, not
-a directory — `java.library.path` is not consulted). Either way, add
+a directory — `java.library.path` is not consulted).
+
+The native library does not embed onnxruntime (nor the model, which comes from the `dengjen-tashkeel-model` artifact, a dependency of the main one): install `onnxruntime` 1.28 or newer
+(the `libonnxruntime.so`, `libonnxruntime.dylib` or `onnxruntime.dll` of the official release, or the
+copy inside the `onnxruntime` pip package) and point to it with `-Ddengjen.tashkeel.onnxruntime.path=/path/to/library`
+or the `ORT_DYLIB_PATH` environment variable; otherwise the platform loader search path is used.
+Also add
 `--enable-native-access=ALL-UNNAMED` to your own JVM invocation to avoid a
 native-access warning.
 

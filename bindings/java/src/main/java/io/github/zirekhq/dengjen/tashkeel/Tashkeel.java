@@ -1,5 +1,6 @@
 package io.github.zirekhq.dengjen.tashkeel;
 
+import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -16,6 +17,8 @@ public final class Tashkeel implements AutoCloseable {
     private static final int MODEL_LOAD_ERROR = 3;
     private static final int ALREADY_INITIALIZED = 4;
     private static final int INVALID_ARGUMENT = 5;
+
+    private static final String ONNXRUNTIME_PROPERTY = "dengjen.tashkeel.onnxruntime.path";
 
     // The native engine is process-global, so the instances load() hands out share one engine.
     private static final Object LOAD_LOCK = new Object();
@@ -40,7 +43,8 @@ public final class Tashkeel implements AutoCloseable {
     }
 
     /**
-     * Loads the bundled model; repeating a successful call returns the same instance.
+     * Loads the model from the {@code dengjen-tashkeel-model} artifact (a dependency of this one), falling
+     * back to a model embedded in the native library; repeating a successful call returns the same instance.
      */
     public static Tashkeel loadDefault() throws TashkeelException {
         return loadFrom(Optional.empty());
@@ -53,15 +57,54 @@ public final class Tashkeel implements AutoCloseable {
             }
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment outError = arena.allocate(TashkeelLib.EXTERN_ERROR);
-                MemorySegment modelPathPtr = modelPath
-                        .map(path -> arena.allocateFrom(path.toString()))
-                        .orElse(MemorySegment.NULL);
-                invokeInit(modelPathPtr, outError);
-                checkError(outError);
+                initOnnxRuntime(arena, outError);
+                Optional<Path> extracted = modelPath.isPresent() ? Optional.empty() : extractBundledModel();
+                try {
+                    MemorySegment modelPathPtr = modelPath.or(() -> extracted)
+                            .map(path -> arena.allocateFrom(path.toString()))
+                            .orElse(MemorySegment.NULL);
+                    invokeInit(modelPathPtr, outError);
+                    checkError(outError);
+                } finally {
+                    extracted.ifPresent(NativeLibraryLoader::deleteExtracted);
+                }
             }
             Tashkeel engine = new Tashkeel();
             loaded = Optional.of(new Loaded(engine, modelPath));
             return engine;
+        }
+    }
+
+    /**
+     * Points a dynamically linked native library at the onnxruntime named by the
+     * {@code dengjen.tashkeel.onnxruntime.path} system property; without the property the native
+     * side falls back to {@code ORT_DYLIB_PATH} and the platform loader search path.
+     */
+    private static void initOnnxRuntime(Arena arena, MemorySegment outError) throws TashkeelException {
+        String path = System.getProperty(ONNXRUNTIME_PROPERTY);
+        if (path == null) {
+            return;
+        }
+        MethodHandle init = TashkeelLib.handles().initOrtDylib().orElseThrow(() -> new IllegalStateException(
+                "-D" + ONNXRUNTIME_PROPERTY + " is set but this native library embeds onnxruntime"));
+        try {
+            init.invokeExact(arena.allocateFrom(path), outError);
+        } catch (Throwable t) {
+            throw new IllegalStateException("dengjen_tashkeel_init_ort_dylib downcall failed", t);
+        }
+        checkError(outError);
+    }
+
+    /**
+     * The native engine reads the model file fully during init, so the copy is deleted right after.
+     * Without the {@code dengjen-tashkeel-model} artifact the native library's own model, if any, is used.
+     */
+    private static Optional<Path> extractBundledModel() throws TashkeelException {
+        try {
+            return BundledModel.extract(Tashkeel.class.getClassLoader());
+        } catch (IOException e) {
+            throw new TashkeelException(
+                    new TashkeelException.ModelLoadError("failed to extract the bundled model: " + e.getMessage()));
         }
     }
 

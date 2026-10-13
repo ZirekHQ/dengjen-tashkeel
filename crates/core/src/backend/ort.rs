@@ -179,6 +179,7 @@ fn ort_session_run_batch(
         .collect())
 }
 
+#[cfg(feature = "bundled-model")]
 const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
 
 const MAX_DEFAULT_POOL_SIZE: NonZeroUsize = NonZeroUsize::new(4).unwrap();
@@ -229,6 +230,7 @@ impl OrtEngine {
         })?;
         Self::from_bytes(&model_bytes, pool_size)
     }
+    #[cfg(feature = "bundled-model")]
     pub fn with_bundled_model() -> DengjenTashkeelResult<OrtEngine> {
         Self::from_bytes(MODEL_BYTES, None)
     }
@@ -269,6 +271,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn infer_runs_against_the_bundled_model_directly() {
         let engine = OrtEngine::with_bundled_model().unwrap();
@@ -283,6 +286,7 @@ mod tests {
         assert!(!logits.is_empty());
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn infer_errors_instead_of_panicking_on_seq_length_mismatch() {
         let engine = OrtEngine::with_bundled_model().unwrap();
@@ -309,6 +313,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn infer_succeeds_when_called_concurrently_from_multiple_threads() {
         let pool_size = std::num::NonZeroUsize::new(2).unwrap();
@@ -328,6 +333,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "bundled-model")]
     fn bundled_pool() -> SessionPool<Session> {
         let session = Session::builder()
             .unwrap()
@@ -340,6 +346,7 @@ mod tests {
         SessionPool::new(vec![session])
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn batch_of_one_matches_a_direct_single_item_run() {
         let pool = bundled_pool();
@@ -353,6 +360,7 @@ mod tests {
         assert_eq!(batched[0], direct);
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn batched_results_are_trimmed_to_each_items_own_seq_length() {
         let pool = bundled_pool();
@@ -373,6 +381,7 @@ mod tests {
         assert_eq!(results[2].1.len(), 2 * crate::TARGET_ID_MAP.len());
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn empty_batch_short_circuits_without_touching_the_pool() {
         let pool = bundled_pool();
@@ -382,6 +391,7 @@ mod tests {
         assert!(results.is_empty());
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn batch_errors_when_an_items_input_ids_length_does_not_match_its_seq_length() {
         let pool = bundled_pool();
@@ -394,6 +404,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn batch_errors_when_an_items_diac_ids_length_does_not_match_its_seq_length() {
         let pool = bundled_pool();
@@ -406,6 +417,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "bundled-model")]
     #[test]
     fn a_malformed_pair_of_batch_items_does_not_silently_corrupt_row_boundaries() {
         // Without per-item validation, an over-long first row and a correspondingly
