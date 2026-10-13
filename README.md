@@ -36,6 +36,10 @@ instead, use `default-features = false, features = ["ort-dylib"]` and set
 `ORT_DYLIB_PATH` or call `init_ort_dylib(path)` before
 `create_inference_engine` (see the docs' Installation page).
 
+Both features embed the default model. To load every model from a path and keep the
+library small, use `features = ["ort-dylib-external"]` instead; `create_inference_engine(None)`
+then fails with a model-load error.
+
 **Python:**
 
 ```bash
