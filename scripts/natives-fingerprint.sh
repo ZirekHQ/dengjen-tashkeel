@@ -16,8 +16,8 @@ record=bindings/java/natives.fingerprint
 
 fingerprint() {
   {
-    git ls-files crates/core crates/capi \
-      | grep -E '\.(rs|toml|json)$' \
+    git ls-files Cargo.toml rust-toolchain.toml .cargo crates/core crates/capi \
+      | grep -E '(\.(rs|toml|json)|/config)$' \
       | LC_ALL=C sort \
       | while read -r file; do
           printf '== %s\n' "$file"
@@ -28,7 +28,7 @@ fingerprint() {
         done
     printf '== dependencies\n'
     cargo tree --locked -p dengjen-tashkeel-capi --no-default-features --features ort-dylib \
-      -e normal --prefix none --no-dedupe \
+      --target all -e normal,build,features --prefix none --no-dedupe \
       | grep -v '(/' | LC_ALL=C sort -u
   } | sha256sum | cut -d' ' -f1
 }
