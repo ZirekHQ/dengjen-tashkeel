@@ -90,6 +90,11 @@ CI (`CI.yml`, which calls `rust-lint.yml`, `java-test.yml` and `python-wheel.yml
   (the model-free build the Java jars ship)
 - `./gradlew check` in `bindings/java`, with `ORT_DYLIB_PATH` pointing at an `onnxruntime` shared
   library (the Java natives load it dynamically)
+- `scripts/natives-fingerprint.sh --check` (CI's `java / test`): when the core or capi sources, or the
+  crates the Java natives link, change, run `scripts/natives-fingerprint.sh --update` and bump
+  `nativesVersion` in `bindings/java/build.gradle.kts`; the release publishes
+  `dengjen-tashkeel-natives` only for a version not yet on Maven Central, so a binding-only release
+  uploads a few KB
 - `modelVersion` in `bindings/java/build.gradle.kts` must be bumped whenever
   `crates/core/data/ort/model.onnx` changes; the release publishes the
   `dengjen-tashkeel-model` artifact only for a version not yet on Maven Central

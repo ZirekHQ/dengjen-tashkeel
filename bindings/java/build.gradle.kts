@@ -45,18 +45,32 @@ val modelJar = tasks.register<Jar>("modelJar") {
     from(modelFile) { into("io/github/zirekhq/dengjen/tashkeel/model") }
 }
 
-val modelAuxiliaryNote = "The model artifact holds model.onnx only; see https://github.com/ZirekHQ/dengjen-tashkeel.\n"
-
-val modelAuxiliaryJars = listOf("sources", "javadoc").associateWith { kind ->
-    tasks.register<Jar>("model${kind.replaceFirstChar { it.uppercase() }}Jar") {
-        group = "build"
-        description = "Empty $kind jar for the model artifact, which Maven Central requires."
-        archiveBaseName.set(modelArtifactId)
-        archiveVersion.set(modelVersion)
-        archiveClassifier.set(kind)
-        from(resources.text.fromString(modelAuxiliaryNote)) { rename { "README.txt" } }
+// Maven Central requires sources and javadoc jars for every artifact; these carry a note only.
+fun auxiliaryJars(taskPrefix: String, artifactId: String, artifactVersion: String) =
+    listOf("sources", "javadoc").map { kind ->
+        tasks.register<Jar>("$taskPrefix${kind.replaceFirstChar { it.uppercase() }}Jar") {
+            group = "build"
+            description = "Placeholder $kind jar for the $artifactId artifact."
+            archiveBaseName.set(artifactId)
+            archiveVersion.set(artifactVersion)
+            archiveClassifier.set(kind)
+            from(resources.text.fromString("$artifactId ships binaries only; see https://github.com/ZirekHQ/dengjen-tashkeel.\n")) {
+                rename { "README.txt" }
+            }
+        }
     }
-}
+
+val modelAuxiliaryJars = auxiliaryJars("model", modelArtifactId, modelVersion)
+
+// The native libraries ship once per native change as their own artifact (all platforms in one jar),
+// so a binding-only release uploads a few KB. natives.fingerprint is regenerated with
+// scripts/natives-fingerprint.sh --update; bump nativesVersion whenever it changes.
+val nativesVersion = "1.0.0"
+val nativesArtifactId = "dengjen-tashkeel-natives"
+val nativesFingerprint: String = file("natives.fingerprint").readText().trim()
+
+val skipModelPublish = providers.gradleProperty("skipModelPublish").map(String::toBoolean).orElse(false)
+val skipNativesPublish = providers.gradleProperty("skipNativesPublish").map(String::toBoolean).orElse(false)
 
 dependencyLocking {
     lockAllConfigurations()
@@ -186,24 +200,28 @@ val nativeArtifactsDir: Directory =
 val publishRequested =
     gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) || it.contains("jreleaser", ignoreCase = true) }
 
-val nativeClassifierJars =
-    nativeClassifiers.associateWith { classifier ->
-        tasks.register<Jar>("nativeJar-$classifier") {
-            group = "build"
-            description = "Packages the $classifier native library into a classifier jar for publishing."
-            archiveClassifier.set(classifier)
-            val sourceDir = nativeArtifactsDir.dir(classifier)
-            from(sourceDir) { into("natives/$classifier") }
-            onlyIf { sourceDir.asFile.exists() || publishRequested }
-            doFirst {
-                val expectedName = expectedNativeLibraryFileName(classifier)
-                val files = sourceDir.asFile.listFiles().orEmpty()
-                check(files.size == 1 && files[0].isFile && files[0].name == expectedName) {
-                    "expected exactly one file named '$expectedName' in $sourceDir, found ${files.toList()}"
-                }
+val nativesJar = tasks.register<Jar>("nativesJar") {
+    group = "build"
+    description = "Packages every platform's native library into the dengjen-tashkeel-natives artifact."
+    archiveBaseName.set(nativesArtifactId)
+    archiveVersion.set(nativesVersion)
+    nativeClassifiers.forEach { classifier ->
+        from(nativeArtifactsDir.dir(classifier)) { into("natives/$classifier") }
+    }
+    onlyIf { !skipNativesPublish.get() && (nativeClassifiers.all { nativeArtifactsDir.dir(it).asFile.exists() } || publishRequested) }
+    doFirst {
+        nativeClassifiers.forEach { classifier ->
+            val expectedName = expectedNativeLibraryFileName(classifier)
+            val sourceDir = nativeArtifactsDir.dir(classifier).asFile
+            val files = sourceDir.listFiles().orEmpty()
+            check(files.size == 1 && files[0].isFile && files[0].name == expectedName) {
+                "expected exactly one file named '$expectedName' in $sourceDir, found ${files.toList()}"
             }
         }
     }
+}
+
+val nativesAuxiliaryJars = auxiliaryJars("natives", nativesArtifactId, nativesVersion)
 
 val nativeLibraryPathOverride = project.findProperty("dengjen.tashkeel.native.library.path") as String?
 val testNativeLibraryPath: String = nativeLibraryPathOverride ?: debugCdylibPath.toString()
@@ -268,13 +286,15 @@ publishing {
                     "Java bindings for dengjen-tashkeel: Arabic-text diacritic restoration using neural networks",
                 )
                 withXml {
-                    // runtimeOnly(files(...)) is invisible to the POM, so the model dependency is added here.
+                    // runtimeOnly(files(...)) is invisible to the POM, so these dependencies are added here.
                     val dependencies = asNode().appendNode("dependencies")
-                    dependencies.appendNode("dependency").apply {
-                        appendNode("groupId", project.group)
-                        appendNode("artifactId", modelArtifactId)
-                        appendNode("version", modelVersion)
-                        appendNode("scope", "runtime")
+                    listOf(modelArtifactId to modelVersion, nativesArtifactId to nativesVersion).forEach { (id, version) ->
+                        dependencies.appendNode("dependency").apply {
+                            appendNode("groupId", project.group)
+                            appendNode("artifactId", id)
+                            appendNode("version", version)
+                            appendNode("scope", "runtime")
+                        }
                     }
                 }
             }
@@ -283,13 +303,28 @@ publishing {
             artifactId = modelArtifactId
             version = modelVersion
             artifact(modelJar)
-            modelAuxiliaryJars.forEach { (_, jarTask) -> artifact(jarTask) }
+            modelAuxiliaryJars.forEach { jarTask -> artifact(jarTask) }
 
             pom {
                 projectMetadata(
                     "dengjen-tashkeel-model",
                     "ONNX model for the dengjen-tashkeel Java bindings",
                 )
+            }
+        }
+        create<MavenPublication>("natives") {
+            artifactId = nativesArtifactId
+            version = nativesVersion
+            artifact(nativesJar)
+            nativesAuxiliaryJars.forEach { jarTask -> artifact(jarTask) }
+
+            pom {
+                projectMetadata(
+                    "dengjen-tashkeel-natives",
+                    "Native libraries (linux-x86_64, windows-x64, macos-aarch64) for the dengjen-tashkeel Java bindings",
+                )
+                // The release workflow compares this with natives.fingerprint to catch a missed version bump.
+                properties.put("dengjen.natives.fingerprint", nativesFingerprint)
             }
         }
     }
@@ -301,16 +336,12 @@ publishing {
 // Gradle module metadata would hide the POM-only model dependency from Gradle consumers.
 tasks.withType<GenerateModuleMetadata>().configureEach { enabled = false }
 
-val skipModelPublish = providers.gradleProperty("skipModelPublish").map(String::toBoolean).orElse(false)
-
 tasks.withType<PublishToMavenRepository>().configureEach {
-    onlyIf { !(publication.name == "model" && skipModelPublish.get()) }
-}
-
-publishing {
-    publications {
-        named<MavenPublication>("maven") {
-            nativeClassifierJars.values.forEach { jarTask -> artifact(jarTask) }
+    onlyIf {
+        when (publication.name) {
+            "model" -> !skipModelPublish.get()
+            "natives" -> !skipNativesPublish.get()
+            else -> true
         }
     }
 }
