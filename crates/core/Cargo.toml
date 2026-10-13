@@ -14,8 +14,10 @@ default = ["ort-static", "rayon", "bundled-model"]
 # Embeds data/ort/model.onnx so `create_inference_engine(None)` needs no model path.
 bundled-model = []
 rayon = ["dep:rayon"]
-ort-static = ["dep:ort", "dep:ndarray", "ort/download-binaries", "ort/copy-dylibs"]
-ort-dylib = ["dep:ort", "dep:ndarray", "ort/load-dynamic"]
+ort-static = ["dep:ort", "dep:ndarray", "ort/download-binaries", "ort/copy-dylibs", "bundled-model"]
+# Loads onnxruntime dynamically and bundles no model; callers pass a model path.
+ort-dylib-external = ["dep:ort", "dep:ndarray", "ort/load-dynamic"]
+ort-dylib = ["ort-dylib-external", "bundled-model"]
 # Exposes otherwise-private tokenization/postprocessing internals (doc-hidden) so
 # benches/ can measure hot paths without an ONNX model in the loop. Not for external use.
 internal-benchmarks = []

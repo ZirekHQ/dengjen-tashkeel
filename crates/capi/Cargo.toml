@@ -18,7 +18,7 @@ ort = ["dengjen-tashkeel/ort-static"]
 # Embeds the model; the Java natives are built without it and load the model artifact instead.
 bundled-model = ["dengjen-tashkeel/bundled-model"]
 default = ["ort", "bundled-model"]
-ort-dylib = ["dengjen-tashkeel/ort-dylib"]
+ort-dylib = ["dengjen-tashkeel/ort-dylib-external"]
 
 [dependencies]
 ffi-support = "0.4.4"

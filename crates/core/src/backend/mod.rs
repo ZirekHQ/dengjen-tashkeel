@@ -1,6 +1,12 @@
 use crate::{DengjenTashkeelResult, InferenceEngine};
-#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib-external"))]
 use std::path::PathBuf;
+
+#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
+const _: () = assert!(
+    cfg!(feature = "bundled-model"),
+    "ort-static and ort-dylib must keep implying bundled-model; only ort-dylib-external drops it"
+);
 
 pub struct DynamicInferenceEngine(Box<dyn InferenceEngine>);
 
@@ -28,10 +34,10 @@ impl InferenceEngine for DynamicInferenceEngine {
     }
 }
 
-#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib-external"))]
 mod ort;
 
-#[cfg(any(feature = "ort-static", feature = "ort-dylib"))]
+#[cfg(any(feature = "ort-static", feature = "ort-dylib-external"))]
 pub fn create_inference_engine(
     model_path: Option<PathBuf>,
 ) -> DengjenTashkeelResult<DynamicInferenceEngine> {
@@ -61,7 +67,7 @@ pub fn create_inference_engine(
     }
 }
 
-#[cfg(feature = "ort-dylib")]
+#[cfg(feature = "ort-dylib-external")]
 pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
     let path = path.as_ref();
     ::ort::init_from(path)
