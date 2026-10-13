@@ -155,6 +155,7 @@ testing {
             dependencies {
                 implementation(project())
                 runtimeOnly(files(classpathNativeTestJar))
+                runtimeOnly(files(modelJar))
             }
             useJUnitJupiter(libs.versions.junit.jupiter.get())
             targets {
