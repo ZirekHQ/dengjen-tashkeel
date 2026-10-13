@@ -84,7 +84,11 @@ jobs:
           natives_status="$(curl -s -o "${RUNNER_TEMP}/natives.pom" -w '%{http_code}' "$natives_pom")"
           case "$natives_status" in
             200)
-              published="$(grep -oE '<dengjen.natives.fingerprint>[0-9a-f]+<' "${RUNNER_TEMP}/natives.pom" | grep -oE '[0-9a-f]{64}' || true)"
+              published="$(grep -oE '<dengjen\.natives\.fingerprint>[0-9a-f]{64}<' "${RUNNER_TEMP}/natives.pom" | grep -oE '[0-9a-f]{64}' || true)"
+              if [ -z "${published}" ]; then
+                echo "::error::the dengjen-tashkeel-natives ${natives_version} POM on Maven Central has no dengjen.natives.fingerprint property" >&2
+                exit 1
+              fi
               recorded="$(tr -d '[:space:]' < bindings/java/natives.fingerprint)"
               if [ "${published}" != "${recorded}" ]; then
                 echo "::error::dengjen-tashkeel-natives ${natives_version} is on Maven Central with a different fingerprint; bump nativesVersion in bindings/java/build.gradle.kts" >&2
