@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$(echo "${RELEASE_TAG}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*$')"
-          model_version="$(grep -m1 '^val modelVersion = ' bindings/java/build.gradle.kts | sed -E 's/val modelVersion = "(.*)"/\1/')"
+          model_version="$(sed -nE 's/^val modelVersion = "([0-9]+\.[0-9]+\.[0-9]+[^"]*)".*$/\1/p' bindings/java/build.gradle.kts | head -n1)"
           if ! [[ "${model_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "::error::could not read modelVersion from bindings/java/build.gradle.kts" >&2
             exit 1
@@ -75,7 +75,7 @@ jobs:
               exit 1
               ;;
           esac
-          natives_version="$(grep -m1 '^val nativesVersion = ' bindings/java/build.gradle.kts | sed -E 's/val nativesVersion = "(.*)"/\1/')"
+          natives_version="$(sed -nE 's/^val nativesVersion = "([0-9]+\.[0-9]+\.[0-9]+[^"]*)".*$/\1/p' bindings/java/build.gradle.kts | head -n1)"
           if ! [[ "${natives_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "::error::could not read nativesVersion from bindings/java/build.gradle.kts" >&2
             exit 1

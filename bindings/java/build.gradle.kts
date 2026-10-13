@@ -346,6 +346,16 @@ tasks.withType<PublishToMavenRepository>().configureEach {
     }
 }
 
+tasks.withType<PublishToMavenLocal>().configureEach {
+    onlyIf {
+        when (publication.name) {
+            "model" -> !skipModelPublish.get()
+            "natives" -> !skipNativesPublish.get()
+            else -> true
+        }
+    }
+}
+
 configure<org.jreleaser.gradle.plugin.JReleaserExtension> {
     gitRootSearch = true
 
