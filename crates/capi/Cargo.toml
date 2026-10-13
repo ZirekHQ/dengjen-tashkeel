@@ -15,7 +15,9 @@ crate-type = ["cdylib"]
 
 [features]
 ort = ["dengjen-tashkeel/ort-static"]
-default = ["ort"]
+# Embeds the model; the Java natives are built without it and load the model artifact instead.
+bundled-model = ["dengjen-tashkeel/bundled-model"]
+default = ["ort", "bundled-model"]
 ort-dylib = ["dengjen-tashkeel/ort-dylib"]
 
 [dependencies]

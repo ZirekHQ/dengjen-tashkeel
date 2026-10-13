@@ -85,6 +85,13 @@ CI (`CI.yml`, which calls `rust-lint.yml`, `java-test.yml` and `python-wheel.yml
 - `cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings`,
   and the same for `-p dengjen-tashkeel-python` with `--all-targets` (the `ort-dylib` path the
   wheel ships)
+  and `cargo clippy -p dengjen-tashkeel-capi --no-default-features --features ort-dylib -- -D warnings`
+  (the build the Java jars ship)
+- `./gradlew check` in `bindings/java`, with `ORT_DYLIB_PATH` pointing at an `onnxruntime` shared
+  library (the Java natives load it dynamically)
+- `modelVersion` in `bindings/java/build.gradle.kts` must be bumped whenever
+  `crates/core/data/ort/model.onnx` changes; the release publishes the
+  `dengjen-tashkeel-model` artifact only for a version not yet on Maven Central
 - `cargo check --workspace --locked` on Rust 1.88.0 (the minimum supported version)
 - `cargo deny check licenses bans sources`, `cargo audit`
 - `cargo llvm-cov --workspace --fail-under-lines 80` (CI's `lint / coverage` job; workspace line

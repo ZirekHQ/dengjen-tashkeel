@@ -10,7 +10,7 @@ class ClasspathNativeLibraryTest {
 
     @Test
     void diacritizeSucceedsUsingTheClasspathPackagedNativeLibrary() throws Exception {
-        Tashkeel tashkeel = new Tashkeel();
+        Tashkeel tashkeel = Tashkeel.loadDefault();
 
         String result = tashkeel.diacritize("بسم الله الرحمن الرحيم", Optional.empty(), true);
 

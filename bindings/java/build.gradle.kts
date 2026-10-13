@@ -26,11 +26,40 @@ tasks.withType<JavaCompile>().configureEach {
     options.release.set(22)
 }
 
+// The model ships once as its own artifact, so a release uploads only the small natives. Bump
+// modelVersion when crates/core/data/ort/model.onnx changes; releases skip a version already on Central.
+val modelVersion = "1.0.0"
+val modelArtifactId = "dengjen-tashkeel-model"
+val modelFile: File = rootDir.resolve("../../crates/core/data/ort/model.onnx").normalize()
+
+val modelJar = tasks.register<Jar>("modelJar") {
+    group = "build"
+    description = "Packages the bundled ONNX model as the dengjen-tashkeel-model artifact."
+    archiveBaseName.set(modelArtifactId)
+    archiveVersion.set(modelVersion)
+    from(modelFile) { into("io/github/zirekhq/dengjen/tashkeel/model") }
+}
+
+val modelAuxiliaryNote = "The model artifact holds model.onnx only; see https://github.com/ZirekHQ/dengjen-tashkeel.\n"
+
+val modelAuxiliaryJars = listOf("sources", "javadoc").associateWith { kind ->
+    tasks.register<Jar>("model${kind.replaceFirstChar { it.uppercase() }}Jar") {
+        group = "build"
+        description = "Empty $kind jar for the model artifact, which Maven Central requires."
+        archiveBaseName.set(modelArtifactId)
+        archiveVersion.set(modelVersion)
+        archiveClassifier.set(kind)
+        from(resources.text.fromString(modelAuxiliaryNote)) { rename { "README.txt" } }
+    }
+}
+
 dependencyLocking {
     lockAllConfigurations()
 }
 
 dependencies {
+    // Local runs use the jar built below; the published POM names the model artifact instead (see pom.withXml).
+    runtimeOnly(files(modelJar))
 }
 
 val nativeClassifiers = listOf("linux-x86_64", "windows-x64", "macos-aarch64")
@@ -47,9 +76,12 @@ val debugCdylibPath = file("${rootDir}/../../target/debug/${System.mapLibraryNam
 
 val cargoBuildCapi = tasks.register<Exec>("cargoBuildCapi") {
     group = "build"
-    description = "Builds the dengjen-tashkeel-capi debug cdylib for local test runs."
+    description = "Builds the dengjen-tashkeel-capi debug cdylib, as published (ort-dylib), for test runs."
     workingDir = file("${rootDir}/../..")
-    commandLine("cargo", "build", "-p", "dengjen-tashkeel-capi", "--locked")
+    commandLine(
+        "cargo", "build", "-p", "dengjen-tashkeel-capi", "--locked",
+        "--no-default-features", "--features", "ort-dylib",
+    )
 }
 
 fun hostNativeClassifier(): String {
@@ -123,6 +155,7 @@ testing {
             dependencies {
                 implementation(project())
                 runtimeOnly(files(classpathNativeTestJar))
+                runtimeOnly(files(modelJar))
             }
             useJUnitJupiter(libs.versions.junit.jupiter.get())
             targets {
@@ -192,42 +225,81 @@ tasks.withType<Test>().configureEach {
 
 val stagingDir: Provider<Directory> = layout.buildDirectory.dir("staging-deploy")
 
+fun MavenPom.projectMetadata(displayName: String, summary: String) {
+    name.set(displayName)
+    description.set(summary)
+    url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
+    licenses {
+        license {
+            name.set("MIT")
+            url.set("https://opensource.org/licenses/MIT")
+        }
+        license {
+            name.set("Apache-2.0")
+            url.set("https://www.apache.org/licenses/LICENSE-2.0")
+        }
+    }
+    developers {
+        developer {
+            id.set("austek")
+            name.set("Ali Ustek")
+        }
+    }
+    scm {
+        url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
+        connection.set("scm:git:https://github.com/ZirekHQ/dengjen-tashkeel.git")
+        developerConnection.set("scm:git:git@github.com:ZirekHQ/dengjen-tashkeel.git")
+    }
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
 
             pom {
-                name.set("dengjen-tashkeel")
-                description.set("Java bindings for dengjen-tashkeel: Arabic-text diacritic restoration using neural networks")
-                url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
-                licenses {
-                    license {
-                        name.set("MIT")
-                        url.set("https://opensource.org/licenses/MIT")
-                    }
-                    license {
-                        name.set("Apache-2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0")
-                    }
-                }
-                developers {
-                    developer {
-                        id.set("austek")
-                        name.set("Ali Ustek")
+                projectMetadata(
+                    "dengjen-tashkeel",
+                    "Java bindings for dengjen-tashkeel: Arabic-text diacritic restoration using neural networks",
+                )
+                withXml {
+                    // runtimeOnly(files(...)) is invisible to the POM, so the model dependency is added here.
+                    val dependencies = asNode().appendNode("dependencies")
+                    dependencies.appendNode("dependency").apply {
+                        appendNode("groupId", project.group)
+                        appendNode("artifactId", modelArtifactId)
+                        appendNode("version", modelVersion)
+                        appendNode("scope", "runtime")
                     }
                 }
-                scm {
-                    url.set("https://github.com/ZirekHQ/dengjen-tashkeel")
-                    connection.set("scm:git:https://github.com/ZirekHQ/dengjen-tashkeel.git")
-                    developerConnection.set("scm:git:git@github.com:ZirekHQ/dengjen-tashkeel.git")
-                }
+            }
+        }
+        create<MavenPublication>("model") {
+            artifactId = modelArtifactId
+            version = modelVersion
+            artifact(modelJar)
+            modelAuxiliaryJars.forEach { (_, jarTask) -> artifact(jarTask) }
+
+            pom {
+                projectMetadata(
+                    "dengjen-tashkeel-model",
+                    "ONNX model for the dengjen-tashkeel Java bindings",
+                )
             }
         }
     }
     repositories {
         maven { url = uri(stagingDir.get()) }
     }
+}
+
+// Gradle module metadata would hide the POM-only model dependency from Gradle consumers.
+tasks.withType<GenerateModuleMetadata>().configureEach { enabled = false }
+
+val skipModelPublish = providers.gradleProperty("skipModelPublish").map(String::toBoolean).orElse(false)
+
+tasks.withType<PublishToMavenRepository>().configureEach {
+    onlyIf { !(publication.name == "model" && skipModelPublish.get()) }
 }
 
 publishing {

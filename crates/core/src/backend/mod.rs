@@ -45,11 +45,19 @@ pub fn create_inference_engine(
             let engine = OrtEngine::from_path(&path, None)?;
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
+        #[cfg(feature = "bundled-model")]
         None => {
             log::info!("Using bundled model");
             let engine = OrtEngine::with_bundled_model()?;
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
+        #[cfg(not(feature = "bundled-model"))]
+        None => Err(crate::DengjenTashkeelError::ModelLoadError(
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "this build bundles no model; load one from a path",
+            ),
+        )),
     }
 }
 
