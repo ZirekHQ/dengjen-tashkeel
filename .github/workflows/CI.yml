@@ -41,7 +41,7 @@ jobs:
         run: |
           ORT_DYLIB_PATH="$(python3 -c 'import glob, os, onnxruntime; print(glob.glob(os.path.join(os.path.dirname(onnxruntime.__file__), "capi", "libonnxruntime.so*"))[0])')"
           export ORT_DYLIB_PATH
-          cargo test -p dengjen-tashkeel --no-default-features --features ort-dylib,bundled-model
+          cargo test -p dengjen-tashkeel --no-default-features --features ort-dylib
           cargo test -p dengjen-tashkeel-python --no-default-features --features ort-dylib
       - name: Build the capi cdylib
         # test_ffi_usage_example.py loads this library at import time.

@@ -257,6 +257,7 @@ impl InferenceEngine for OrtEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "bundled-model")]
     use std::sync::Arc;
 
     #[test]
