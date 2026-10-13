@@ -102,18 +102,16 @@ yourself and set `-Ddengjen.tashkeel.native.library.path` (below).
 
 ```kotlin
 implementation("io.github.zirekhq:dengjen-tashkeel:2.1.0")
-runtimeOnly("io.github.zirekhq:dengjen-tashkeel:2.1.0:linux-x86_64")
 ```
 
 Published to Maven Central by the `publish-java.yml` CI workflow, which
 `release.yml` runs after tagging each release (merging the Prepare release
 PR). The binding uses the JDK Foreign Function & Memory
 API (`java.lang.foreign`), not JNA, to load the native
-`dengjen_tashkeel_capi` shared library. The native library ships as
-per-platform classifier jars — `linux-x86_64`, `windows-x64`, and
-`macos-aarch64` — so add a `runtimeOnly` dependency on the one matching
-your platform alongside the main dependency; it's picked up automatically
-at runtime. To use a library you built or placed yourself instead, set
+`dengjen_tashkeel_capi` shared library. The native libraries (`linux-x86_64`,
+`windows-x64`, `macos-aarch64`) ship in the `dengjen-tashkeel-natives` artifact, which the main
+dependency pulls in; it is published only when the native code changes, so its version differs from
+the binding's. To use a library you built or placed yourself instead, set
 `-Ddengjen.tashkeel.native.library.path=/path/to/library` (a file path, not
 a directory — `java.library.path` is not consulted).
 
