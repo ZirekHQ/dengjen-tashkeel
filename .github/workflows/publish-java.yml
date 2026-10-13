@@ -203,7 +203,7 @@ jobs:
             [ -z "${!name}" ] && missing+=("$name")
           done
           if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::Missing required secret(s) in the maven-central environment: ${missing[*]}"
+            echo "::error::Missing required secret(s) (SONATYPE_USERNAME/SONATYPE_PASSWORD are mapped in release.yml): ${missing[*]}"
             exit 1
           fi
 

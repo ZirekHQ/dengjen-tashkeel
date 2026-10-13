@@ -62,8 +62,11 @@ packages to diverge, so don't let them.
    them the PR opens with `GITHUB_TOKEN` and its checks don't start until
    someone closes and reopens it.
    `publish-python.yml`'s `environment: pypi` and `publish-java.yml`'s
-   `environment: maven-central` (which holds the `JRELEASER_*` secrets)
-   stay as the per-registry approval points.
+   `environment: maven-central` stay as the per-registry approval points.
+   `release.yml` reads the Central user token from the org secrets
+   `SONATYPE_USERNAME` and `SONATYPE_PASSWORD` (both halves are secrets) and
+   the GPG key from `JRELEASER_GPG_*`; an environment secret of the same name
+   would shadow an org one, so keep them out of the environments.
 4. Once the release archives exist, refresh the vcpkg port and Conan
    recipe's checksums against them and open a PR -- see
    [packaging/README.md](../packaging/README.md). These necessarily lag one
