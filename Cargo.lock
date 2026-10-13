@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "criterion",
  "libtqsm",
@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-capi"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "cbindgen",
  "dengjen-tashkeel",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-cli"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-tashkeel-python"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "dengjen-tashkeel",
  "log",
