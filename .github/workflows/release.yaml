@@ -1,6 +1,6 @@
 name: Release
 
-# Only acts on the commit landing prepare-release.yml's version-bump PR
+# Only acts on the commit landing prepare-release.yaml's version-bump PR
 # (matched by its exact commit subject, the only commit on that branch).
 # Every other push to main is a no-op here.
 #
@@ -107,7 +107,7 @@ jobs:
     if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: write
-    uses: ./.github/workflows/github-release.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/github-release.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
 
@@ -118,7 +118,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/publish-crates.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-crates.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
 
   java:
     name: Maven Central (Java bindings)
@@ -126,7 +126,7 @@ jobs:
     if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: read
-    uses: ./.github/workflows/publish-java.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-java.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
     secrets:
@@ -143,7 +143,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-python.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
 
@@ -151,11 +151,11 @@ jobs:
     name: Notify docs site
     needs: [tag-and-release, release]
     # The release:published event never fires for releases created with GITHUB_TOKEN
-    # (github-release.yml), so notify-docs.yml is called from here instead.
+    # (github-release.yaml), so notify-docs.yaml is called from here instead.
     if: ${{ !cancelled() && needs.release.result == 'success' }}
     permissions:
       contents: read
-    uses: ./.github/workflows/notify-docs.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/notify-docs.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       ref: v${{ needs.tag-and-release.outputs.version }}
     secrets:

@@ -44,14 +44,14 @@ packages to diverge, so don't let them.
 2. Review and merge that PR once its required checks pass. **The PR's
    checks are the release gate** -- merging it releases the version in the
    diff, with nothing further to confirm or wait for:
-   [`release.yml`](workflows/release.yml) tags that merge
-   commit `vX.Y.Z` and triggers `github-release.yml` (GitHub Release),
-   `publish-python.yml` (PyPI), `publish-java.yml` (Maven Central), and
-   `publish-crates.yml` (crates.io) automatically. The GitHub Release body opens with
+   [`release.yaml`](workflows/release.yaml) tags that merge
+   commit `vX.Y.Z` and triggers `github-release.yaml` (GitHub Release),
+   `publish-python.yaml` (PyPI), `publish-java.yaml` (Maven Central), and
+   `publish-crates.yaml` (crates.io) automatically. The GitHub Release body opens with
    a "What's changed" section that `scripts/release-notes.sh` builds from the Conventional
    Commit subjects since the previous tag (dependency updates are counted, not listed), so a
    clear PR title is the changelog entry. If any of them fails
-   partway through, use GitHub's "Re-run failed jobs" on that `release.yml`
+   partway through, use GitHub's "Re-run failed jobs" on that `release.yaml`
    run (Actions tab): it re-runs just the failed job(s) against the run's
    own commit, and every publish step is idempotent (skips a
    crate/package/artifact already published), so no new tag is needed.
@@ -61,9 +61,9 @@ packages to diverge, so don't let them.
    `AUTOMATION_APP_PRIVATE_KEY` must be shared with this repo. Without
    them the PR opens with `GITHUB_TOKEN` and its checks don't start until
    someone closes and reopens it.
-   `publish-python.yml`'s `environment: pypi` and `publish-java.yml`'s
+   `publish-python.yaml`'s `environment: pypi` and `publish-java.yaml`'s
    `environment: maven-central` stay as the per-registry approval points.
-   `release.yml` reads the Central user token from the org secrets
+   `release.yaml` reads the Central user token from the org secrets
    `SONATYPE_USERNAME` and `SONATYPE_PASSWORD` (both halves are secrets) and
    the GPG key from `JRELEASER_GPG_*`; an environment secret of the same name
    would shadow an org one, so keep them out of the environments.
@@ -80,7 +80,7 @@ See [README.md](../README.md) for build instructions.
 
 ## Development checks
 
-CI (`CI.yml`, which calls `rust-lint.yml`, `java-test.yml` and `python-wheel.yml`, and ends in the required `build` check) enforces these; run them before opening a PR:
+CI (`CI.yaml`, which calls `rust-lint.yaml`, `java-test.yaml` and `python-wheel.yaml`, and ends in the required `build` check) enforces these; run them before opening a PR:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings`
@@ -108,9 +108,9 @@ CI (`CI.yml`, which calls `rust-lint.yml`, `java-test.yml` and `python-wheel.yml
 
 ## Pull requests from forks
 
-Forks never receive `SONAR_TOKEN`. `sonar-fork-coverage.yml` builds the
+Forks never receive `SONAR_TOKEN`. `sonar-fork-coverage.yaml` builds the
 coverage report from the fork's head with no secrets, and
-`sonar-fork-scan.yml` then scans that artifact with the token and posts the
+`sonar-fork-scan.yaml` then scans that artifact with the token and posts the
 real `SonarCloud Code Analysis` status to the head commit. The required check
 stays pending until the scan finishes, so a fork PR cannot merge without a
 quality-gate result. A maintainer can comment `/sonar` on the PR to re-run the

@@ -1,8 +1,8 @@
 name: Publish Python wheels
 
 # Builds real dengjen-tashkeel-py wheels and publishes to PyPI, invoked as a
-# job of release.yml right after the release tag is pushed. Separate
-# from python-wheel.yml, which builds an ubuntu-latest smoke-test wheel on
+# job of release.yaml right after the release tag is pushed. Separate
+# from python-wheel.yaml, which builds an ubuntu-latest smoke-test wheel on
 # every push/PR, not a release artifact.
 #
 # Platform matrix mirrors [workspace.metadata.dist]'s Cargo.toml targets
@@ -47,7 +47,7 @@ jobs:
 
       - name: Compare tag to workspace version
         # Tags are cargo-dist style ("v1.5.1", "1.5.1", ...) -- strip any
-        # leading non-digit prefix to match github-release.yml's own tag parsing,
+        # leading non-digit prefix to match github-release.yaml's own tag parsing,
         # then fail rather than ship a wheel whose version doesn't match the tag.
         #
         # crates/python/Cargo.toml has `version.workspace = true` -- no literal
@@ -112,7 +112,7 @@ jobs:
           args: --release --out dist
 
       - name: Smoke-test the built wheel
-        # Same checks as python-wheel.yml, run against the exact artifact about to be
+        # Same checks as python-wheel.yaml, run against the exact artifact about to be
         # uploaded -- PyPI publishes are irreversible. onnxruntime pin matches that workflow.
         shell: bash
         env:
@@ -199,6 +199,6 @@ jobs:
         with:
           packages-dir: dist
           skip-existing: true
-          # Called from release.yml, the attestation certificate names that caller
+          # Called from release.yaml, the attestation certificate names that caller
           # while the trusted publisher matches this file, so PyPI rejects it.
           attestations: false

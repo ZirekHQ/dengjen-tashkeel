@@ -32,8 +32,8 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install onnxruntime and pytest
-        # Exact pins and --only-binary :all: -- same policy as sonar.yml and python-wheel.yml.
-        # onnxruntime matches python-wheel.yml's pin.
+        # Exact pins and --only-binary :all: -- same policy as sonar.yaml and python-wheel.yaml.
+        # onnxruntime matches python-wheel.yaml's pin.
         run: pip install --only-binary ':all:' onnxruntime==1.30.0 pytest==9.1.1
       - name: cargo test (ort-dylib, core and python crate)
         # The distributed wheel is built with ort-dylib (see pyproject.toml), a cfg-gated
@@ -47,14 +47,14 @@ jobs:
         # test_ffi_usage_example.py loads this library at import time.
         run: cargo build -p dengjen-tashkeel-capi --locked
       - name: pytest (C API FFI example)
-        # Runs here as well as in sonar.yml (which skips fork PRs and only reports coverage).
+        # Runs here as well as in sonar.yaml (which skips fork PRs and only reports coverage).
         working-directory: crates/capi
         run: pytest test_ffi_usage_example.py
 
   test-platform:
     # The other release targets (windows-msvc, aarch64-apple-darwin, aarch64-linux) otherwise
     # first compile in the release job. The python crate is excluded: it is linked against a
-    # system libpython on these runners and is already covered by `test` and python-wheel.yml.
+    # system libpython on these runners and is already covered by `test` and python-wheel.yaml.
     name: test-platform (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -140,7 +140,7 @@ jobs:
           fi
 
   lint:
-    uses: ./.github/workflows/rust-lint.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/rust-lint.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     permissions:
       contents: read
       issues: write
@@ -148,14 +148,14 @@ jobs:
       code-quality: write
 
   wheel:
-    uses: ./.github/workflows/python-wheel.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/python-wheel.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     permissions:
       contents: read
 
   java:
     needs: changes
     if: needs.changes.outputs.java == 'true'
-    uses: ./.github/workflows/java-test.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/java-test.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     permissions:
       contents: read
 

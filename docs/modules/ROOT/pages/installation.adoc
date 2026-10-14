@@ -31,8 +31,8 @@ See xref:troubleshooting.adoc[Troubleshooting] for common failures.
 pip install dengjen-tashkeel-py
 ----
 
-Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yml` CI workflow, which
-`release.yml` runs after tagging each release (merging the Prepare release PR). Wheels are built
+Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yaml` CI workflow, which
+`release.yaml` runs after tagging each release (merging the Prepare release PR). Wheels are built
 for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` (manylinux 2_28),
 `aarch64-apple-darwin`, and `x86_64-pc-windows-msvc`, as one `abi3` wheel per platform for
 CPython 3.11 and later; on other platforms, build the wheel yourself (see
@@ -96,7 +96,7 @@ library yourself and point `-Ddengjen.tashkeel.native.library.path` at it.
 implementation("io.github.zirekhq:dengjen-tashkeel:3.0.0")
 ----
 
-Published to Maven Central by the `publish-java.yml` CI workflow, which `release.yml` runs after
+Published to Maven Central by the `publish-java.yaml` CI workflow, which `release.yaml` runs after
 tagging each release (merging the Prepare release PR). The binding uses the JDK Foreign Function & Memory API (`java.lang.foreign`), not JNA, to
 load the native `dengjen_tashkeel_capi` shared library. The native libraries (`linux-x86_64`,
 `windows-x64`, `macos-aarch64`) ship in the `dengjen-tashkeel-natives` artifact, which the main

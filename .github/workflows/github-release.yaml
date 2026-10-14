@@ -7,7 +7,7 @@ permissions: {}
 # 'cargo dist generate'. A workflow_call's ref context is the caller's, not the tag, so the
 # `tag` input below replaces `github.ref_name` wherever that distinction matters.
 # Hand-patched: dropped `workflow_dispatch` (single-trigger, single-gate) -- re-apply if
-# regenerating. release.yml is now the only dispatch surface; this file is workflow_call-only
+# regenerating. release.yaml is now the only dispatch surface; this file is workflow_call-only
 # plus pull_request, which stays for its own reason (validating the cargo-dist build on PRs).
 on:
   workflow_call:

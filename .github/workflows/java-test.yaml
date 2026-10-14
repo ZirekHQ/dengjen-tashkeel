@@ -2,7 +2,7 @@ name: Java Bindings Test
 
 # Builds the dengjen-tashkeel-capi cdylib and runs the bindings/java Gradle
 # test suite against it on every push/PR -- the CI counterpart to
-# publish-java.yml (tag-triggered, publish-only, never runs tests).
+# publish-java.yaml (tag-triggered, publish-only, never runs tests).
 on:
   workflow_call:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
           python-version: "3.14"
 
       - name: Install onnxruntime
-        # The published natives load onnxruntime dynamically; the pin matches CI.yml.
+        # The published natives load onnxruntime dynamically; the pin matches CI.yaml.
         run: |
           pip install --only-binary ':all:' onnxruntime==1.30.0
           lib="$(python3 -c 'import glob, os, onnxruntime; print(glob.glob(os.path.join(os.path.dirname(onnxruntime.__file__), "capi", "libonnxruntime.so*"))[0])')"
