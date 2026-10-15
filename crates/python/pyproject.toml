@@ -4,6 +4,10 @@ build-backend = "maturin"
 
 [project]
 name = "dengjen-tashkeel-py"
+description = "Python bindings for dengjen-tashkeel: Arabic diacritic restoration with a neural model"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["arabic", "tashkeel", "diacritics", "harakat", "nlp", "onnx"]
 requires-python = ">=3.11"
 dependencies = ["onnxruntime>=1.28,<2"]
 classifiers = [
@@ -11,6 +15,10 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/ZirekHQ/dengjen-tashkeel"
+Issues = "https://github.com/ZirekHQ/dengjen-tashkeel/issues"
 
 [tool.maturin]
 no-default-features = true

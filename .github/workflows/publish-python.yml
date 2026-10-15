@@ -134,6 +134,12 @@ jobs:
           python -m pip install --require-hashes --no-index --no-deps --only-binary :all: -r "$req"
           python .github/scripts/wheel_smoke_test.py
 
+      - name: Check wheel metadata
+        shell: bash
+        run: |
+          python -m pip install --quiet --only-binary :all: twine==6.1.0
+          python -m twine check --strict crates/python/dist/*.whl
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheels-${{ matrix.target }}
