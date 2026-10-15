@@ -65,7 +65,7 @@ val modelAuxiliaryJars = auxiliaryJars("model", modelArtifactId, modelVersion)
 // The native libraries ship once per native change as their own artifact (all platforms in one jar),
 // so a binding-only release uploads a few KB. natives.fingerprint is regenerated with
 // scripts/natives-fingerprint.sh --update; bump nativesVersion whenever it changes.
-val nativesVersion = "1.0.0"
+val nativesVersion = "1.0.1"
 val nativesArtifactId = "dengjen-tashkeel-natives"
 val nativesFingerprint: String = file("natives.fingerprint").readText().trim()
 
