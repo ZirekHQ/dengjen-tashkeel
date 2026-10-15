@@ -203,7 +203,7 @@ jobs:
             [ -z "${!name}" ] && missing+=("$name")
           done
           if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::Missing required secret(s) (SONATYPE_USERNAME/SONATYPE_PASSWORD are mapped in release.yml): ${missing[*]}"
+            echo "::error::Missing required secret(s) (SONATYPE_USERNAME/SONATYPE_PASSWORD are mapped in release.yaml): ${missing[*]}"
             exit 1
           fi
 
@@ -243,7 +243,7 @@ jobs:
           SKIP_MODEL: ${{ needs.check-version.outputs.skip_model }}
           SKIP_NATIVES: ${{ needs.check-version.outputs.skip_natives }}
         # jreleaserDeploy only uploads to Maven Central -- it does not touch GitHub releases,
-        # which github-release.yml (cargo-dist) already publishes for this same tag.
+        # which github-release.yaml (cargo-dist) already publishes for this same tag.
         run: ./gradlew publish jreleaserDeploy --no-daemon --stacktrace -PskipModelPublish="${SKIP_MODEL}" -PskipNativesPublish="${SKIP_NATIVES}"
 
       - if: always()

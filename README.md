@@ -46,8 +46,8 @@ then fails with a model-load error.
 pip install dengjen-tashkeel-py
 ```
 
-Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yml` CI
-workflow, which `release.yml` runs after tagging each release (merging the
+Published to PyPI as `dengjen-tashkeel-py` by the `publish-python.yaml` CI
+workflow, which `release.yaml` runs after tagging each release (merging the
 Prepare release PR). If no wheel exists for your platform (see
 **Supported platforms**), build it yourself (see **Building** below). The
 wheel depends on `onnxruntime` (installed automatically by
@@ -108,8 +108,8 @@ yourself and set `-Ddengjen.tashkeel.native.library.path` (below).
 implementation("io.github.zirekhq:dengjen-tashkeel:3.0.0")
 ```
 
-Published to Maven Central by the `publish-java.yml` CI workflow, which
-`release.yml` runs after tagging each release (merging the Prepare release
+Published to Maven Central by the `publish-java.yaml` CI workflow, which
+`release.yaml` runs after tagging each release (merging the Prepare release
 PR). The binding uses the JDK Foreign Function & Memory
 API (`java.lang.foreign`), not JNA, to load the native
 `dengjen_tashkeel_capi` shared library. The native libraries (`linux-x86_64`,

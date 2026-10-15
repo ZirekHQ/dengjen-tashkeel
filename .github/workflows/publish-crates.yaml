@@ -1,6 +1,6 @@
 name: Publish to crates.io
 
-# Invoked as a job of release.yml's flow. Covered by prepare-release.yml's gate job on the
+# Invoked as a job of release.yaml's flow. Covered by prepare-release.yaml's gate job on the
 # direct-release override path, or by the PR merge on the normal push path -- has none of its
 # own. Not tag-triggered itself, so a stray tag push can't fire a real publish.
 on:
@@ -31,15 +31,15 @@ jobs:
         with:
           toolchain: "1.99.0"
       # github.workflow_ref binds to the run's top-level caller through nested workflow_call
-      # hops too (see piper-rs #107) -- release.yml on the push path, prepare-release.yml on
+      # hops too (see piper-rs #107) -- release.yaml on the push path, prepare-release.yaml on
       # the override path. crates.io's Trusted Publishing must register BOTH, or the override path 400s.
       - name: verify OIDC workflow_ref matches crates.io Trusted Publishing target
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
           set -euo pipefail
-          expected_release="ZirekHQ/dengjen-tashkeel/.github/workflows/release.yml"
-          expected_prepare="ZirekHQ/dengjen-tashkeel/.github/workflows/prepare-release.yml"
+          expected_release="ZirekHQ/dengjen-tashkeel/.github/workflows/release.yaml"
+          expected_prepare="ZirekHQ/dengjen-tashkeel/.github/workflows/prepare-release.yaml"
           actual="${WORKFLOW_REF%@*}"
           if [ "$actual" != "$expected_release" ] && [ "$actual" != "$expected_prepare" ]; then
             echo "::error::OIDC workflow_ref is '${actual}', expected '${expected_release}' or '${expected_prepare}'. crates.io Trusted Publishing must target both -- if either workflow was renamed, update crates.io's config and this check together." >&2

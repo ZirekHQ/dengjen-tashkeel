@@ -25,7 +25,7 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: cargo clippy (ort-dylib)
-        # Same rationale as CI.yml's matching step -- the default clippy
+        # Same rationale as CI.yaml's matching step -- the default clippy
         # pass above never compiles this cfg-gated path.
         run: cargo clippy -p dengjen-tashkeel --no-default-features --features ort-dylib -- -D warnings
       - name: cargo clippy (ort-dylib, python crate)
@@ -35,7 +35,7 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
-    # A new advisory against an unrelated dependency must not block merges; audit.yml
+    # A new advisory against an unrelated dependency must not block merges; audit.yaml
     # raises it as an issue on its daily run.
     continue-on-error: true
     timeout-minutes: 15
@@ -80,7 +80,7 @@ jobs:
           # covered by the separate `rustsec/audit-check` job above (kept as belt-and-braces).
           command: check licenses bans sources
 
-  # Mirrors CI.yml's `test` job under cargo-llvm-cov instrumentation, so the
+  # Mirrors CI.yaml's `test` job under cargo-llvm-cov instrumentation, so the
   # Cobertura report matches what that job exercises. Reports to GitHub's
   # own coverage feature since SonarCloud never scanned this workspace (sonar-project.properties).
   coverage:
@@ -151,7 +151,7 @@ jobs:
 
   # Runs against the release type scripts/next-version.sh would cut for the commits since
   # the last tag, so a breaking change can't ship under a minor/patch bump. Moved here from
-  # publish-crates.yml, where it only failed after the tag and the other registries had published.
+  # publish-crates.yaml, where it only failed after the tag and the other registries had published.
   semver-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20
