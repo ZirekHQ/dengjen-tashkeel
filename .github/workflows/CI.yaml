@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
           if [ "$EVENT_NAME" != pull_request ] \
             || git diff --name-only HEAD^1 HEAD \
-              | grep -qE '^(crates/(capi|core)/|Cargo\.(toml|lock)$|bindings/java/|\.github/workflows/(CI|java-test)\.yml$)'; then
+              | grep -qE '^(crates/(capi|core)/|Cargo\.(toml|lock)$|bindings/java/|\.github/workflows/(CI|java-test)\.yaml$)'; then
             echo "java=true" >> "$GITHUB_OUTPUT"
           else
             echo "java=false" >> "$GITHUB_OUTPUT"
