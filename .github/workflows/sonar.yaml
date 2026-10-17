@@ -49,7 +49,7 @@ jobs:
           # Only the interpreter that runs pytest -- unrelated to sonar.python.version
           # below (the syntax version Sonar's analyzer parses against). 3.9
           # doesn't satisfy pytest==9.1.1's own Requires-Python (>=3.10).
-          python-version: "3.14"
+          python-version: "3.15"
 
       - name: Run ffi_usage_example.py's tests with coverage
         # Runs from crates/capi/ itself: --cov needs an importable module
