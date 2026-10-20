@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 
+/** Adds Arabic diacritics (tashkeel) to text with the process-wide native engine. */
 public final class Tashkeel implements AutoCloseable {
 
     private static final int SUCCESS = 0;
@@ -36,6 +37,10 @@ public final class Tashkeel implements AutoCloseable {
      * <p>Repeating a successful load with the same path returns the same instance; loading a
      * different model, or the default one, after that throws {@link TashkeelException.AlreadyInitialized}
      * because the native engine cannot be replaced.
+     *
+     * @param modelPath the ONNX model file, which must not be null
+     * @return the engine, shared by every load of the same path
+     * @throws TashkeelException if the model cannot be loaded or a different model is already loaded
      */
     public static Tashkeel load(Path modelPath) throws TashkeelException {
         Objects.requireNonNull(modelPath, "modelPath must not be null");
@@ -45,6 +50,9 @@ public final class Tashkeel implements AutoCloseable {
     /**
      * Loads the model from the {@code dengjen-tashkeel-model} artifact (a dependency of this one), falling
      * back to a model embedded in the native library; repeating a successful call returns the same instance.
+     *
+     * @return the engine, shared by every default load
+     * @throws TashkeelException if the model cannot be loaded or a different model is already loaded
      */
     public static Tashkeel loadDefault() throws TashkeelException {
         return loadFrom(Optional.empty());
@@ -121,6 +129,16 @@ public final class Tashkeel implements AutoCloseable {
         return modelPath.map(path -> "model " + path).orElse("the bundled model");
     }
 
+    /**
+     * Adds diacritics to {@code text}.
+     *
+     * @param text the Arabic text, which must not be null or contain U+0000
+     * @param taskeenThreshold a confidence threshold from 0 to 1 below which the model writes a sukoon
+     *     instead of its predicted diacritic, or empty to keep every prediction
+     * @param preprocessed whether {@code text} is already one sentence; when false the engine segments it
+     * @return the text with diacritics
+     * @throws TashkeelException if a sentence exceeds the engine's length limit or inference fails
+     */
     public String diacritize(String text, Optional<Float> taskeenThreshold, boolean preprocessed)
             throws TashkeelException {
         Objects.requireNonNull(text, "text must not be null");
