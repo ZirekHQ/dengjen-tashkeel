@@ -105,7 +105,7 @@ are maintained.
 yourself and set `-Ddengjen.tashkeel.native.library.path` (below).
 
 ```kotlin
-implementation("io.github.zirekhq:dengjen-tashkeel:3.0.0")
+implementation("io.github.zirekhq:dengjen-tashkeel:3.0.1")
 ```
 
 Published to Maven Central by the `publish-java.yaml` CI workflow, which
