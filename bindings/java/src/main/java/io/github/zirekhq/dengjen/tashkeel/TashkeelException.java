@@ -46,7 +46,7 @@ public final class TashkeelException extends Exception {
     }
 
     /**
-     * The model failed while running.
+     * The model failed during initialization or while running.
      *
      * @param message the native error message
      */
