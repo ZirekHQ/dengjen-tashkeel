@@ -27,6 +27,7 @@ installers = ["shell", "powershell", "msi"]
 targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc", "aarch64-unknown-linux-gnu"]
 install-path = "CARGO_HOME"
 install-updater = false
+pr-run-mode = "upload"
 msvc-crt-static = false
 [workspace.metadata.dist.github-custom-runners]
 x86_64-unknown-linux-gnu = "ubuntu-latest"
@@ -42,4 +43,5 @@ codegen-units = 1
 
 [profile.dist]
 inherits = "release"
-lto = "thin"
+# Thin LTO drops compiler-builtins' ___isPlatformVersionAtLeast, which ort-sys rc.14's CoreML objects need on macOS.
+lto = false
