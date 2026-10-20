@@ -24,7 +24,7 @@ on:
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
-    runs-on: "ubuntu-24.04"
+    runs-on: "ubuntu-26.04"
     timeout-minutes: 15
     permissions:
       contents: read
@@ -210,7 +210,7 @@ jobs:
     needs:
       - plan
       - build-local-artifacts
-    runs-on: "ubuntu-24.04"
+    runs-on: "ubuntu-26.04"
     timeout-minutes: 20
     permissions:
       contents: read
@@ -275,7 +275,7 @@ jobs:
     # hand-patch above), so that's the only path that reaches this job.
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    runs-on: "ubuntu-24.04"
+    runs-on: "ubuntu-26.04"
     timeout-minutes: 20
     permissions:
       contents: write
@@ -370,7 +370,7 @@ jobs:
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
     if: ${{ always() && needs.host.result == 'success' }}
-    runs-on: "ubuntu-24.04"
+    runs-on: "ubuntu-26.04"
     timeout-minutes: 10
     permissions:
       contents: read
