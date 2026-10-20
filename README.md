@@ -142,7 +142,7 @@ dengjen-tashkeel-cli` (published to crates.io).
 
 CI exercises the Rust workspace on Linux x86_64, Linux aarch64, macOS, and Windows. On x86_64,
 the bundled ONNX Runtime needs a CPU with AVX2 (CI fails fast on runners without it). Minimum
-supported Rust version: 1.88.0.
+supported Rust version: 1.92.0.
 
 ## Quick start
 

@@ -101,7 +101,7 @@ CI (`CI.yaml`, which calls `rust-lint.yaml`, `java-test.yaml` and `python-wheel.
 - `modelVersion` in `bindings/java/build.gradle.kts` must be bumped whenever
   `crates/core/data/ort/model.onnx` changes; the release publishes the
   `dengjen-tashkeel-model` artifact only for a version not yet on Maven Central
-- `cargo check --workspace --locked` on Rust 1.88.0 (the minimum supported version)
+- `cargo check --workspace --locked` on Rust 1.92.0 (the minimum supported version)
 - `cargo deny check licenses bans sources`, `cargo audit`
 - `cargo llvm-cov --workspace --fail-under-lines 80` (CI's `lint / coverage` job; workspace line
   coverage must stay at or above 80%)

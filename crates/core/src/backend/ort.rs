@@ -1,9 +1,14 @@
 use crate::{DengjenTashkeelError, DengjenTashkeelResult, InferenceEngine};
 use ndarray::{Array1, Array2};
-use ort::session::{builder::GraphOptimizationLevel, Session};
+use ort::environment::Environment;
+use ort::session::{
+    builder::{AutoDevicePolicy, GraphOptimizationLevel},
+    Session,
+};
 use ort::value::Tensor;
 use std::num::NonZeroUsize;
 use std::path::Path;
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 mod session_pool;
 use session_pool::SessionPool;
@@ -198,8 +203,42 @@ fn capped_pool_size(available: NonZeroUsize) -> NonZeroUsize {
     available.min(MAX_DEFAULT_POOL_SIZE)
 }
 
+static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
+static ENVIRONMENT_INIT: Mutex<()> = Mutex::new(());
+
+fn environment_guard() -> MutexGuard<'static, ()> {
+    ENVIRONMENT_INIT
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Returns the process-wide onnxruntime environment, creating a default one on first use.
+pub fn environment() -> DengjenTashkeelResult<&'static Environment> {
+    if let Some(environment) = ENVIRONMENT.get() {
+        return Ok(environment);
+    }
+    let _guard = environment_guard();
+    if let Some(environment) = ENVIRONMENT.get() {
+        return Ok(environment);
+    }
+    let created = ort::init().with_name("dengjen").build()?;
+    Ok(ENVIRONMENT.get_or_init(|| created))
+}
+
+/// Makes `environment` the process-wide one; fails once any environment is in place.
+pub fn install_environment(environment: Environment) -> DengjenTashkeelResult<()> {
+    let _guard = environment_guard();
+    ENVIRONMENT.set(environment).map_err(|_| {
+        DengjenTashkeelError::InferenceError(
+            "the onnxruntime environment is already initialized".into(),
+        )
+    })
+}
+
+// ort rc.14 selects devices for efficiency by default, which picks CoreML on macOS and fails on this model.
 fn build_session(model_bytes: &[u8]) -> DengjenTashkeelResult<Session> {
-    Ok(Session::builder()?
+    Ok(Session::builder(environment()?)?
+        .with_auto_device(AutoDevicePolicy::PreferCPU)?
         .with_optimization_level(GraphOptimizationLevel::Level3)?
         .with_intra_threads(1)?
         .commit_from_memory(model_bytes)?)
@@ -336,7 +375,9 @@ mod tests {
 
     #[cfg(feature = "bundled-model")]
     fn bundled_pool() -> SessionPool<Session> {
-        let session = Session::builder()
+        let session = Session::builder(environment().unwrap())
+            .unwrap()
+            .with_auto_device(AutoDevicePolicy::PreferCPU)
             .unwrap()
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .unwrap()

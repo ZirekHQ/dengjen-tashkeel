@@ -9,7 +9,7 @@ mod backend;
 pub use self::backend::DynamicInferenceEngine;
 
 #[cfg(any(feature = "ort-static", feature = "ort-dylib-external"))]
-pub use self::backend::create_inference_engine;
+pub use self::backend::{create_inference_engine, environment, install_environment};
 
 #[cfg(feature = "ort-dylib-external")]
 pub use self::backend::init_ort_dylib;

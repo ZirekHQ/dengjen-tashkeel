@@ -38,6 +38,9 @@ impl InferenceEngine for DynamicInferenceEngine {
 mod ort;
 
 #[cfg(any(feature = "ort-static", feature = "ort-dylib-external"))]
+pub use self::ort::{environment, install_environment};
+
+#[cfg(any(feature = "ort-static", feature = "ort-dylib-external"))]
 pub fn create_inference_engine(
     model_path: Option<PathBuf>,
 ) -> DengjenTashkeelResult<DynamicInferenceEngine> {
@@ -68,23 +71,71 @@ pub fn create_inference_engine(
 }
 
 #[cfg(feature = "ort-dylib-external")]
-pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
-    let path = path.as_ref();
-    ::ort::init_from(path)
+static DYLIB_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+#[cfg(feature = "ort-dylib-external")]
+fn repeated_dylib_call(
+    loaded: Option<&std::path::Path>,
+    requested: &std::path::Path,
+) -> Option<DengjenTashkeelResult<()>> {
+    loaded.map(|current| {
+        if current == requested {
+            Ok(())
+        } else {
+            Err(crate::DengjenTashkeelError::InferenceError(format!(
+                "onnxruntime is already loaded from `{}`",
+                current.display()
+            )))
+        }
+    })
+}
+
+#[cfg(feature = "ort-dylib-external")]
+fn load_dylib_environment(path: &std::path::Path) -> DengjenTashkeelResult<()> {
+    let environment = ::ort::init_from(path)
         .map_err(|e| {
             crate::DengjenTashkeelError::InferenceError(format!(
                 "Failed to load onnxruntime dynamic library from `{}`. Caused by: {e}",
                 path.display()
             ))
         })?
-        .commit();
+        .with_name("dengjen")
+        .build()?;
+    ort::install_environment(environment)
+}
 
+/// Loads onnxruntime from `path`. Repeating the call with the same path succeeds; a different
+/// path fails.
+#[cfg(feature = "ort-dylib-external")]
+pub fn init_ort_dylib(path: impl AsRef<std::path::Path>) -> DengjenTashkeelResult<()> {
+    let path = path.as_ref();
+    if let Some(result) = repeated_dylib_call(DYLIB_PATH.get().map(PathBuf::as_path), path) {
+        return result;
+    }
+    load_dylib_environment(path)?;
+    let _ = DYLIB_PATH.set(path.to_path_buf());
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "ort-dylib-external")]
+    #[test]
+    fn repeating_the_loaded_path_succeeds_and_another_path_fails() {
+        use std::path::Path;
+        assert!(repeated_dylib_call(None, Path::new("/a")).is_none());
+        assert!(matches!(
+            repeated_dylib_call(Some(Path::new("/a")), Path::new("/a")),
+            Some(Ok(()))
+        ));
+        assert!(matches!(
+            repeated_dylib_call(Some(Path::new("/a")), Path::new("/b")),
+            Some(Err(_))
+        ));
+    }
+
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
