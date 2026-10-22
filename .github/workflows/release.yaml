@@ -170,7 +170,7 @@ jobs:
       needs.release.result == 'success' && needs.crates.result == 'success' &&
       needs.java.result == 'success' && needs.python.result == 'success' }}
     permissions: {}
-    uses: ZirekHQ/.github/.github/workflows/announce-release.yaml@52615e22ae945467ecd94ebde50ef51790b21dd1 # main
+    uses: ZirekHQ/.github/.github/workflows/announce-release.yaml@aeeb653e77286d2bc445c6a34c0125acc6c60b6c # main
     with:
       tag: v${{ needs.tag-and-release.outputs.version }}
     secrets:
