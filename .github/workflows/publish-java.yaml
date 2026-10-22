@@ -145,7 +145,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: "1.99.0"
+          toolchain: "1.99.1"
 
       - name: Build dengjen_tashkeel_capi
         # ort-dylib leaves onnxruntime out and no bundled-model leaves the model out (it ships as
@@ -207,7 +207,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "25"
