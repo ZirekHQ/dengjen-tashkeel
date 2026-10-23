@@ -47,9 +47,9 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Install pinned toolchain
-        run: |
-          rustup toolchain install 1.99.0 --profile minimal -c clippy,rustfmt
-          rustup default 1.99.0
+        # No version argument: rustup installs what rust-toolchain.toml pins,
+        # so maturin never triggers a second install of a different channel.
+        run: rustup toolchain install --profile minimal
 
       - name: Install uv and Python 3.11
         # onnxruntime>=1.28 dropped cp310 wheels, so 22.04's stock python3
