@@ -6,6 +6,7 @@
 #
 #   natives-fingerprint.sh            print the fingerprint
 #   natives-fingerprint.sh --update   rewrite bindings/java/natives.fingerprint
+#   natives-fingerprint.sh --bump     --update, then bump the nativesVersion patch if the fingerprint moved
 #   natives-fingerprint.sh --check    fail when the committed fingerprint is stale
 #   natives-fingerprint.sh --check-bump <base-ref>
 #                                     fail when the fingerprint changed but nativesVersion did not
@@ -36,6 +37,18 @@ fingerprint() {
 case "${1:-}" in
   "") fingerprint ;;
   --update) fingerprint > "$record"; echo "updated $record" ;;
+  --bump)
+    gradle=bindings/java/build.gradle.kts
+    before="$(tr -d '[:space:]' < "$record")"
+    fingerprint > "$record"
+    [ "$before" = "$(tr -d '[:space:]' < "$record")" ] && exit 0
+    read -r major minor patch < <(grep -m1 '^val nativesVersion = ' "$gradle" \
+      | sed -E 's/.*"([0-9]+)\.([0-9]+)\.([0-9]+)".*/\1 \2 \3/')
+    next="${major}.${minor}.$((patch + 1))"
+    sed -E "s/^(val nativesVersion = \")[^\"]*(\")/\1${next}\2/" "$gradle" > "$gradle.tmp"
+    mv "$gradle.tmp" "$gradle"
+    echo "natives changed: nativesVersion -> ${next}"
+    ;;
   --check)
     current="$(fingerprint)"
     if [ "$current" != "$(tr -d '[:space:]' < "$record")" ]; then
@@ -52,5 +65,5 @@ case "${1:-}" in
       exit 1
     fi
     ;;
-  *) echo "usage: $0 [--update|--check|--check-bump <base-ref>]" >&2; exit 2 ;;
+  *) echo "usage: $0 [--update|--bump|--check|--check-bump <base-ref>]" >&2; exit 2 ;;
 esac
