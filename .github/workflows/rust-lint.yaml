@@ -84,7 +84,8 @@ jobs:
   # Cobertura report matches what that job exercises. Reports to GitHub's
   # own coverage feature since SonarCloud never scanned this workspace (sonar-project.properties).
   coverage:
-    runs-on: ubuntu-latest
+    # ubuntu-26.04 ships no libpython3.12, which the instrumented pyo3 test binary links.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: read
