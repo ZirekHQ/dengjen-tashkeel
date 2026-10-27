@@ -84,8 +84,7 @@ jobs:
   # Cobertura report matches what that job exercises. Reports to GitHub's
   # own coverage feature since SonarCloud never scanned this workspace (sonar-project.properties).
   coverage:
-    # ubuntu-26.04 ships no libpython3.12, which the instrumented pyo3 test binary links.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     permissions:
       contents: read
@@ -99,6 +98,10 @@ jobs:
           toolchain: "1.99.1"
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          # The default key ignores the runner image, so a restored target dir keeps the
+          # previous image's pyo3 build config (libpython3.12) and fails to link. Bump with runs-on.
+          key: ubuntu-26.04
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-llvm-cov
