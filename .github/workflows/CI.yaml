@@ -25,7 +25,7 @@ jobs:
       - name: Require AVX2
         # The bundled ONNX Runtime dies with SIGILL without AVX2; fail here, not mid-suite.
         run: grep -qw avx2 /proc/cpuinfo || { echo "::error::runner lacks AVX2"; exit 1; }
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: cargo test (workspace)
         run: cargo test --workspace --no-fail-fast
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: cargo test (workspace, without the python crate)
         run: cargo test --workspace --exclude dengjen-tashkeel-python --locked --no-fail-fast
 
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Build the capi cdylib
         run: cargo build -p dengjen-tashkeel-capi --release --locked
       - name: Link a C program against the import library
