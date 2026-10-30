@@ -45,3 +45,7 @@ int main(void) {
 
 See [`ffi_usage_example.py`](./ffi_usage_example.py) for the same flow via `ctypes`, and the
 [header](./dengjen_tashkeel.h) for the error codes.
+
+## Support
+
+This crate is part of [Zirek](https://github.com/ZirekHQ). 💖 [Support on Open Collective](https://opencollective.com/zirek)
