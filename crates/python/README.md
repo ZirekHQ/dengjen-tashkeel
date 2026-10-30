@@ -17,3 +17,7 @@ tashkeel("بسم الله الرحمن الرحيم")
 ```
 
 Builds as the `dengjen_tashkeel_py` cdylib, importable from Python as `dengjen_tashkeel_py`.
+
+## Support
+
+This crate is part of [Zirek](https://github.com/ZirekHQ). 💖 [Support on Open Collective](https://opencollective.com/zirek)
