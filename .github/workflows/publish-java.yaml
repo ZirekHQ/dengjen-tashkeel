@@ -143,9 +143,9 @@ jobs:
           ref: ${{ inputs.tag || github.ref_name }}
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
-          toolchain: "1.99.1"
+          toolchain: "1.100.0"
 
       - name: Build dengjen_tashkeel_capi
         # ort-dylib leaves onnxruntime out and no bundled-model leaves the model out (it ships as
@@ -207,7 +207,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: "25"
