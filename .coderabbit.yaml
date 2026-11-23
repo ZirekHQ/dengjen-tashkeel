@@ -8,15 +8,17 @@ reviews:
     - "!.idea/**"
     - "!.serena/**"
 
-  instructions: |
-    - This is Dengjen Tashkeel, a Rust library for diacritic restoration of Arabic text (ONNX model inference), exposed via a C ABI, a CLI, and Python bindings.
-    - Focus strictly on correctness, panic-safety, and FFI/memory safety. Avoid nitpicking style or formatting.
-    - Arabic text is multi-byte UTF-8; flag any indexing, slicing, or truncation that assumes byte-length equals char-length, or that could split a multi-byte character or a base-char/diacritic pair.
-    - Flag any unwrap()/expect()/panic! on inference output, model loading, or user-supplied text — these must return DengjenTashkeelError, not panic, especially across FFI or CLI entry points.
-    - CHAR_LIMIT and other input-validation constants are a stability contract; flag any change that would silently allow unbounded input into the ONNX inference path.
-    - Keep comments concise: explain the root cause and provide a targeted code fix.
-
   path_instructions:
+    # 0. Repo-wide
+    - path: "**"
+      instructions: |
+        - This is Dengjen Tashkeel, a Rust library for diacritic restoration of Arabic text (ONNX model inference), exposed via a C ABI, a CLI, and Python bindings.
+        - Focus strictly on correctness, panic-safety, and FFI/memory safety. Avoid nitpicking style or formatting.
+        - Arabic text is multi-byte UTF-8; flag any indexing, slicing, or truncation that assumes byte-length equals char-length, or that could split a multi-byte character or a base-char/diacritic pair.
+        - Flag any unwrap()/expect()/panic! on inference output, model loading, or user-supplied text — these must return DengjenTashkeelError, not panic, especially across FFI or CLI entry points.
+        - CHAR_LIMIT and other input-validation constants are a stability contract; flag any change that would silently allow unbounded input into the ONNX inference path.
+        - Keep comments concise: explain the root cause and provide a targeted code fix.
+
     # 1. Core diacritization engine & ONNX inference
     - path: "crates/core/src/**"
       instructions: |
